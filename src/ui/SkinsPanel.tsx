@@ -246,7 +246,7 @@ export function SkinsPanel() {
                 : "bg-white/70 text-[#1f2430]/70 hover:bg-white"
             }`}
           >
-            <span>🕊️</span> MERPATI ({unlocked.length}/{SKINS.length})
+            <span>🕊️</span> KARAKTER ({unlocked.length}/{SKINS.length})
           </button>
           <button
             type="button"

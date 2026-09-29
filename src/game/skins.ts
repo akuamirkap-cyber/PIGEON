@@ -1,8 +1,27 @@
 import type { Part } from "./voxel";
+import {
+  catArmParts,
+  catBodyParts,
+  catHeadParts,
+  catLegParts,
+  catTailParts,
+  crowBodyParts,
+  crowHeadParts,
+  crowTailParts,
+  crowWingParts,
+  flamingoBodyParts,
+  flamingoHeadParts,
+  flamingoLegParts,
+  flamingoTailParts,
+  flamingoWingParts,
+  type CharPalette,
+} from "./chars";
 
 export type HatKind = "cap" | "crown" | "mohawk" | "headband" | "beanie" | "visor" | "tophat" | "mailcap" | "harajuku" | "beret";
 export type AccessoryKind = "none" | "mailbag" | "hoodie";
 export type DeckKind = "standard" | "baguette";
+/** Spesies karakter yang bisa dimainkan. `undefined` di Skin berarti merpati. */
+export type CharKind = "pigeon" | "cat" | "flamingo" | "crow";
 
 export interface DeckOption {
   id: "default" | "baguette";
@@ -56,6 +75,8 @@ export interface Skin {
   hatColor2?: string;
   accessory?: AccessoryKind;
   deckType?: DeckKind;
+  /** spesies karakter (default: merpati) */
+  kind?: CharKind;
 }
 
 const ORANGE = "#ff8c42";
@@ -133,10 +154,129 @@ export const SKINS: Skin[] = [
     wing: "#1a1d24", wingTip: "#0d0f13", tail: "#1a1d24", tailTip: "#0d0f13", beak: "#ffd166", cere: "#3a3f4a", feet: ORANGE,
     deck: "#111111", wheels: "#e63946", hat: "headband", hatColor: "#e63946",
   },
+  {
+    // KUCING OREN BERDIRI — karakter non-merpati pertama (lihat chars.ts)
+    id: "cat", name: "Kucing Oren", tagline: "Kucing oranye berdiri, ekor melengkung (Free)", cost: 0, kind: "cat",
+    body: "#ff8c42", belly: "#ffe3c2", head: "#ff8c42", neck1: "#d96a22", neck2: "#ffb877",
+    wing: "#ff9147", wingTip: "#d96a22", tail: "#ff8c42", tailTip: "#f7f3ea", beak: "#ff6b9a", cere: "#ffc2d4", feet: "#ffd0a0",
+    deck: "#ffb703", wheels: "#1c1e22",
+  },
+  {
+    // FLAMINGO — badan kecil + leher panjang, paruh melengkung dengan ujung hitam
+    id: "flamingo", name: "Flamingo", tagline: "Flamingo pink berleher panjang (Free)", cost: 0, kind: "flamingo",
+    body: "#ff9ec4", belly: "#ffd3e4", head: "#ff9ec4", neck1: "#ff86b6", neck2: "#ffd3e4",
+    wing: "#ff8fb8", wingTip: "#e2619a", tail: "#ff8fb8", tailTip: "#e2619a", beak: "#f7d8c4", cere: "#ffe0ef", feet: "#ff9f45",
+    deck: "#ff70a6", wheels: "#1c1e22",
+  },
+  {
+    // GAGAK — hitam mengkilap dengan paruh besar dan kilau biru di sayap
+    id: "crow", name: "Gagak", tagline: "Gagak hitam mengkilap, paruh besar (Free)", cost: 0, kind: "crow",
+    body: "#23262e", belly: "#33373f", head: "#1e2128", neck1: "#2b3040", neck2: "#20242c",
+    wing: "#22252c", wingTip: "#171a20", tail: "#22252c", tailTip: "#2b3040", beak: "#3a3f47", cere: "#5b6472", feet: "#3a3f47",
+    deck: "#2b2f38", wheels: "#1c1e22",
+  },
 ];
 
 export function getSkin(id: string): Skin {
   return SKINS.find((s) => s.id === id) ?? SKINS[0];
+}
+
+/* ---------- Dispatcher model per spesies (merpati / kucing / flamingo / gagak) ---------- */
+
+/** Semua karakter bisa berbagi palet warna yang sama; modelnya beda per spesies. */
+const pal = (k: Skin): CharPalette => k;
+
+/** Part badan (termasuk leher). Untuk kucing/… dipakai model khusus dari chars.ts. */
+export function charBodyParts(k: Skin): Part[] {
+  switch (k.kind) {
+    case "cat":
+      return catBodyParts(pal(k));
+    case "flamingo":
+      return flamingoBodyParts(pal(k));
+    case "crow":
+      return crowBodyParts(pal(k));
+    default:
+      return pigeonBodyParts(k);
+  }
+}
+
+/** Part kepala (+ paruh/moncong/telinga). Origin = sendi kepala (0.32, 1.04, 0). */
+export function charHeadParts(k: Skin): Part[] {
+  switch (k.kind) {
+    case "cat":
+      return catHeadParts(pal(k));
+    case "flamingo":
+      return flamingoHeadParts(pal(k));
+    case "crow":
+      return crowHeadParts(pal(k));
+    default:
+      return pigeonHeadParts(k);
+  }
+}
+
+/** Part sayap: burung = sayap, kucing = lengan depan dengan telapak. */
+export function charWingParts(k: Skin, side: 1 | -1): Part[] {
+  switch (k.kind) {
+    case "cat":
+      return catArmParts(pal(k), side);
+    case "flamingo":
+      return flamingoWingParts(pal(k), side);
+    case "crow":
+      return crowWingParts(pal(k), side);
+    default:
+      return wingParts(k, side);
+  }
+}
+
+/** Part ekor. Origin = TAIL_ROOT. */
+export function charTailParts(k: Skin): Part[] {
+  switch (k.kind) {
+    case "cat":
+      return catTailParts(pal(k));
+    case "flamingo":
+      return flamingoTailParts(pal(k));
+    case "crow":
+      return crowTailParts(pal(k));
+    default:
+      return pigeonTailParts(k);
+  }
+}
+
+/** Kaki merpati/burung: paha + betis + cakar (dipakai rig kaki 2-tulang). */
+function pigeonLegParts(k: Skin, seg: "thigh" | "shin" | "foot", thighLen: number, shinLen: number): Part[] {
+  if (seg === "thigh") {
+    return [
+      { x: 0, y: 0, z: 0, w: 0.13, h: 0.13, d: 0.13, color: k.feet }, // penutup pinggul (di dalam badan)
+      { x: 0, y: -thighLen / 2, z: 0, w: 0.1, h: thighLen, d: 0.1, color: k.feet },
+    ];
+  }
+  if (seg === "shin") {
+    return [
+      { x: 0, y: 0, z: 0, w: 0.12, h: 0.12, d: 0.12, color: k.feet }, // sendi lutut
+      { x: 0, y: -shinLen / 2, z: 0, w: 0.08, h: shinLen, d: 0.08, color: k.feet },
+    ];
+  }
+  // Cakar: origin di TELAPAK, jari ke +x
+  return [
+    { x: 0, y: 0.05, z: 0, w: 0.1, h: 0.1, d: 0.1, color: k.feet },
+    { x: 0.03, y: 0.025, z: 0, w: 0.26, h: 0.05, d: 0.13, color: k.feet },
+    { x: 0.17, y: 0.02, z: 0.045, w: 0.07, h: 0.04, d: 0.045, color: k.feet },
+    { x: 0.17, y: 0.02, z: -0.045, w: 0.07, h: 0.04, d: 0.045, color: k.feet },
+    { x: 0.18, y: 0.02, z: 0, w: 0.08, h: 0.04, d: 0.04, color: k.feet },
+    { x: -0.12, y: 0.02, z: 0, w: 0.06, h: 0.04, d: 0.05, color: k.feet },
+  ];
+}
+
+/** Part kaki (rig kaki 2-tulang yang sama): burung = cakar, kucing = telapak kaki. */
+export function charLegParts(k: Skin, seg: "thigh" | "shin" | "foot", thighLen: number, shinLen: number): Part[] {
+  switch (k.kind) {
+    case "cat":
+      return catLegParts(pal(k), seg, thighLen, shinLen);
+    case "flamingo":
+      return flamingoLegParts(pal(k), seg, thighLen, shinLen);
+    default:
+      return pigeonLegParts(k, seg, thighLen, shinLen);
+  }
 }
 
 /* ---------- Voxel model builders ---------- */

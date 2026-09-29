@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { buildVoxelGeometry, clamp, voxelMaterial } from "./voxel";
 import { engine, LANE_LAT } from "./engine";
 import { useUI } from "./store";
-import { deckParts, getSkin, pigeonBodyParts, pigeonHeadParts, pigeonTailParts, truckParts, wheelParts, wingParts, HIP_Y, LEG_Z, TAIL_ROOT } from "./skins";
+import { charBodyParts, charHeadParts, charTailParts, charWingParts, deckParts, getSkin, truckParts, wheelParts, HIP_Y, LEG_Z, TAIL_ROOT } from "./skins";
 import { RIG, LegRig } from "./pigeonRig";
 import { nosTankParts } from "./models";
 
@@ -69,14 +69,14 @@ export function Player() {
   const wheelColor = useUI((s) => s.wheelColor);
   const geos = useMemo(
     () => ({
-      body: buildVoxelGeometry(pigeonBodyParts(skin)),
-      head: buildVoxelGeometry(pigeonHeadParts(skin)),
-      wingR: buildVoxelGeometry(wingParts(skin, 1)),
-      wingL: buildVoxelGeometry(wingParts(skin, -1)),
+      body: buildVoxelGeometry(charBodyParts(skin)),
+      head: buildVoxelGeometry(charHeadParts(skin)),
+      wingR: buildVoxelGeometry(charWingParts(skin, 1)),
+      wingL: buildVoxelGeometry(charWingParts(skin, -1)),
       deck: buildVoxelGeometry(deckParts(skin, deckOverride)),
       wheel: buildVoxelGeometry(wheelParts(skin, deckOverride, wheelColor)),
       truck: buildVoxelGeometry(truckParts()),
-      tail: buildVoxelGeometry(pigeonTailParts(skin)),
+      tail: buildVoxelGeometry(charTailParts(skin)),
       tanks: buildVoxelGeometry(nosTankParts()),
     }),
     [skin, deckOverride, wheelColor],

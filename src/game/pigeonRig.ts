@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { buildVoxelGeometry, clamp, voxelMaterial, type Part } from "./voxel";
-import { deckParts, pigeonBodyParts, pigeonHeadParts, pigeonTailParts, truckParts, wheelParts, wingParts, HIP_Y, LEG_Z, TAIL_ROOT, type Skin } from "./skins";
+import { charBodyParts, charHeadParts, charLegParts, charTailParts, charWingParts, deckParts, truckParts, wheelParts, HIP_Y, LEG_Z, TAIL_ROOT, type Skin } from "./skins";
 
 /** Shared placement constants for the pigeon-on-board rig (used by the Player and the 3D thumbnails). */
 export const RIG = {
@@ -40,27 +40,14 @@ export const LEG_T = 0.23; // thigh length (upper part hides inside the body)
 export const LEG_S = 0.28; // shin length
 
 export function legThighParts(k: Skin): Part[] {
-  return [
-    { x: 0, y: 0, z: 0, w: 0.13, h: 0.13, d: 0.13, color: k.feet }, // hip cap (inside the body)
-    { x: 0, y: -LEG_T / 2, z: 0, w: 0.1, h: LEG_T, d: 0.1, color: k.feet },
-  ];
+  return charLegParts(k, "thigh", LEG_T, LEG_S);
 }
 export function legShinParts(k: Skin): Part[] {
-  return [
-    { x: 0, y: 0, z: 0, w: 0.12, h: 0.12, d: 0.12, color: k.feet }, // hock joint
-    { x: 0, y: -LEG_S / 2, z: 0, w: 0.08, h: LEG_S, d: 0.08, color: k.feet },
-  ];
+  return charLegParts(k, "shin", LEG_T, LEG_S);
 }
-/** Foot: origin at the SOLE, toes toward +x. */
+/** Foot: origin at the SOLE, toes toward +x (cakar burung atau telapak kucing). */
 export function legFootParts(k: Skin): Part[] {
-  return [
-    { x: 0, y: 0.05, z: 0, w: 0.1, h: 0.1, d: 0.1, color: k.feet }, // ankle
-    { x: 0.03, y: 0.025, z: 0, w: 0.26, h: 0.05, d: 0.13, color: k.feet },
-    { x: 0.17, y: 0.02, z: 0.045, w: 0.07, h: 0.04, d: 0.045, color: k.feet },
-    { x: 0.17, y: 0.02, z: -0.045, w: 0.07, h: 0.04, d: 0.045, color: k.feet },
-    { x: 0.18, y: 0.02, z: 0, w: 0.08, h: 0.04, d: 0.04, color: k.feet },
-    { x: -0.12, y: 0.02, z: 0, w: 0.06, h: 0.04, d: 0.05, color: k.feet },
-  ];
+  return charLegParts(k, "foot", LEG_T, LEG_S);
 }
 
 /**
@@ -132,14 +119,14 @@ export function buildPigeonGroup(
   wheelColor: string = "auto",
 ): { group: THREE.Group; dispose: () => void } {
   const geos = [
-    buildVoxelGeometry(pigeonBodyParts(skin)),
-    buildVoxelGeometry(pigeonHeadParts(skin)),
-    buildVoxelGeometry(wingParts(skin, 1)),
-    buildVoxelGeometry(wingParts(skin, -1)),
+    buildVoxelGeometry(charBodyParts(skin)),
+    buildVoxelGeometry(charHeadParts(skin)),
+    buildVoxelGeometry(charWingParts(skin, 1)),
+    buildVoxelGeometry(charWingParts(skin, -1)),
     buildVoxelGeometry(deckParts(skin, deckOverride)),
     buildVoxelGeometry(wheelParts(skin, deckOverride, wheelColor)),
     buildVoxelGeometry(truckParts()),
-    buildVoxelGeometry(pigeonTailParts(skin)),
+    buildVoxelGeometry(charTailParts(skin)),
   ];
   const [body, head, wingR, wingL, deck, wheel, truck, tail] = geos;
   const group = new THREE.Group();
