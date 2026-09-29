@@ -55,6 +55,8 @@ const CHICKEN_STEP = 1.2;
 const CHICKEN_EDGE = 6.6;
 const CHICKEN_HOP_H = 0.45;
 export const SIGN_AHEAD = 7.8;
+/** Tinggi lompatan yang cukup untuk melewati pengendara motor (helm + badan motor). */
+export const MOTOR_CLEAR_H = 1.55;
 /* ---------- Tabrakan hewan ala kartun: MENTAL + denyut tipis ----------
  * Hewan yang ditabrak dilontarkan tinggi & muter-muter, plus SATU cincin denyut
  * tipis di titik tabrakan (ala ripple knockback). TANPA screen shake, TANPA
@@ -76,7 +78,7 @@ export const CROSSING_RAMP_S = -4.8;
 export const FIRST_CROSSING_M = 50;
 export const CROSSING_GAP: [number, number] = [150, 260];
 export const ARM_INNER = GATE_LAT - 0.3 - ARM_LEN; // lateral reach of a lowered arm (from its gate)
-export type CrashCause = "obstacle" | "car" | "oncoming" | "chicken" | "train" | "gate" | "pedestrian" | "roadwork" | "cross_traffic";
+export type CrashCause = "obstacle" | "car" | "oncoming" | "motorcycle" | "chicken" | "train" | "gate" | "pedestrian" | "roadwork" | "cross_traffic";
 // NOS (nitro boost)
 export const NOS_MAX = 100;
 export const NOS_DURATION = 2.6;
@@ -201,7 +203,7 @@ export interface Chunk {
   kind: "street" | "park" | "haruna";
   decor: Decor[];
 }
-export type MoverKind = "car" | "chicken" | "pedestrian" | "cat";
+export type MoverKind = "car" | "motorcycle" | "chicken" | "pedestrian" | "cat";
 export type MoverPhase = "drive" | "wait" | "hop" | "pause" | "hit";
 export interface Mover {
   id: number;
@@ -226,6 +228,12 @@ export interface Mover {
   spin: number;
   hitT: number;
   hitRagdoll?: boolean;
+  /** pejalan kaki lansia (kakek/nenek) — jalannya lambat, bungkuk, bawa tongkat */
+  elderly?: boolean;
+  /** timer asap knalpot untuk kendaraan yang sedang jalan */
+  smokeT?: number;
+  /** ban selip / lean visual motor */
+  leanT?: number;
 }
 
 export type CrossingState = "idle" | "warning" | "clearing" | "done";
@@ -292,6 +300,8 @@ export interface CrossTrafficCar {
   horn: boolean;
   passed: boolean;
   hitRagdoll?: boolean;
+  /** timer asap knalpot */
+  smokeT?: number;
 }
 
 export type { TrickKind } from "./tricks";
@@ -407,6 +417,8 @@ export interface Particle {
   spin: number;
   gravity: number;
   floor: number;
+  /** >1 = partikel membesar seiring umur (asap knalpot), default mengecil */
+  grow?: number;
 }
 
 /**
@@ -1830,6 +1842,13 @@ class Engine {
         this.crash("oncoming", { hardness: 1.4 });
         return;
       }
+      if (m.kind === "motorcycle") {
+        if (Math.abs(m.s - d) > 0.62 + PLAYER_HALF) continue;
+        if (Math.abs(m.lat - p.lat) > 1.0) continue;
+        if (p.h >= MOTOR_CLEAR_H) continue; // lompatan bersih di atas motor
+        this.crash("motorcycle", { hardness: 1.15, side: m.lat >= p.lat ? -1 : 1 });
+        return;
+      }
       if (m.kind === "pedestrian") {
         if (Math.abs(m.s - d) > 0.55 + PLAYER_HALF) continue;
         if (Math.abs(m.lat - p.lat) > 0.95) continue;
@@ -2010,6 +2029,8 @@ class Engine {
     this.launchVictim(m, 1.4);
     track.frame(m.s, m.lat, m.h + 1.2, tmpV);
     this.emitWorld("dust", tmpV.x, tmpV.y, tmpV.z, tmpV.y - m.h - 1.2, 10, 0, 0);
+    // tongkatnya terlempar ikut tuannya :)
+    if (m.elderly) this.emitWorld("pow", tmpV.x, tmpV.y - 0.6, tmpV.z, tmpV.y - m.h - 1.2, 4, 0, 0);
     sfx.yelp();
   }
 
@@ -2245,13 +2266,16 @@ class Engine {
           if (Math.abs(m.lat) > 7.2) remove = true;
         }
         if (m.s < d - 16) remove = true;
-      } else if (m.kind === "car") {
+      } else if (m.kind === "car" || m.kind === "motorcycle") {
+        const isBike = m.kind === "motorcycle";
         m.s -= m.speed * dt;
         m.squash = Math.max(0, m.squash - dt * 4.5);
-        if (!m.warned && m.s - d < 32) {
+        if (!m.warned && m.s - d < (isBike ? 34 : 32)) {
           m.warned = true;
-          if (this.phase === "playing") sfx.horn();
+          if (this.phase === "playing") (isBike ? sfx.motor() : sfx.horn());
         }
+        // asap knalpot keluar selama kendaraan jalan (di belakang kendaraan)
+        this.emitExhaust(m, isBike ? 0.52 : 1.05, isBike ? 0.3 : 0.26, isBike ? 0.05 : 0.08, dt);
         if (m.s < d - 16) remove = true;
       } else {
         if (m.phase === "wait") {
@@ -2501,6 +2525,13 @@ class Engine {
       const cc = this.crossCars[i];
       cc.lat += cc.dir * cc.speed * dt;
 
+      // asap knalpot mobil yang menyeberang di perempatan
+      cc.smokeT = (cc.smokeT ?? 0) - dt;
+      if (cc.smokeT <= 0) {
+        cc.smokeT = 0.09;
+        const pl = this.place(cc.s, cc.lat - cc.dir * 1.5, 0.26);
+        this.emitWorld("smoke", pl.pos[0], pl.pos[1], pl.pos[2], pl.pos[1] - 0.4, 1, Math.cos(pl.rotY), Math.sin(pl.rotY));
+      }
       // Honk horn as car approaches the middle road
       if (!cc.horn && Math.abs(cc.lat) < 7.5 && Math.abs(cc.s - d) < 42) {
         cc.horn = true;
@@ -2895,7 +2926,7 @@ class Engine {
       dir: 1,
       h: 0,
       vh: 0,
-      phase: kind === "car" ? "drive" : "wait",
+      phase: kind === "car" || kind === "motorcycle" ? "drive" : "wait",
       hopT: 0,
       hopFrom: 0,
       hopTo: 0,
@@ -2917,10 +2948,27 @@ class Engine {
       this.addObstacle("car", meetS, lane);
       return;
     }
+    // 1 dari 3 lalu lintas datang adalah motor (kadang berboncengan dua motor beruntun)
+    if (Math.random() < 0.34) {
+      this.spawnMotorcycle(s0, lane, v);
+      if (t > 0.35 && Math.random() < 0.35) this.spawnMotorcycle(s0 + 2.4, this.otherLane([lane]), v * rand(0.92, 1.06));
+      this.reserved.push({ lane, from: meetS - 7, until: s0 + 6 });
+      return;
+    }
     const m = this.newMover("car", s0, lane, LANE_LAT[lane]);
     m.speed = v;
     this.movers.push(m);
     this.reserved.push({ lane, from: meetS - 7, until: s0 + 6 });
+    this.moverVersion++;
+  }
+
+  /** Motor dari arah depan: badan lebih kecil, sedikit lebih cepat dari mobil. */
+  private spawnMotorcycle(s0: number, lane: number, v: number) {
+    const m = this.newMover("motorcycle", s0, lane, LANE_LAT[lane]);
+    m.speed = v * rand(1.05, 1.2);
+    m.variant = randInt(0, 5);
+    m.smokeT = rand(0, 0.08);
+    this.movers.push(m);
     this.moverVersion++;
   }
 
@@ -2956,13 +3004,18 @@ class Engine {
     const n = 1 + (Math.random() < 0.5 ? 1 : 0) + (t > 0.4 && Math.random() < 0.4 ? 1 : 0);
     const est = Math.max(this.speed, START_SPEED);
     const d = this.distance;
+    // kadang yang menyeberang adalah kakek/nenek bertongkat (jalannya lambat)
+    const elderIndex = Math.random() < 0.42 ? randInt(0, n - 1) : -1;
     for (let i = 0; i < n; i++) {
       const dir = Math.random() < 0.5 ? 1 : -1;
       const m = this.newMover("pedestrian", x + i * 3.0, -1, -dir * 6.8);
       m.dir = dir;
-      m.speed = rand(1.6, 2.3);
-      m.variant = randInt(0, 4);
+      const elderly = i === elderIndex;
+      m.elderly = elderly;
+      m.speed = elderly ? rand(0.85, 1.25) : rand(1.6, 2.3);
+      m.variant = randInt(0, elderly ? 2 : 4);
       // time the walk so they are on the road when the player arrives
+      // (lansia jalannya lambat, jadi mereka lebih lama ADA di tengah jalan)
       const eta = (x + i * 3.0 - d) / est;
       const walk = (6.8 - 1.2) / m.speed;
       m.delay = Math.max(0.1, eta - walk + rand(-0.6, 0.6));
@@ -3334,6 +3387,21 @@ class Engine {
     this.punch = ANIMAL_PUNCH;
   }
 
+  /** Asap knalpot untuk kendaraan yang sedang berjalan (dipanggil tiap frame, dibatasi timer). */
+  private emitExhaust(m: Mover, back: number, h: number, interval: number, dt: number) {
+    if (this.phase !== "playing" && this.phase !== "menu") return;
+    m.smokeT = (m.smokeT ?? 0) - dt;
+    if (m.smokeT > 0) return;
+    m.smokeT = interval;
+    // posisi knalpot: di belakang kendaraan yang sedang melaju mendekat (+s)
+    const sPos = m.s + back;
+    const c = track.sample(sPos, tmpS);
+    const lat = m.lat + rand(-0.16, 0.16);
+    const x = c.x - Math.sin(c.th) * lat;
+    const z = c.z + Math.cos(c.th) * lat;
+    this.emitWorld("smoke", x, c.y + h, z, c.y - 0.4, 1, Math.cos(c.th), Math.sin(c.th));
+  }
+
   /* ---------- Particles ---------- */
   emit(kind: "feather" | "crumb" | "spark" | "dust" | "splash" | "pow", ds: number, h: number, lat: number, n: number) {
     const c = track.sample(this.distance + ds, tmpS);
@@ -3342,10 +3410,23 @@ class Engine {
     this.emitWorld(kind, x, c.y + h, z, c.y + 0.02, n, Math.cos(c.th), Math.sin(c.th));
   }
 
-  emitWorld(kind: "feather" | "crumb" | "spark" | "dust" | "splash" | "pow", x: number, y: number, z: number, floor: number, n: number, tx: number, tz: number) {
+  emitWorld(kind: "feather" | "crumb" | "spark" | "dust" | "splash" | "pow" | "smoke", x: number, y: number, z: number, floor: number, n: number, tx: number, tz: number) {
     for (let i = 0; i < n; i++) {
       let pt: Particle;
-      if (kind === "pow") {
+      if (kind === "smoke") {
+        // asap knalpot: abu-abu, naik pelan sambil membesar lalu memudar
+        const g = rand(0.42, 0.62);
+        pt = {
+          x: x + rand(-0.06, 0.06), y: y + rand(-0.03, 0.05), z: z + rand(-0.06, 0.06),
+          vx: -tx * rand(0.5, 1.6) + rand(-0.35, 0.35),
+          vy: rand(0.5, 1.15),
+          vz: -tz * rand(0.5, 1.6) + rand(-0.35, 0.35),
+          life: 0, max: rand(0.45, 0.8), size: rand(0.07, 0.12),
+          r: g, g: g, b: g + 0.03,
+          rx: rand(0, 6), ry: rand(0, 6), spin: rand(-2, 2),
+          gravity: -0.35, floor, grow: 2.6,
+        };
+      } else if (kind === "pow") {
         // serpihan komik ala "POW!": menyebar radial, putih/keemasan, muter cepat
         const a = (i / Math.max(1, n)) * Math.PI * 2 + rand(-0.18, 0.18);
         const sp = rand(4, 8.5);

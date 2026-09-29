@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { SKINS } from "./skins";
+import { useUI } from "./store";
 import { buildPigeonGroup } from "./pigeonRig";
 import { curveUniforms } from "./curve";
 
@@ -49,7 +50,7 @@ export function ensureThumbs(size = 208): boolean {
     const savedDown = curveUniforms.uCurveDown.value;
     curveUniforms.uCurveDown.value = 0;
     for (const skin of SKINS) {
-      const { group, dispose } = buildPigeonGroup(skin);
+      const { group, dispose } = buildPigeonGroup(skin, "default", useUI.getState().wheelColor);
       group.rotation.y = 4.35; // 3/4 front view
       scene.add(group);
       renderer.render(scene, cam);

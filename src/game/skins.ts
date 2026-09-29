@@ -27,7 +27,7 @@ export const DECKS: DeckOption[] = [
     name: "Skateboard Roti Baguette",
     tagline: "Papan roti baguette Prancis gurih renyah + roda mentega",
     badge: "FREE / GRATIS",
-    emoji: "🥖",
+    emoji: "",
     cost: 0,
   },
 ];
@@ -377,10 +377,24 @@ export function truckParts(): Part[] {
   ];
 }
 
-/** Wheel + bearing; axis along z. */
-export function wheelParts(k: Skin, deckOverride: "default" | "baguette" = "default"): Part[] {
+/** Warna ban pilihan pemain: default HITAM, bisa merah/hijau/kuning/biru (atau ikut warna skin). */
+export const WHEEL_HEX: Record<string, string> = {
+  black: "#1c1e22",
+  red: "#e63946",
+  green: "#2ec46b",
+  yellow: "#ffd60a",
+  blue: "#2e7de6",
+};
+
+/** Wheel + bearing; axis along z. `wheelOverride` = pilihan warna ban pemain (default: hitam). */
+export function wheelParts(k: Skin, deckOverride: "default" | "baguette" = "default", wheelOverride: string = "auto"): Part[] {
   const isBaguette = deckOverride === "baguette" || k.deckType === "baguette";
-  const wheelColor = isBaguette ? "#ffe066" : k.wheels; // Roda mentega gurih saat memakai roti baguette
+  const wheelColor =
+    wheelOverride !== "auto" && WHEEL_HEX[wheelOverride]
+      ? WHEEL_HEX[wheelOverride]
+      : isBaguette
+        ? "#ffe066" // Roda mentega gurih saat memakai roti baguette
+        : k.wheels;
   return [
     { x: 0, y: 0, z: 0, w: 0.18, h: 0.18, d: 0.14, color: wheelColor },
     { x: 0, y: 0, z: 0, w: 0.08, h: 0.08, d: 0.16, color: "#c0c5cc" },

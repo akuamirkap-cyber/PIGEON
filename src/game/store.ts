@@ -6,6 +6,16 @@ export type Phase = "menu" | "playing" | "crashed" | "gameover";
 export type TurnMode = "old" | "new";
 export type TrackMode = "tokyo" | "haruna";
 export type MenuView = "main" | "skins" | "tricks" | "exit" | "bye";
+/** Warna ban skateboard: default HITAM, bisa diganti merah/hijau/kuning/biru (atau ikut warna skin). */
+export type WheelColor = "auto" | "black" | "red" | "green" | "yellow" | "blue";
+export const WHEEL_COLORS: { id: WheelColor; hex: string; label: string }[] = [
+  { id: "auto", hex: "#b9c0ca", label: "AUTO" },
+  { id: "black", hex: "#1c1e22", label: "HITAM" },
+  { id: "red", hex: "#e63946", label: "MERAH" },
+  { id: "green", hex: "#2ec46b", label: "HIJAU" },
+  { id: "yellow", hex: "#ffd60a", label: "KUNING" },
+  { id: "blue", hex: "#2e7de6", label: "BIRU" },
+];
 
 export interface Popup {
   id: number;
@@ -51,6 +61,8 @@ interface UIState {
   setTrackMode: (m: TrackMode) => void;
   deckOverride: "default" | "baguette";
   setDeckOverride: (d: "default" | "baguette") => void;
+  wheelColor: WheelColor;
+  setWheelColor: (c: WheelColor) => void;
   worldCurve: "subway" | "flat";
   setWorldCurve: (c: "subway" | "flat") => void;
   setHud: (score: number, bread: number, combo: number, dist: number, nos: number, nosActive: boolean) => void;
@@ -166,6 +178,14 @@ export const useUI = create<UIState>((set, get) => ({
   setDeckOverride: (deckOverride) => {
     save("pigeon-sk8-deck", deckOverride);
     set({ deckOverride });
+  },
+  wheelColor: (() => {
+    const w = load<string>("pigeon-sk8-wheels", "black");
+    return (["auto", "black", "red", "green", "yellow", "blue"].includes(w) ? w : "black") as WheelColor;
+  })(),
+  setWheelColor: (wheelColor) => {
+    save("pigeon-sk8-wheels", wheelColor);
+    set({ wheelColor });
   },
   worldCurve: (() => {
     const c = load<string>("pigeon-sk8-worldcurve", "subway");

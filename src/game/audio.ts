@@ -120,6 +120,12 @@ export const sfx = {
     tone(980, 0.22, "sawtooth", { to: 320, vol: 0.28 });
     noise(0.15, 0.25, 2500);
   },
+  /** Motor dari arah depan: raungan mesin pendek (bukan klakson mobil). */
+  motor: () => {
+    tone(150, 0.3, "sawtooth", { to: 230, vol: 0.2 });
+    tone(300, 0.22, "square", { to: 420, vol: 0.12, delay: 0.04 });
+    noise(0.18, 0.14, 700);
+  },
   cluck: () => tone(720, 0.05, "triangle", { to: 520, vol: 0.18 }),
   click: () => tone(720, 0.05, "square", { vol: 0.16 }),
   unlock: () => {

@@ -14,7 +14,8 @@ export const RIG = {
   deckToRoad: 0.25,
   pigeonScale: 1.2,
   headPos: [0.32, 1.04, 0] as [number, number, number],
-  headRotY: -0.32,
+  /** head default yaw: 0 = menghadap lurus ke depan (dulu -0.32 menoleh ke kanan) */
+  headRotY: 0,
   wingRPos: [-0.05, 0.72, 0.3] as [number, number, number],
   wingLPos: [-0.05, 0.72, -0.3] as [number, number, number],
   hipY: HIP_Y,
@@ -125,14 +126,18 @@ export class LegRig {
 }
 
 /** Plain three.js assembly of a skin (static riding pose). */
-export function buildPigeonGroup(skin: Skin, deckOverride: "default" | "baguette" = "default"): { group: THREE.Group; dispose: () => void } {
+export function buildPigeonGroup(
+  skin: Skin,
+  deckOverride: "default" | "baguette" = "default",
+  wheelColor: string = "auto",
+): { group: THREE.Group; dispose: () => void } {
   const geos = [
     buildVoxelGeometry(pigeonBodyParts(skin)),
     buildVoxelGeometry(pigeonHeadParts(skin)),
     buildVoxelGeometry(wingParts(skin, 1)),
     buildVoxelGeometry(wingParts(skin, -1)),
     buildVoxelGeometry(deckParts(skin, deckOverride)),
-    buildVoxelGeometry(wheelParts(skin, deckOverride)),
+    buildVoxelGeometry(wheelParts(skin, deckOverride, wheelColor)),
     buildVoxelGeometry(truckParts()),
     buildVoxelGeometry(pigeonTailParts(skin)),
   ];

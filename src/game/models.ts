@@ -101,6 +101,61 @@ export function carParts(variant: number): Part[] {
   ];
 }
 
+/**
+ * Motor gede + pengendaranya, hadap +x, roda menyentuh y = 0.
+ * Dipakai sebagai `MoverKind = "motorcycle"` (lalu lintas dari arah depan).
+ */
+export function motorcycleParts(variant: number): Part[] {
+  const paint = MOTOR_PAINTS[variant % MOTOR_PAINTS.length];
+  const tire = "#22242a";
+  const chrome = "#c3c9d2";
+  const riderJacket = RIDER_JACKETS[variant % RIDER_JACKETS.length];
+  const helmet = HELMET_COLORS[variant % HELMET_COLORS.length];
+  // -0.04: tinggi roda diturunkan sedikit supaya ban benar-benar menapak aspal (y = 0)
+  const DROP = -0.04;
+  const parts: Part[] = [
+    // ---- roda ----
+    { x: 0.62, y: 0.26, z: 0, w: 0.4, h: 0.4, d: 0.14, color: tire },
+    { x: 0.62, y: 0.26, z: 0, w: 0.16, h: 0.16, d: 0.17, color: chrome },
+    { x: -0.56, y: 0.26, z: 0, w: 0.44, h: 0.44, d: 0.17, color: tire },
+    { x: -0.56, y: 0.26, z: 0, w: 0.16, h: 0.16, d: 0.2, color: chrome },
+    // ---- rangka & mesin ----
+    { x: 0.04, y: 0.5, z: 0, w: 0.86, h: 0.24, d: 0.3, color: paint },
+    { x: 0.06, y: 0.34, z: 0, w: 0.5, h: 0.2, d: 0.36, color: "#3a3d45" },
+    { x: 0.3, y: 0.62, z: 0, w: 0.42, h: 0.2, d: 0.34, color: paint }, // tangki
+    { x: -0.32, y: 0.66, z: 0, w: 0.44, h: 0.14, d: 0.3, color: "#1f2126" }, // jok
+    { x: -0.56, y: 0.62, z: 0, w: 0.26, h: 0.16, d: 0.26, color: paint }, // buritan
+    { x: -0.7, y: 0.62, z: 0, w: 0.06, h: 0.1, d: 0.16, color: "#ff3b3b" }, // lampu belakang
+    // knalpot (asap keluar dari sini)
+    { x: -0.42, y: 0.3, z: 0.22, w: 0.6, h: 0.1, d: 0.1, color: chrome },
+    { x: -0.42, y: 0.3, z: -0.22, w: 0.6, h: 0.1, d: 0.1, color: chrome },
+    // ---- garpu depan, setang, lampu ----
+    { x: 0.6, y: 0.55, z: 0.11, w: 0.08, h: 0.62, d: 0.08, color: chrome },
+    { x: 0.6, y: 0.55, z: -0.11, w: 0.08, h: 0.62, d: 0.08, color: chrome },
+    { x: 0.56, y: 0.88, z: 0, w: 0.1, h: 0.09, d: 0.6, color: "#2c2f36" }, // setang
+    { x: 0.66, y: 0.86, z: 0, w: 0.14, h: 0.16, d: 0.24, color: "#fff7c2" }, // lampu depan
+    { x: 0.62, y: 1.06, z: 0.3, w: 0.06, h: 0.12, d: 0.12, color: "#2c2f36" }, // spion
+    { x: 0.62, y: 1.06, z: -0.3, w: 0.06, h: 0.12, d: 0.12, color: "#2c2f36" },
+    // ---- pengendara ----
+    { x: 0.16, y: 0.86, z: 0.16, w: 0.2, h: 0.34, d: 0.16, color: "#2f3440" }, // kaki
+    { x: 0.16, y: 0.86, z: -0.16, w: 0.2, h: 0.34, d: 0.16, color: "#2f3440" },
+    { x: -0.16, y: 0.96, z: 0.16, w: 0.2, h: 0.3, d: 0.16, color: "#2f3440" },
+    { x: -0.16, y: 0.96, z: -0.16, w: 0.2, h: 0.3, d: 0.16, color: "#2f3440" },
+    { x: -0.06, y: 1.16, z: 0, w: 0.46, h: 0.5, d: 0.46, color: riderJacket }, // badan
+    { x: 0.24, y: 1.2, z: 0.2, w: 0.4, h: 0.14, d: 0.14, color: riderJacket }, // tangan ke setang
+    { x: 0.24, y: 1.2, z: -0.2, w: 0.4, h: 0.14, d: 0.14, color: riderJacket },
+    { x: -0.06, y: 1.48, z: 0, w: 0.34, h: 0.32, d: 0.36, color: helmet }, // helm
+    { x: 0.14, y: 1.46, z: 0, w: 0.1, h: 0.2, d: 0.24, color: "#2b2f38" }, // visor
+    { x: -0.3, y: 1.2, z: 0, w: 0.16, h: 0.34, d: 0.34, color: "#3f434c" }, // tas punggung
+  ];
+  return parts.map((p) => ({ ...p, y: p.y + DROP }));
+}
+
+/** Warna bodi motor, jaket pengendara, dan helm (satu set per varian). */
+export const MOTOR_PAINTS = ["#e63946", "#2ec4b6", "#3d5a80", "#ffd60a", "#c77dff", "#f77f00"];
+const RIDER_JACKETS = ["#1f2430", "#3a3d45", "#5c4b3a", "#2b2f38", "#6b3f3f", "#2f4f4f"];
+const HELMET_COLORS = ["#f1faee", "#ffd60a", "#e63946", "#2ec4b6", "#dfe4ea", "#ff9f1c"];
+
 export function rampParts(): Part[] {
   const parts: Part[] = [];
   const steps = 8;
@@ -728,9 +783,32 @@ const PED_OUTFITS = [
   { top: "#f4a261", pants: "#264653", hair: "#8d5524", skin: "#f1c9a5" },
 ];
 
+/** Kakek/nenek yang menyeberang: cardigan hangat, rambut putih, kacamata, dan tongkat. */
+const ELDER_OUTFITS = [
+  { top: "#b8a389", pants: "#4a4e57", hair: "#e9e9ea", skin: "#e8c9a8" },
+  { top: "#c9a0dc", pants: "#5b5560", hair: "#f2f2f4", skin: "#f0d3b6" },
+  { top: "#8fbf9f", pants: "#454b52", hair: "#e4e4e6", skin: "#dfbb95" },
+];
+
+/** Di mana tongkat digenggam: jarak telapak tangan dari sendi bahu (pakai `pedestrianArmParts`). */
+export const CANE_GRIP_Y = -0.56;
+
+/**
+ * Tongkat kayu (pegangan + batang + ujung karet). Origin di telapak tangan, batang turun ke -y.
+ * Panjangnya pas: ujung karet menyentuh aspal saat lengan menjuntai santai
+ * (bahu 0.27 + tinggi badan 0.96 - 0.56 genggaman = 0.67 di atas jalan).
+ */
+export function caneParts(): Part[] {
+  return [
+    { x: 0.01, y: -0.04, z: 0, w: 0.075, h: 0.11, d: 0.075, color: "#8a5a2b" },
+    { x: 0.02, y: -0.36, z: 0, w: 0.05, h: 0.62, d: 0.05, color: "#a9713a" },
+    { x: 0.02, y: -0.66, z: 0, w: 0.06, h: 0.06, d: 0.06, color: "#2f3033" },
+  ];
+}
+
 /** Pedestrian head with facial features: normal eyes vs X X eyes and gaping open mouth (mangap) when hit. Origin at neck level (y = 0). */
-export function pedestrianHeadParts(variant: number, isHit = false): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
+export function pedestrianHeadParts(variant: number, isHit = false, elderly = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
   const parts: Part[] = [
     // head base
     { x: 0, y: 0.18, z: 0, w: 0.38, h: 0.4, d: 0.4, color: o.skin },
@@ -780,32 +858,54 @@ export function pedestrianHeadParts(variant: number, isHit = false): Part[] {
     // Cheeks blush
     parts.push({ x: 0.192, y: 0.12, z: 0.12, w: 0.015, h: 0.04, d: 0.05, color: "#f7a092" });
     parts.push({ x: 0.192, y: 0.12, z: -0.12, w: 0.015, h: 0.04, d: 0.05, color: "#f7a092" });
+
+    if (elderly) {
+      // kakek/nenek: kacamata bulat, kerutan halus, dan kumis/topi rambut putih
+      parts.push({ x: 0.202, y: 0.24, z: 0.09, w: 0.02, h: 0.03, d: 0.14, color: "#3b3f4a" }); // jembatan kacamata
+      parts.push({ x: 0.202, y: 0.2, z: 0.09, w: 0.02, h: 0.11, d: 0.11, color: "#5b6371" }); // lensa kanan
+      parts.push({ x: 0.202, y: 0.2, z: -0.09, w: 0.02, h: 0.11, d: 0.11, color: "#5b6371" }); // lensa kiri
+      parts.push({ x: 0.209, y: 0.2, z: 0.09, w: 0.012, h: 0.05, d: 0.05, color: "#1f2430" }); // pupil kiri
+      parts.push({ x: 0.209, y: 0.2, z: -0.09, w: 0.012, h: 0.05, d: 0.05, color: "#1f2430" }); // pupil kanan
+      parts.push({ x: 0.196, y: 0.12, z: 0.16, w: 0.014, h: 0.02, d: 0.06, color: "#d8b39c" }); // kerutan pipi
+      parts.push({ x: 0.196, y: 0.12, z: -0.16, w: 0.014, h: 0.02, d: 0.06, color: "#d8b39c" });
+    }
   }
 
   return parts;
 }
 
 /** Pedestrian torso. Origin at torso center (y = 0). */
-export function pedestrianTorsoParts(variant: number): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
-  return [
+export function pedestrianTorsoParts(variant: number, elderly = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
+  const parts: Part[] = [
     { x: 0, y: 0, z: 0, w: 0.42, h: 0.68, d: 0.52, color: o.top },
     { x: 0.12, y: 0.31, z: 0, w: 0.18, h: 0.08, d: 0.22, color: o.skin },
   ];
+  if (elderly) {
+    // punggung agak bungkuk (punuk di belakang bahu) + kerah cardigan
+    parts.push({ x: -0.16, y: 0.2, z: 0, w: 0.16, h: 0.3, d: 0.44, color: o.top });
+    parts.push({ x: 0.0, y: 0.31, z: 0, w: 0.44, h: 0.06, d: 0.5, color: "#ffffff" });
+  }
+  return parts;
 }
 
 /** Pedestrian arm. Origin at shoulder joint (y = 0), extends downward along -y. */
-export function pedestrianArmParts(variant: number, _side: 1 | -1 = 1): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
-  return [
+export function pedestrianArmParts(variant: number, _side: 1 | -1 = 1, elderly = false, holdsCane = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
+  const arm: Part[] = [
     { x: 0, y: -0.12, z: 0, w: 0.15, h: 0.24, d: 0.15, color: o.top },
     { x: 0, y: -0.38, z: 0, w: 0.13, h: 0.32, d: 0.13, color: o.skin },
   ];
+  if (holdsCane) {
+    // tangan menggenggam tongkat: kepalan sedikit lebih besar di ujung lengan
+    arm.push({ x: 0.01, y: -0.56, z: 0.02, w: 0.16, h: 0.14, d: 0.16, color: o.skin });
+  }
+  return arm;
 }
 
 /** Pedestrian leg. Origin at hip joint (y = 0), extends downward along -y. */
-export function pedestrianLegParts(variant: number, _side: 1 | -1 = 1): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
+export function pedestrianLegParts(variant: number, _side: 1 | -1 = 1, elderly = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
   return [
     { x: 0, y: -0.26, z: 0, w: 0.18, h: 0.52, d: 0.16, color: o.pants },
     { x: 0.03, y: -0.58, z: 0, w: 0.24, h: 0.12, d: 0.16, color: "#1f2430" },
@@ -813,8 +913,8 @@ export function pedestrianLegParts(variant: number, _side: 1 | -1 = 1): Part[] {
 }
 
 /** Pedestrian with tote bag / umbrella variants, facing +x. */
-export function pedestrianParts(variant: number, isHit = false): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
+export function pedestrianParts(variant: number, isHit = false, elderly = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
   const parts: Part[] = [
     { x: 0, y: 0.32, z: 0.11, w: 0.18, h: 0.64, d: 0.16, color: o.pants },
     { x: 0, y: 0.32, z: -0.11, w: 0.18, h: 0.64, d: 0.16, color: o.pants },
@@ -822,7 +922,7 @@ export function pedestrianParts(variant: number, isHit = false): Part[] {
     { x: 0, y: 0.95, z: 0.34, w: 0.15, h: 0.56, d: 0.15, color: o.top },
     { x: 0, y: 0.95, z: -0.34, w: 0.15, h: 0.56, d: 0.15, color: o.top },
     // head shifted to y = 1.32
-    ...pedestrianHeadParts(variant, isHit).map((p) => ({ ...p, y: p.y + 1.32 })),
+    ...pedestrianHeadParts(variant, isHit, elderly).map((p) => ({ ...p, y: p.y + 1.32 })),
   ];
   if (variant % 3 === 1) {
     // tote bag

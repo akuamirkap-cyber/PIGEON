@@ -13,6 +13,9 @@ import {
   bushParts,
   carParts,
   chickenParts,
+  motorcycleParts,
+  CANE_GRIP_Y,
+  caneParts,
   coneParts,
   flowersParts,
   hydrantParts,
@@ -275,15 +278,21 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
   const legRRef = useRef<THREE.Group>(null);
   const accRef = useRef<THREE.Group>(null);
 
-  const headNormalGeo = useMemo(() => getGeometry(`ped-head-${m.variant % 5}-normal`, () => pedestrianHeadParts(m.variant, false)), [m.variant]);
-  const headHitGeo = useMemo(() => getGeometry(`ped-head-${m.variant % 5}-hit`, () => pedestrianHeadParts(m.variant, true)), [m.variant]);
-  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${m.variant % 5}`, () => pedestrianTorsoParts(m.variant)), [m.variant]);
-  const armLGeo = useMemo(() => getGeometry(`ped-arm-${m.variant % 5}-L`, () => pedestrianArmParts(m.variant, 1)), [m.variant]);
-  const armRGeo = useMemo(() => getGeometry(`ped-arm-${m.variant % 5}-R`, () => pedestrianArmParts(m.variant, -1)), [m.variant]);
-  const legLGeo = useMemo(() => getGeometry(`ped-leg-${m.variant % 5}-L`, () => pedestrianLegParts(m.variant, 1)), [m.variant]);
-  const legRGeo = useMemo(() => getGeometry(`ped-leg-${m.variant % 5}-R`, () => pedestrianLegParts(m.variant, -1)), [m.variant]);
+  // kakek/nenek (elderly) punya geometri sendiri: rambut putih, kacamata, cardigan, tongkat
+  const isElder = !!m.elderly;
+  const pedKey = `${m.variant % 5}${isElder ? "-old" : ""}`;
+  const headNormalGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-normal`, () => pedestrianHeadParts(m.variant, false, isElder)), [pedKey, m.variant, isElder]);
+  const headHitGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-hit`, () => pedestrianHeadParts(m.variant, true, isElder)), [pedKey, m.variant, isElder]);
+  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${pedKey}`, () => pedestrianTorsoParts(m.variant, isElder)), [pedKey, m.variant, isElder]);
+  const armLGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-L`, () => pedestrianArmParts(m.variant, 1, isElder, false)), [pedKey, m.variant, isElder]);
+  const armRGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-R`, () => pedestrianArmParts(m.variant, -1, isElder, isElder)), [pedKey, m.variant, isElder]);
+  const legLGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-L`, () => pedestrianLegParts(m.variant, 1, isElder)), [pedKey, m.variant, isElder]);
+  const legRGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-R`, () => pedestrianLegParts(m.variant, -1, isElder)), [pedKey, m.variant, isElder]);
+  // tongkat kayu (cuma untuk lansia), dipegang tangan kanan dan ikut mengayun
+  const caneGeo = useMemo(() => (isElder ? getGeometry("ped-cane", caneParts) : null), [isElder]);
 
   const accGeo = useMemo(() => {
+    if (isElder) return null; // lansia bawa tongkat, bukan tas/payung
     if (m.variant % 3 === 1) {
       return getGeometry("ped-bag", () => [
         { x: 0.05, y: -0.28, z: 0.1, w: 0.28, h: 0.34, d: 0.1, color: "#f4e1b5" },
@@ -361,19 +370,33 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
       torso.position.set(0, 0, 0);
 
       if (m.phase === "hop") {
-        const swing = Math.sin(m.hopT * 10);
-        legL.rotation.set(swing * 0.55, 0, 0);
-        legR.rotation.set(-swing * 0.55, 0, 0);
-        armL.rotation.set(-swing * 0.45, 0, 0);
-        armR.rotation.set(swing * 0.45, 0, 0);
-        headG.rotation.set(0, 0, Math.sin(m.hopT * 20) * 0.04);
-        inner.position.y = 0.98 + Math.abs(Math.sin(m.hopT * 10)) * 0.05;
+        if (isElder) {
+          // jalan pelan & hati-hati: langkah kecil, badan agak bungkuk, tongkat menap
+          const step = Math.sin(m.hopT * 6.4);
+          legL.rotation.set(step * 0.36, 0, 0);
+          legR.rotation.set(-step * 0.3, 0, 0);
+          armL.rotation.set(-step * 0.22, 0, 0);
+          armR.rotation.set(0.16 + Math.abs(step) * 0.12, 0, 0);
+          headG.rotation.set(0.1, Math.sin(m.hopT * 3.2) * 0.12, Math.sin(m.hopT * 12.8) * 0.02);
+          torso.rotation.x = 0.17; // bungkuk ke depan
+          inner.position.y = 0.96 - Math.abs(step) * 0.012;
+        } else {
+          const swing = Math.sin(m.hopT * 10);
+          legL.rotation.set(swing * 0.55, 0, 0);
+          legR.rotation.set(-swing * 0.55, 0, 0);
+          armL.rotation.set(-swing * 0.45, 0, 0);
+          armR.rotation.set(swing * 0.45, 0, 0);
+          headG.rotation.set(0, 0, Math.sin(m.hopT * 20) * 0.04);
+          torso.rotation.x = 0;
+          inner.position.y = 0.98 + Math.abs(Math.sin(m.hopT * 10)) * 0.05;
+        }
       } else {
         legL.rotation.set(0, 0, 0);
         legR.rotation.set(0, 0, 0);
         armL.rotation.set(0, 0, 0);
-        armR.rotation.set(0, 0, 0);
-        headG.rotation.set(0, 0, 0);
+        armR.rotation.set(isElder ? 0.16 : 0, 0, 0);
+        headG.rotation.set(isElder ? 0.1 : 0, 0, 0);
+        torso.rotation.x = isElder ? 0.17 : 0;
       }
       if (accRef.current) {
         accRef.current.rotation.set(0, 0, 0);
@@ -403,9 +426,10 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
             )}
           </group>
 
-          {/* Right Arm */}
+          {/* Right Arm (lansia menggenggam tongkat) */}
           <group ref={armRRef} position={[0, 0.27, -0.34]}>
             <mesh geometry={armRGeo} material={voxelMaterial} castShadow />
+            {caneGeo && <mesh geometry={caneGeo} material={voxelMaterial} position={[0.02, CANE_GRIP_Y, 0]} castShadow />}
           </group>
 
           {/* Left Leg */}
@@ -460,6 +484,9 @@ const MoverView = memo(function MoverView({
     if (m.kind === "car") {
       return getGeometry(`car-${m.variant % 7}`, () => carParts(m.variant));
     }
+    if (m.kind === "motorcycle") {
+      return getGeometry(`moto-${m.variant % 6}`, () => motorcycleParts(m.variant));
+    }
     if (m.kind === "cat") {
       if (m.phase === "hit") {
         return getGeometry(`cat-fly-${m.variant % 4}`, () => catRagdollFlyingParts(m.variant));
@@ -470,7 +497,7 @@ const MoverView = memo(function MoverView({
   }, [m.kind, m.variant, m.phase]);
   const diamond = useMemo(() => getGeometry("sign-diamond", signDiamondParts), []);
   const exclaim = useMemo(() => getGeometry("sign-ex", signExclaimParts), []);
-  const innerRot = m.kind === "car" ? Math.PI : m.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+  const innerRot = m.kind === "car" || m.kind === "motorcycle" ? Math.PI : m.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
   return (
     <>
       <group ref={(g) => register(m.id, g)}>
@@ -478,7 +505,7 @@ const MoverView = memo(function MoverView({
           <mesh geometry={geo} material={flashMat ?? voxelMaterial} castShadow receiveShadow />
         </group>
       </group>
-      {m.kind === "car" && (
+      {(m.kind === "car" || m.kind === "motorcycle") && (
         <group ref={(g) => registerSign(m.id, g)} visible={false}>
           <group rotation-z={Math.PI / 4}>
             <mesh geometry={diamond} material={voxelMaterial} />
@@ -567,7 +594,7 @@ function Movers() {
             inner.scale.set(CHICKEN_SCALE * (1 + sq), CHICKEN_SCALE * (1 - sq - peck), CHICKEN_SCALE * (1 + sq));
             inner.rotation.x = 0;
           }
-        } else if (m.kind === "car") {
+        } else if (m.kind === "car" || m.kind === "motorcycle") {
           const inner = g.children[0];
           inner.position.set(0, 0, 0);
           if (inner.children[0]) inner.children[0].position.set(0, 0, 0);
@@ -575,6 +602,13 @@ function Movers() {
           const sq = (m.squash || 0) * 0.14;
           inner.scale.set(1 + sq * 0.35, 1 - sq, 1 + sq * 0.35);
           inner.position.y = Math.sin(t * 18 + m.variant) * 0.015 - sq * 0.25;
+          if (m.kind === "motorcycle") {
+            // motor: goyang halus + sedikit rebahan (lebih lincah dari mobil)
+            inner.scale.set(1 + sq * 0.3, 1 - sq, 1 + sq * 0.3);
+            inner.rotation.z = Math.sin(t * 3.1 + m.id) * 0.045;
+            inner.rotation.x = Math.sin(t * 9 + m.id * 0.7) * 0.02;
+            inner.position.y += Math.abs(Math.sin(t * 26 + m.id)) * 0.012 - sq * 0.2;
+          }
         }
       }
       const sg = signs.current.get(m.id);
@@ -1124,7 +1158,8 @@ function Particles() {
     for (const pt of engine.particles) {
       if (i >= MAX_PARTICLES) break;
       const k = 1 - pt.life / pt.max;
-      const s = pt.size * (0.4 + 0.6 * k);
+      // asap knalpot membesar seiring umur (grow), partikel lain mengecil
+      const s = pt.size * (pt.grow ? 0.45 + pt.grow * (1 - k) : 0.4 + 0.6 * k);
       tmpObj.position.set(pt.x, pt.y, pt.z);
       tmpObj.rotation.set(pt.rx, pt.ry, 0);
       tmpObj.scale.set(s, s * (pt.size > 0.15 && pt.gravity < 5 ? 0.35 : 1), s);
