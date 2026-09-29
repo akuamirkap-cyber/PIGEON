@@ -125,13 +125,21 @@ function CameraRig() {
       v.pos.y += (Math.random() - 0.5) * s * 0.5;
       v.pos.z += (Math.random() - 0.5) * s * 0.5;
     }
+    // DENYUT kamera: kamera menyentak ke depan + sedikit ke atas tepat saat hewan mental
+    if (engine.punch > 0.004) {
+      const k = engine.punch * engine.punch; // sentakan paling tajam di awal, cepat reda
+      v.pos.addScaledVector(v.fwd, 0.5 * k);
+      v.pos.y += 0.32 * k;
+    }
     cam.position.copy(v.pos);
     cam.up.set(0, 1, 0);
     cam.lookAt(v.target);
     if (c.roll) cam.rotateZ(c.roll); // Dutch angle action tilt
     const aspect = size.width / size.height;
     // keep the horizontal field of view sane on very tall phones
-    const fov = (aspect < 0.56 ? c.fov + (0.56 - aspect) * 40 : c.fov) + engine.sprint * 6.5; // sprint = dynamic zoom-out for fast kick sensation
+    // sprint = dynamic zoom-out for fast kick sensation; punch = denyut zoom-in singkat saat hewan mental
+    const fov =
+      (aspect < 0.56 ? c.fov + (0.56 - aspect) * 40 : c.fov) + engine.sprint * 6.5 - engine.punch * engine.punch * 4.5;
     if (Math.abs(cam.fov - fov) > 0.01 || cam.aspect !== aspect) {
       cam.fov = fov;
       cam.aspect = aspect;

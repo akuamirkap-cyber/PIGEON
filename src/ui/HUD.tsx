@@ -164,7 +164,7 @@ export function HUD() {
       {/* trick popups */}
       <div className="absolute left-0 right-0 top-[19%] flex flex-col items-center gap-1">
         {popups.map((p) => (
-          <div key={p.id} className="popup flex flex-col items-center">
+          <div key={p.id} className={p.punch ? "popup popup-punch flex flex-col items-center" : "popup flex flex-col items-center"}>
             <div className="font-display txt-outline text-[8cqw] leading-none" style={{ color: p.color }}>
               {p.text}
             </div>

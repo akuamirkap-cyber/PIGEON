@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useReducer, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { buildVoxelGeometry, getGeometry, voxelMaterial } from "./voxel";
+import { applyCurve } from "./curve";
 import {
   CHUNK_LEN,
   barrierParts,
@@ -431,6 +432,31 @@ const MoverView = memo(function MoverView({
   register: (id: number, g: THREE.Group | null) => void;
   registerSign: (id: number, g: THREE.Group | null) => void;
 }) {
+  const isAnimal = m.kind === "cat" || m.kind === "chicken";
+  /**
+   * Kilatan putih ("denyut") pada tubuh hewan tepat setelah di-YEET: material
+   * klon dari voxelMaterial dengan emissive, dipakai hanya oleh hewan.
+   */
+  const flashMat = useMemo(() => {
+    if (!isAnimal) return null;
+    const mat = applyCurve(voxelMaterial.clone());
+    mat.emissive = new THREE.Color("#fff8e1");
+    mat.emissiveIntensity = 0;
+    return mat;
+  }, [isAnimal]);
+  useEffect(() => () => flashMat?.dispose(), [flashMat]);
+
+  useFrame(() => {
+    if (!flashMat) return;
+    // denyut kilat: nyala terang lalu berkedip cepat sambil meredup
+    if (m.phase === "hit") {
+      const fade = Math.max(0, 1 - m.hitT / 0.34);
+      flashMat.emissiveIntensity = fade * (1.5 + 0.55 * Math.sin(m.hitT * 70));
+    } else {
+      flashMat.emissiveIntensity = 0;
+    }
+  });
+
   const geo = useMemo(() => {
     if (m.kind === "car") {
       return getGeometry(`car-${m.variant % 7}`, () => carParts(m.variant));
@@ -450,7 +476,7 @@ const MoverView = memo(function MoverView({
     <>
       <group ref={(g) => register(m.id, g)}>
         <group rotation-y={innerRot}>
-          <mesh geometry={geo} material={voxelMaterial} castShadow receiveShadow />
+          <mesh geometry={geo} material={flashMat ?? voxelMaterial} castShadow receiveShadow />
         </group>
       </group>
       {m.kind === "car" && (
@@ -1014,6 +1040,96 @@ function Breads() {
   return <instancedMesh ref={ref} args={[geo, voxelMaterial, MAX_BREAD]} frustumCulled={false} castShadow />;
 }
 
+/* ---------- Denyut: cincin shockwave + kilatan saat hewan mental ---------- */
+const PULSE_POOL = 6;
+
+function Pulses() {
+  const { camera } = useThree();
+  const ringGeo = useMemo(() => new THREE.RingGeometry(0.62, 1, 44), []);
+  const discGeo = useMemo(() => new THREE.CircleGeometry(1, 28), []);
+  const ringRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const discRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const mats = useMemo(
+    () =>
+      Array.from({ length: PULSE_POOL * 2 }, () =>
+        new THREE.MeshBasicMaterial({
+          color: "#ffffff",
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+        }),
+      ),
+    [],
+  );
+  useEffect(
+    () => () => {
+      ringGeo.dispose();
+      discGeo.dispose();
+      mats.forEach((m) => m.dispose());
+    },
+    [ringGeo, discGeo, mats],
+  );
+
+  useFrame(() => {
+    let ri = 0;
+    let di = 0;
+    for (const q of engine.pulses) {
+      const isRing = q.kind === "ring";
+      const idx = isRing ? ri : di;
+      if (idx >= PULSE_POOL) continue;
+      const mesh = isRing ? ringRefs.current[ri] : discRefs.current[di];
+      const mat = isRing ? mats[ri] : mats[PULSE_POOL + di];
+      if (isRing) ri++;
+      else di++;
+      if (!mesh) continue;
+      const k = Math.min(1, q.t / q.max);
+      const grow = 1 - Math.pow(1 - k, 3); // melesat cepat lalu melambat
+      const radius = q.r0 + (q.r1 - q.r0) * grow;
+      mesh.visible = true;
+      mesh.position.set(q.x, q.y, q.z);
+      if (q.flat) mesh.rotation.set(-Math.PI / 2, 0, 0);
+      else mesh.quaternion.copy(camera.quaternion); // billboard: selalu menghadap pemain
+      mesh.scale.setScalar(radius);
+      mat.color.setRGB(q.cr, q.cg, q.cb);
+      mat.opacity = (q.kind === "flash" ? 0.9 : 0.95) * Math.pow(1 - k, 1.5);
+    }
+    // sembunyikan sisa pool
+    for (let i = ri; i < PULSE_POOL; i++) if (ringRefs.current[i]) ringRefs.current[i]!.visible = false;
+    for (let i = di; i < PULSE_POOL; i++) if (discRefs.current[i]) discRefs.current[i]!.visible = false;
+  });
+
+  return (
+    <group>
+      {Array.from({ length: PULSE_POOL }, (_, i) => (
+        <mesh
+          key={`ring${i}`}
+          ref={(m) => {
+            ringRefs.current[i] = m;
+          }}
+          geometry={ringGeo}
+          material={mats[i]}
+          visible={false}
+          frustumCulled={false}
+        />
+      ))}
+      {Array.from({ length: PULSE_POOL }, (_, i) => (
+        <mesh
+          key={`flash${i}`}
+          ref={(m) => {
+            discRefs.current[i] = m;
+          }}
+          geometry={discGeo}
+          material={mats[PULSE_POOL + i]}
+          visible={false}
+          frustumCulled={false}
+        />
+      ))}
+    </group>
+  );
+}
+
 /* ---------- Particles (instanced) ---------- */
 const MAX_PARTICLES = 150;
 const tmpColor = new THREE.Color();
@@ -1078,6 +1194,7 @@ export function World() {
       <Movers />
       <Breads />
       <Particles />
+      <Pulses />
     </group>
   );
 }

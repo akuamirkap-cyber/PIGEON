@@ -55,6 +55,18 @@ const CHICKEN_STEP = 1.2;
 const CHICKEN_EDGE = 6.6;
 const CHICKEN_HOP_H = 0.45;
 export const SIGN_AHEAD = 7.8;
+/* ---------- Tabrakan hewan ala kartun: "MENTAL" + efek DENYUT ----------
+ * Hewan yang ditabrak dilontarkan tinggi & muter-muter (bukan knockback kalem),
+ * plus hit-stop singkat + shockwave "denyut" + punch kamera supaya terasa mantap.
+ */
+/** Lama dunia hampir beku (freeze-frame) tepat saat hewan kena tabrak. */
+export const HITSTOP_TIME = 0.11;
+/** Skala waktu saat hit-stop (0.14 = hampir berhenti). */
+export const HITSTOP_SCALE = 0.14;
+/** Pantulan ekstra kenyal untuk hewan yang mental. */
+export const ANIMAL_BOUNCE = 1.45;
+/** Gayaberat hewan saat mental (lebih kecil = hang time ala kartun). */
+export const ANIMAL_GRAVITY_SCALE = 0.72;
 // railway crossing
 export const TRAIN_HIT = 2.3;
 export const TRAIN_SPEED = 8;
@@ -308,6 +320,10 @@ export interface Ragdoll {
   bounces: number;
   rest: boolean;
   restT: number;
+  /** pengali gravitasi (hewan kartun = < 1 supaya melayang lebih lama) */
+  gravityScale?: number;
+  /** pengali koefisien pantulan (hewan = > 1 supaya mantul-mantul) */
+  bouncy?: number;
 }
 
 function makeRagdoll(s: number, lat: number, h: number, radius: number): Ragdoll {
@@ -325,7 +341,7 @@ function stepRagdoll(r: Ragdoll, dt: number, floor: number, friction = 4.2, boun
     r.rx += (targetRx - r.rx) * (1 - Math.exp(-dt * 5));
     return;
   }
-  r.vh -= GRAVITY * dt;
+  r.vh -= GRAVITY * (r.gravityScale ?? 1) * dt;
   r.s += r.vs * dt;
   r.lat += r.vlat * dt;
   r.h += r.vh * dt;
@@ -346,7 +362,7 @@ function stepRagdoll(r: Ragdoll, dt: number, floor: number, friction = 4.2, boun
     r.h = floor;
     if (r.vh < -0.8) {
       // Rubbery comical bounce: first bounce is high and springy, forward momentum preserved
-      const bCoeff = r.bounces === 0 ? 0.48 : r.bounces === 1 ? 0.35 : 0.22;
+      const bCoeff = Math.min(0.78, (r.bounces === 0 ? 0.48 : r.bounces === 1 ? 0.35 : 0.22) * (r.bouncy ?? 1));
       r.vh = -r.vh * bCoeff;
       r.vs *= 0.88; // skips forward on ground impact!
       r.bounces++;
@@ -394,6 +410,29 @@ export interface Particle {
   floor: number;
 }
 
+/**
+ * Efek "DENYUT" ala kartun: cincin gelombang / kilatan yang mengembang dari titik
+ * tabrakan lalu memudar. Dirender di World.tsx (Pulses) sebagai mesh additive.
+ */
+export interface Pulse {
+  kind: "ring" | "flash";
+  x: number;
+  y: number;
+  z: number;
+  /** umur (detik) dan umur maksimum */
+  t: number;
+  max: number;
+  /** jari-jari awal -> akhir (unit dunia) */
+  r0: number;
+  r1: number;
+  /** warna 0..1 */
+  cr: number;
+  cg: number;
+  cb: number;
+  /** true = rebah di aspal (shockwave tanah), false = menghadap kamera */
+  flat: boolean;
+}
+
 export type InputAction = "tap" | "up" | "down" | "left" | "right" | "double" | "holdStart" | "holdEnd" | "nos" | "boost" | "cycle";
 
 const TRICK_INFO = TRICK_MAP;
@@ -426,6 +465,10 @@ class Engine {
   menuT = 0;
   /** time scale used for the GTA-style slow motion on impact */
   slowMo = 1;
+  /** hit-stop (freeze-frame singkat) saat hewan ditabrak: durasi sisa dalam detik */
+  hitStop = 0;
+  /** denyut kamera (punch zoom) 1 -> 0 setelah tabrakan hewan */
+  punch = 0;
   crashSpeed = 0;
   private pushDustT = 0;
   private downhillFlag = false;
@@ -478,6 +521,8 @@ class Engine {
   nextIntersectionS = 0;
   crashCause: CrashCause = "obstacle";
   particles: Particle[] = [];
+  /** gelombang "denyut" yang sedang aktif (lihat Pulse) */
+  pulses: Pulse[] = [];
   reserved: { lane: number; from: number; until: number }[] = [];
   listVersion = 0;
   moverVersion = 0;
@@ -655,6 +700,9 @@ class Engine {
     p.pushCooldown = 0.6;
     p.pushCount = 0;
     this.slowMo = 1;
+    this.hitStop = 0;
+    this.punch = 0;
+    this.pulses = [];
     this.downhillFlag = false;
     while (this.nextChunkS < this.distance + 90) this.spawnChunk();
     track.sample(this.distance, this.center);
@@ -1209,6 +1257,11 @@ class Engine {
 
   update(rawDt: number) {
     let dt = Math.min(rawDt, 0.05);
+    // HIT-STOP: sedetik dunia hampir beku tepat saat hewan di-YEET -> terasa "denyut".
+    if (this.hitStop > 0) {
+      this.hitStop = Math.max(0, this.hitStop - dt);
+      dt *= HITSTOP_SCALE;
+    }
     this.time += dt;
     const p = this.player;
 
@@ -1311,6 +1364,7 @@ class Engine {
     }
     track.sample(this.distance, this.center);
     this.shake = Math.max(0, this.shake - dt * 2.5);
+    this.punch = Math.max(0, this.punch - dt * 3.4);
 
     // world generation
     track.ensure(this.distance + 240);
@@ -1327,6 +1381,7 @@ class Engine {
     else this.updateCrash(dt);
 
     this.updateParticles(dt);
+    this.updatePulses(dt);
     this.updatePetals(dt);
     this.updateTransform();
 
@@ -1900,13 +1955,16 @@ class Engine {
       m.kind === "pedestrian" ? 0.6 : 0.22 * animalBoost
     );
     if (isAnimal) {
-      // Natural, cute, grounded knockback (not "lebay" / not shooting into outer space)
-      r.vs = v * 0.38 + rand(0.6, 1.4);
-      r.vh = 2.2 + rand(0.2, 0.6);
-      r.vlat = side * (1.1 + rand(0.3, 0.8));
-      r.wz = -rand(3, 5.5);
-      r.wx = side * rand(2, 3.5);
-      r.wy = rand(-1.5, 1.5);
+      // MENTAL ala kartun: hewan dilontarkan tinggi, jauh, dan muter-muter kocak.
+      // Gayaberat dikecilkan + pantulan ekstra kenyal supaya hang time-nya lucu.
+      r.vs = v * 0.62 + rand(1.6, 3.2);
+      r.vh = 5.2 + rand(0.9, 2.1);
+      r.vlat = side * (2.2 + rand(0.7, 1.6));
+      r.wz = -rand(10, 17);
+      r.wx = side * rand(6, 11);
+      r.wy = rand(-6, 6);
+      r.gravityScale = ANIMAL_GRAVITY_SCALE;
+      r.bouncy = ANIMAL_BOUNCE;
     } else {
       r.vs = v * (1.1 / mass) + rand(0, 2);
       r.vh = 4 + v * (0.5 / mass) + rand(0, 2);
@@ -1924,24 +1982,30 @@ class Engine {
     if (m.phase === "hit") return;
     this.launchVictim(m, 0.55);
     track.frame(m.s, m.lat, m.h + 0.6, tmpV);
-    this.emitWorld("feather", tmpV.x, tmpV.y, tmpV.z, tmpV.y - m.h - 0.6, 14, 0, 0);
+    const floor = tmpV.y - m.h - 0.6;
+    this.cartoonImpact(tmpV.x, tmpV.y, tmpV.z, floor, [1, 0.45, 0.2]);
+    this.emitWorld("feather", tmpV.x, tmpV.y, tmpV.z, floor, 18, 0, 0);
+    sfx.thwack();
     sfx.bonk();
     sfx.squawk();
     this.player.squash = 0.35;
     this.trickScore += 75;
-    useUI.getState().addPopup("CHICKEN YEET! 🐔", "#ef4444", "BAWK!");
+    useUI.getState().addPopup("CHICKEN YEET! 🐔", "#ef4444", "BAWK! POW! 💥", true);
   }
 
   private hitCat(m: Mover) {
     if (m.phase === "hit") return;
     this.launchVictim(m, 0.42);
     track.frame(m.s, m.lat, m.h + 0.35, tmpV);
-    this.emitWorld("dust", tmpV.x, tmpV.y, tmpV.z, tmpV.y - m.h - 0.35, 12, 0, 0);
+    const floor = tmpV.y - m.h - 0.35;
+    this.cartoonImpact(tmpV.x, tmpV.y, tmpV.z, floor, [1, 0.72, 0.2]);
+    this.emitWorld("dust", tmpV.x, tmpV.y, tmpV.z, floor, 12, 0, 0);
+    sfx.thwack();
     sfx.bonk();
     sfx.meow();
     this.player.squash = 0.35;
     this.trickScore += 75;
-    useUI.getState().addPopup("CAT YEET! 🐱", "#f59e0b", "MEOWWW!");
+    useUI.getState().addPopup("CAT YEET! 🐱", "#f59e0b", "MEOWWW! POW! 💥", true);
   }
 
   private launchCatFromCar(o: Obstacle) {
@@ -2152,8 +2216,20 @@ class Engine {
       let remove = false;
       if (m.phase === "hit" && m.rag) {
         m.hitT += dt;
-        const bounceDamping = m.kind === "cat" || m.kind === "chicken" ? 4.2 : 3.0;
+        const isAnimal = m.kind === "cat" || m.kind === "chicken";
+        const bounceDamping = isAnimal ? 3.4 : 3.0; // hewan: gesekan lebih kecil -> makin mental
+        const bBefore = m.rag.bounces;
         stepRagdoll(m.rag, dt, m.rag.radius, bounceDamping, 0.45);
+        // setiap mantul di aspal: kepulan debu + bunyi kenyal (makin lucu & satisfying)
+        if (isAnimal && m.rag.bounces > bBefore) {
+          track.frame(m.rag.s, m.rag.lat, m.rag.h - m.rag.radius, tmpV);
+          const n = m.rag.bounces === 1 ? 8 : 5;
+          this.emitWorld("dust", tmpV.x, tmpV.y + 0.05, tmpV.z, tmpV.y, n, 0, 0);
+          this.emitWorld("pow", tmpV.x, tmpV.y + 0.05, tmpV.z, tmpV.y, m.rag.bounces === 1 ? 5 : 3, 0, 0);
+          if (m.rag.bounces === 1) sfx.boing();
+          else if (m.rag.bounces === 2) sfx.boing();
+          else sfx.bonk();
+        }
         m.s = m.rag.s;
         m.lat = clamp(m.rag.lat, -7, 7);
         m.h = m.rag.h - m.rag.radius;
@@ -3236,18 +3312,84 @@ class Engine {
     }
   }
 
+  /* ---------- Denyut (shockwave) ---------- */
+  /** Tambah satu gelombang "denyut" di titik tabrakan. */
+  spawnPulse(
+    kind: Pulse["kind"],
+    x: number,
+    y: number,
+    z: number,
+    opts: { max: number; r0: number; r1: number; color: [number, number, number]; flat?: boolean },
+  ) {
+    this.pulses.push({
+      kind,
+      x,
+      y,
+      z,
+      t: 0,
+      max: opts.max,
+      r0: opts.r0,
+      r1: opts.r1,
+      cr: opts.color[0],
+      cg: opts.color[1],
+      cb: opts.color[2],
+      flat: !!opts.flat,
+    });
+    if (this.pulses.length > 12) this.pulses.splice(0, this.pulses.length - 12);
+  }
+
+  private updatePulses(dt: number) {
+    for (let i = this.pulses.length - 1; i >= 0; i--) {
+      const q = this.pulses[i];
+      q.t += dt;
+      if (q.t >= q.max) this.pulses.splice(i, 1);
+    }
+  }
+
+  /**
+   * Ledakan ala kartun saat hewan di-YEET: kilatan + cincin "denyut" mengembang,
+   * serpihan POW, hit-stop singkat, punch kamera dan guncangan.
+   */
+  private cartoonImpact(x: number, y: number, z: number, floorY: number, color: [number, number, number]) {
+    // kilatan inti (paling cepat, paling terang)
+    this.spawnPulse("flash", x, y, z, { max: 0.18, r0: 0.28, r1: 1.5, color: [1, 1, 0.94] });
+    // dua cincin putih + satu cincin warna hewan (denyut yang mengembang)
+    this.spawnPulse("ring", x, y, z, { max: 0.24, r0: 0.3, r1: 1.7, color: [1, 0.99, 0.9] });
+    this.spawnPulse("ring", x, y, z, { max: 0.46, r0: 0.45, r1: 3.3, color });
+    // gelombang tanah yang rebah di aspal
+    this.spawnPulse("ring", x, floorY + 0.05, z, { max: 0.56, r0: 0.5, r1: 4.0, color, flat: true });
+    // serpihan "POW!" menyebar radial
+    this.emitWorld("pow", x, y, z, floorY, 16, 0, 0);
+    // denyut: dunia nge-freeze sekejap, kamera nge-punch, layar bergetar
+    this.hitStop = Math.max(this.hitStop, HITSTOP_TIME);
+    this.punch = 1;
+    this.shake = Math.max(this.shake, 1.15);
+  }
+
   /* ---------- Particles ---------- */
-  emit(kind: "feather" | "crumb" | "spark" | "dust" | "splash", ds: number, h: number, lat: number, n: number) {
+  emit(kind: "feather" | "crumb" | "spark" | "dust" | "splash" | "pow", ds: number, h: number, lat: number, n: number) {
     const c = track.sample(this.distance + ds, tmpS);
     const x = c.x - Math.sin(c.th) * lat;
     const z = c.z + Math.cos(c.th) * lat;
     this.emitWorld(kind, x, c.y + h, z, c.y + 0.02, n, Math.cos(c.th), Math.sin(c.th));
   }
 
-  emitWorld(kind: "feather" | "crumb" | "spark" | "dust" | "splash", x: number, y: number, z: number, floor: number, n: number, tx: number, tz: number) {
+  emitWorld(kind: "feather" | "crumb" | "spark" | "dust" | "splash" | "pow", x: number, y: number, z: number, floor: number, n: number, tx: number, tz: number) {
     for (let i = 0; i < n; i++) {
       let pt: Particle;
-      if (kind === "feather") {
+      if (kind === "pow") {
+        // serpihan komik ala "POW!": menyebar radial, putih/keemasan, muter cepat
+        const a = (i / Math.max(1, n)) * Math.PI * 2 + rand(-0.18, 0.18);
+        const sp = rand(4, 8.5);
+        const gold = Math.random() < 0.5;
+        pt = {
+          x, y, z,
+          vx: Math.cos(a) * sp, vy: rand(1.2, 4.6), vz: Math.sin(a) * sp,
+          life: 0, max: rand(0.22, 0.42), size: rand(0.17, 0.3),
+          r: 1, g: gold ? rand(0.7, 0.9) : 1, b: gold ? rand(0.12, 0.35) : 0.9,
+          rx: rand(0, 6), ry: rand(0, 6), spin: rand(-16, 16), gravity: 3, floor,
+        };
+      } else if (kind === "feather") {
         const g = rand(0.55, 0.95);
         pt = {
           x: x + rand(-0.3, 0.3), y: y + rand(-0.3, 0.3), z: z + rand(-0.3, 0.3),

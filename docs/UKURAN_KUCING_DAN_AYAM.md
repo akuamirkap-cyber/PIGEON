@@ -72,3 +72,9 @@ Output terakhir yang tersimpan: 16 PASS, 0 FAIL.
 Catatan: `test/sim.ts` (harness besar) sudah punya crash pra-eksisting di
 `scenarioSprint()` dan `scenarioFifty()` — dijalankan juga di commit basis tanpa
 perubahan ini, jadi itu bukan efek dari pembesaran kucing/ayam.
+
+## 5. Terkait
+
+Efek tabrakan hewan (mental ala kartun + denyut) dijelaskan di
+[`EFEK_MENTAL_DENYUT_SAAT_TABRAK_HEWAN.md`](./EFEK_MENTAL_DENYUT_SAAT_TABRAK_HEWAN.md).
+Harness `test/animalSize.ts` sekarang mengecek ukuran **dan** efek tersebut (30 cek).
