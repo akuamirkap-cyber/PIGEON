@@ -28,7 +28,28 @@ export const START_S = 14;
 export const CAR_HALF = 1.7;
 export const CAR_HIT = 1.6;
 export const CAR_ROOF_H = 1.52;
-export const CHICKEN_HIT = 0.72;
+/* ---------- Ukuran hewan (BESARIN): kucing 1.7x, ayam 1.2x ----------
+ * Semua angka ukuran hewan ada di blok ini supaya skala model di World.tsx,
+ * hitbox tabrakan, dan radius ragdoll tidak pernah beda. Yang diubah kalau mau
+ * retune cukup CAT_SIZE_BOOST / CHICKEN_SIZE_BOOST.
+ */
+/** Tinggi model pada skala 1 (unit `models.ts`: catWalkParts(), chickenParts()). */
+export const CAT_MODEL_H = 0.775;
+export const CHICKEN_MODEL_H = 1.25;
+export const CAT_MODEL_SCALE = 0.7; // ukuran dasar kucing
+export const CHICKEN_MODEL_SCALE = 0.58; // ukuran dasar ayam
+export const CAT_SIZE_BOOST = 1.7; // BESARIN kucing 1.7x
+export const CHICKEN_SIZE_BOOST = 1.2; // BESARIN ayam 1.2x
+/** Skala akhir yang dipakai World.tsx untuk menggambar hewannya. */
+export const CAT_SCALE = CAT_MODEL_SCALE * CAT_SIZE_BOOST; // = 1.19 (dulu 0.70)
+export const CHICKEN_SCALE = CHICKEN_MODEL_SCALE * CHICKEN_SIZE_BOOST; // = 0.696 (dulu 0.58)
+/** Tinggi akhir model (m), dipakai untuk clearance lompatan & radius ragdoll. */
+export const CAT_HEIGHT = CAT_MODEL_H * CAT_SCALE; // ~0.92 m
+export const CHICKEN_HEIGHT = CHICKEN_MODEL_H * CHICKEN_SCALE; // ~0.87 m
+/** Ayam: tingginya naik bareng ukuran, hitbox clearance ikut naik (dulu 0.72). */
+export const CHICKEN_HIT = CHICKEN_HEIGHT;
+/** Kucing: 1.2 masih di atas kucing 1.7x (0.92) dan di bawah puncak lompatan (~1.84). */
+export const CAT_CLEAR_H = 1.2;
 const CHICKEN_HOP_T = 0.32;
 const CHICKEN_STEP = 1.2;
 const CHICKEN_EDGE = 6.6;
@@ -1777,7 +1798,7 @@ class Engine {
       if (m.kind === "cat") {
         if (Math.abs(m.s - d) > 0.45 + PLAYER_HALF) continue;
         if (Math.abs(m.lat - p.lat) > 0.85) continue;
-        if (p.h >= 1.2) continue; // clean jump over cat
+        if (p.h >= CAT_CLEAR_H) continue; // clean jump over cat
         this.hitCat(m);
         continue;
       }
@@ -1869,11 +1890,14 @@ class Engine {
     const v = Math.max(this.speed, 5);
     const side = m.lat >= p.lat ? 1 : -1;
     const isAnimal = m.kind === "cat" || m.kind === "chicken";
+    // Animals that got the size boost also get a bigger body sphere, so the bigger
+    // model still rests/bounces ON the road instead of sinking into it.
+    const animalBoost = m.kind === "cat" ? CAT_SIZE_BOOST : m.kind === "chicken" ? CHICKEN_SIZE_BOOST : 1;
     const r = makeRagdoll(
       m.s,
       m.lat,
-      m.h + (m.kind === "pedestrian" ? 1.0 : 0.25),
-      m.kind === "pedestrian" ? 0.6 : 0.22
+      m.h + (m.kind === "pedestrian" ? 1.0 : 0.25 * animalBoost),
+      m.kind === "pedestrian" ? 0.6 : 0.22 * animalBoost
     );
     if (isAnimal) {
       // Natural, cute, grounded knockback (not "lebay" / not shooting into outer space)

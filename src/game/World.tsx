@@ -81,6 +81,9 @@ import {
   track,
   SIGN_AHEAD,
   ARM_S,
+  CAT_SCALE,
+  CHICKEN_SCALE,
+  CHICKEN_SIZE_BOOST,
   OBSTACLE_DEFS,
   type Chunk,
   type Crossing,
@@ -255,8 +258,8 @@ const ObstacleView = memo(function ObstacleView({ o }: { o: Obstacle }) {
 
 /* ---------- Movers: oncoming cars, crossing chickens & pedestrians ---------- */
 const PED_SCALE = 1.8;
-export const CHICKEN_SCALE = 0.58;
-export const CAT_SCALE = 0.70;
+/* CAT_SCALE / CHICKEN_SCALE (ukuran hewan, sudah termasuk boost 1.7x & 1.2x)
+   diimpor dari engine.ts supaya hitbox di sana selalu sinkron dengan model di sini. */
 
 const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
   const rootRef = useRef<THREE.Group>(null);
@@ -510,7 +513,11 @@ function Movers() {
             inner.scale.setScalar(1);
           }
           const child = inner.children[0];
-          if (child) child.position.set(0, m.kind === "cat" ? 0 : m.kind === "chicken" ? -0.32 : -0.55, 0);
+          // Body offset from the ragdoll pivot also follows the size boost, so the
+          // bigger chicken/cat still lies flat on the asphalt during the ragdoll tumble.
+          if (child) {
+            child.position.set(0, m.kind === "cat" ? 0 : m.kind === "chicken" ? -0.32 * CHICKEN_SIZE_BOOST : -0.55, 0);
+          }
         } else if (m.kind === "cat") {
           const inner = g.children[0];
           inner.position.set(0, 0, 0);
