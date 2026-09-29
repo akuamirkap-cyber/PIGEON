@@ -12,8 +12,6 @@ export interface Popup {
   text: string;
   sub?: string;
   color: string;
-  /** true = popup "denyut": muncul nyentak lalu berdenyut beberapa kali (tabrakan hewan). */
-  punch?: boolean;
 }
 
 interface UIState {
@@ -56,7 +54,7 @@ interface UIState {
   worldCurve: "subway" | "flat";
   setWorldCurve: (c: "subway" | "flat") => void;
   setHud: (score: number, bread: number, combo: number, dist: number, nos: number, nosActive: boolean) => void;
-  addPopup: (text: string, color: string, sub?: string, punch?: boolean) => void;
+  addPopup: (text: string, color: string, sub?: string) => void;
   crashCause: string;
   tricksOn: Record<TrickKind, boolean>;
   toggleTrick: (k: TrickKind) => void;
@@ -195,10 +193,10 @@ export const useUI = create<UIState>((set, get) => ({
     const n = Math.round(nos);
     if (s.score !== score || s.bread !== bread || s.combo !== combo || s.dist !== dist || s.nos !== n || s.nosActive !== nosActive) set({ score, bread, combo, dist, nos: n, nosActive });
   },
-  addPopup: (text, color, sub, punch) => {
+  addPopup: (text, color, sub) => {
     const id = ++popupId;
-    set((s) => ({ popups: [...s.popups.slice(-3), { id, text, sub, color, punch }] }));
-    setTimeout(() => set((s) => ({ popups: s.popups.filter((p) => p.id !== id) })), punch ? 1350 : 1100);
+    set((s) => ({ popups: [...s.popups.slice(-3), { id, text, sub, color }] }));
+    setTimeout(() => set((s) => ({ popups: s.popups.filter((p) => p.id !== id) })), 1100);
   },
   finishRun: (score, bread, cause) => {
     const s = get();

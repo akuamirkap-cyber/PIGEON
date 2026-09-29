@@ -67,7 +67,7 @@ Harness `test/animalSize.ts` mengukur tinggi model dari geometry `models.ts`
 3. simulasi tabrakan: hewan ter-`YEET`, radius ragdoll = `0.22 x boost`, lalu rebah di aspal (`h == radius`);
 4. simulasi lompat bersih: tepat di atas clearance, hewan **tidak** ter-`YEET`.
 
-Output terakhir yang tersimpan: 16 PASS, 0 FAIL.
+Output terakhir yang tersimpan: 32 PASS, 0 FAIL.
 
 Catatan: `test/sim.ts` (harness besar) sudah punya crash pra-eksisting di
 `scenarioSprint()` dan `scenarioFifty()` — dijalankan juga di commit basis tanpa
@@ -75,6 +75,6 @@ perubahan ini, jadi itu bukan efek dari pembesaran kucing/ayam.
 
 ## 5. Terkait
 
-Efek tabrakan hewan (mental ala kartun + denyut) dijelaskan di
+Efek tabrakan hewan (mental ala kartun + denyut tipis, tanpa shake/freeze) dijelaskan di
 [`EFEK_MENTAL_DENYUT_SAAT_TABRAK_HEWAN.md`](./EFEK_MENTAL_DENYUT_SAAT_TABRAK_HEWAN.md).
-Harness `test/animalSize.ts` sekarang mengecek ukuran **dan** efek tersebut (30 cek).
+Harness `test/animalSize.ts` sekarang mengecek ukuran **dan** efek tersebut (32 cek).

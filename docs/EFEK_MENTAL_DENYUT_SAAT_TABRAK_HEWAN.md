@@ -1,81 +1,99 @@
-# Efek "MENTAL + DENYUT" saat menabrak kucing & ayam
+# Efek tabrakan kucing & ayam: MENTAL + denyut tipis
 
-Permintaan: **"saya mau kucing dan ayam tu mental kalo saya tabrak kek kartun gitu
-dan satisfying ada efek kek apa gitu denyut."**
+Permintaan (versi final): **hewan tetap "mental" ala kartun saat ditabrak, tapi
+TANPA screen shake, TANPA freeze-frame, dan efek denyutnya disederhanakan jadi
+tipis saja — seperti ripple knockback.**
 
-Jadi begitu merpati menabrak kucing atau ayam, sekarang ada paket *juice* ala kartun:
-freeze-frame sekejap, ledakan "POW!", gelombang **denyut** yang mengembang, kamera
-nyentak, hewannya mental tinggi sambil muter-muter, dan bunyi *boing* tiap mantul.
-Semua efek di bawah **hanya** untuk hewan (`cat` & `chicken`) — mobil, pejalan kaki,
-train, dsb. tetap seperti semula.
+Yang tersisa setelah penyederhanaan: hewannya tetap dilontarkan tinggi sambil
+muter-muter dan mantul-mantul, plus **satu** cincin tipis di titik tabrakan.
+Semua efek khusus hewan (`cat` & `chicken`) — mobil, pejalan kaki, train, gate
+tidak terpengaruh.
 
-## 1. Anatomi efek (urutan kejadian)
+## 1. Yang DIHAPUS (permintaan tuning)
 
-| # | Efek | Nilai | Kode |
-|---|---|---|---|
-| 1 | **HIT-STOP** — dunia hampir beku sesaat | 0.11 s pada skala waktu 0.14 | `HITSTOP_TIME`, `HITSTOP_SCALE` di `engine.ts`, diterapkan di awal `update()` |
-| 2 | **Kilatan inti** (denyut pertama) | 0.18 s, radius 0.28 → 1.5, putih | `cartoonImpact()` → `spawnPulse("flash", …)` |
-| 3 | **Cincin denyut** putih + warna hewan | 0.24 s (0.3 → 1.7) & 0.46 s (0.45 → 3.3) | `spawnPulse("ring", …)` |
-| 4 | **Shockwave tanah** rebah di aspal | 0.56 s, radius 0.5 → 4.0 | `spawnPulse("ring", …, { flat: true })` |
-| 5 | **Serpihan POW** menyebar radial | 16 partikel, putih/keemasan, muter cepat | partikel jenis baru `"pow"` |
-| 6 | **Punch kamera** (denyut zoom + sentak) | `punch = 1`, luruh 3.4/detik; FOV −4.5°, kamera maju 0.5 m | `engine.punch` dipakai di `Scene.tsx` |
-| 7 | **Guncangan layar** | minimal 1.15 | `engine.shake` |
-| 8 | **Lontaran MENTAL** | lompat 5.2–7.3 m/s, putaran 10–17 rad/s, samping 2.2–3.8 m/s | `launchVictim()` (cabang hewan) |
-| 9 | **Mantul kenyal** | gravitasi ×0.72, koefisien pantul ×1.45 (maks 0.78), gesekan 3.4 | `ANIMAL_GRAVITY_SCALE`, `ANIMAL_BOUNCE`, `Ragdoll.gravityScale/bouncy` |
-| 10 | **Boing + debu** tiap mantul | boing di mantulan 1 & 2, lalu bonk | `updateMovers()` |
-| 11 | **Popup denyut** | "CAT YEET! 🐱 MEOWWW! POW! 💥" berdenyut 3× selama 1.35 s | `.popup-punch` di `index.css`, `addPopup(..., punch)` |
-| 12 | **Kilatan badan hewan** | emissive putih, berkedip 70 rad/s, luruh 0.34 s | `flashMat` di `World.tsx` (`MoverView`) |
-| 13 | **SFX** | `sfx.thwack()` (POW) + `sfx.bonk()` + `sfx.meow()`/`sfx.squawk()` | `audio.ts` |
-
-Perbandingan lontaran sebelum vs sesudah (kecepatan lari dasar `v`):
-
-| | Sebelum | Sesudah |
+| Efek lama | Status | Catatan |
 |---|---|---|
-| Maju (`vs`) | `v·0.38 + 0.6…1.4` | `v·0.62 + 1.6…3.2` |
-| Naik (`vh`) | 2.2–2.8 m/s | **5.2–7.3 m/s** |
-| Samping (`vlat`) | 1.1–1.9 m/s | **2.2–3.8 m/s** |
-| Putaran (`wz`) | 3–5.5 rad/s | **10–17 rad/s** |
-| Pantulan | koefisien standar (0.48/0.35/0.22) | **×1.45**, gravitasi ×0.72 |
+| **HIT-STOP** (freeze-frame 0.11 s) | ❌ dihapus total | `HITSTOP_TIME`/`HITSTOP_SCALE`/`engine.hitStop` sudah tidak ada; `update()` langsung memakai `dt` penuh |
+| **Screen shake** minimal 1.15 | ❌ dihapus | `cartoonImpact()` tidak lagi menyentuh `engine.shake` (shake tetap ada untuk kecelakaan/train, hanya tidak dipicu hewan) |
+| **Punch kamera** (geser posisi 0.5 m + naik 0.32 m) | ❌ dihapus | posisi kamera sekarang selalu mulus, tidak ada sentakan |
+| Kilatan inti + cincin ganda + shockwave tanah | ➖ diganti | sekarang **1 cincin tipis** saja |
+| Popup berdenyut 3× (`.popup-punch`) | ❌ dihapus | kembali ke popup standar 1.1 s |
+| Slide-whistle di SFX | ❌ dihapus | `thwack` jadi thump + noise tipis |
+| Kilatan badan berkedip 70 rad/s | ➖ dilembutkan | nyala pelan `0.85`, luruh dalam 0.22 s |
 
-Hasil ukur di harness: kucing melayang sampai **puncak 1.11 m** dan mantul **3×**;
-ayam puncak **0.91 m**, mantul **3×**.
+## 2. Yang TETAP (bagian "mental" ala kartun)
 
-## 2. Di mana kodenya
+| Efek | Nilai | Kode |
+|---|---|---|
+| Lontaran maju | `v·0.62 + 1.6…3.2` | `launchVictim()` |
+| Lontaran naik | **5.2–7.3 m/s** | `launchVictim()` |
+| Lontaran samping | **2.2–3.8 m/s** | `launchVictim()` |
+| Putaran badan | **10–17 rad/s** (muter-muter) | `launchVictim()` |
+| Hang time | gravitasi ×0.72 (`ANIMAL_GRAVITY_SCALE`) | `Ragdoll.gravityScale` |
+| Mantul kenyal | koefisien pantul ×1.45 (`ANIMAL_BOUNCE`), maks 0.78 | `Ragdoll.bouncy` |
+| Mantul-mantul + bunyi | 3–4× mantulan: `boing`, `boing`, lalu `bonk` + debu kecil | `updateMovers()` |
+| Suara kena | `thwack` (POW tipis) + `bonk` + `meow`/`squawk` | `audio.ts` |
+
+Hasil ukur: kucing puncak **1.14 m** / 3× mantul, ayam puncak **0.85 m** / 3× mantul.
+
+## 3. Denyut yang baru (tipis & simple)
+
+Satu cincin saja, langsung di titik tabrakan:
+
+| Parameter | Nilai |
+|---|---|
+| Jumlah cincin | **1** (dulu: 1 kilatan + 2 cincin + 1 shockwave tanah) |
+| Bentuk | band tipis: `RingGeometry(0.94, 1, 40)` (tebal 6% radius) |
+| Waktu hidup | 0.28 s (dulu 0.18–0.56 s) |
+| Radius | 0.35 → 1.7 (dulu sampai 4.0) |
+| Opasitas | `0.6 · (1−k)^1.6` — tipis dan cepat hilang (dulu hingga 0.95) |
+| Warna | disesuaikan hewan (ayam oranye, kucing kuning) |
+| Orientasi | billboard menghadap kamera |
+
+Serpihan: dari 16 → **7 partikel** `pow`; mantulan aspal tidak lagi menyemburkan
+partikel `pow`, cuma 3–5 kepulan debu tipis.
+
+Kamera: bukan punch lagi — cuma nudge FOV tipis (`ANIMAL_PUNCH = 0.35`,
+pengaruh FOV = `punch² × 4.5` ≈ **0.55°**, dulu 4.5°). Posisi kamera tidak
+bergeser sama sekali.
+
+## 4. File yang terlibat
 
 | Bagian | File |
 |---|---|
-| Konstanta + `hitStop`/`punch` + `pulses` + `spawnPulse`/`updatePulses`/`cartoonImpact` | `src/game/engine.ts` |
-| Fisika ragdoll kenyal (`gravityScale`, `bouncy`) | `src/game/engine.ts` (`stepRagdoll`) |
+| `animalImpactFx()` (1 cincin + 7 serpihan + nudge tipis) | `src/game/engine.ts` |
+| `Pulse` (tanpa `kind`/`flat`) + `spawnPulse`/`updatePulses` | `src/game/engine.ts` |
+| Fisika ragdoll kenyal (`gravityScale`, `bouncy`) | `src/game/engine.ts` |
 | Lontaran mental + FX per hewan | `src/game/engine.ts` (`launchVictim`, `hitCat`, `hitChicken`) |
-| Boing/debu tiap mantul | `src/game/engine.ts` (`updateMovers`) |
-| Partikel `pow` | `src/game/engine.ts` (`emitWorld`) |
-| Cincin denyut (render) | `src/game/World.tsx` (`Pulses`, pool 6 ring + 6 kilatan, additive) |
-| Kilatan badan hewan | `src/game/World.tsx` (`MoverView.flashMat`) |
-| Punch kamera (posisi + FOV) | `src/game/Scene.tsx` (`CameraRig`) |
-| Popup denyut | `src/game/store.ts`, `src/ui/HUD.tsx`, `src/index.css` (`.popup-punch`) |
+| Cincin denyut (render, pool 4, ring-only) | `src/game/World.tsx` (`Pulses`) |
+| Kilatan badan tipis | `src/game/World.tsx` (`MoverView.flashMat`) |
+| Nudge FOV (tanpa geser kamera) | `src/game/Scene.tsx` |
 | SFX `thwack` / `boing` | `src/game/audio.ts` |
-| Cek otomatis | `test/animalSize.ts` (30 PASS) |
+| Cek otomatis | `test/animalSize.ts` (32 pasar) |
 
-## 3. Retune cepat
-
-Semua angka utama ada di blok `Tabrakan hewan ala kartun` di `engine.ts`:
+## 5. Retune cepat
 
 ```ts
-export const HITSTOP_TIME = 0.11;   // lama freeze-frame
-export const HITSTOP_SCALE = 0.14;  // skala waktu saat freeze
-export const ANIMAL_BOUNCE = 1.45;  // kenyalnya mantulan
+export const ANIMAL_BOUNCE = 1.45;        // kenyalnya mantulan
 export const ANIMAL_GRAVITY_SCALE = 0.72; // < 1 = hang time makin lebay
+export const ANIMAL_PUNCH = 0.35;         // 0 = matikan nudge FOV
 ```
 
-Kalau mau lebih "lebay": naikkan `vh` (5.2) dan `wz` (10–17) di `launchVictim()`,
-atau perbesar radius cincin di `cartoonImpact()`.
+Set `ANIMAL_PUNCH = 0` kalau tidak mau ada perubahan FOV sama sekali.
+Mau cinein cincinnya? Ubah rentang radius di `animalImpactFx()` (`r0: 0.35, r1: 1.7`).
 
-## 4. Verifikasi
+## 6. Verifikasi
 
 ```bash
 npx esbuild test/animalSize.ts --bundle --platform=node --outfile=/tmp/animalSize.cjs && node /tmp/animalSize.cjs
 ```
 
-Cek otomatis pada harness: hit-stop aktif, punch = 1, 3 cincin + 1 kilatan denyut,
-≥10 serpihan POW, lontaran `vh ≥ 5` & spin `≥ 10`, puncak > 0.8 m, ≥3 mantulan,
-lalu memastikan `hitStop`/`punch`/`pulses` kembali nol (efek tidak nyangkut).
+Harness sekarang mengecek **kebalikan** dari sebelumnya, yaitu:
+
+1. **tanpa freeze**: `engine.time` maju tepat `dt` (1/60) dan `engine.distance` tetap jalan;
+2. **tanpa screen shake**: `engine.shake === 0` tepat setelah tabrakan;
+3. denyut cuma **1 cincin tipis** (`pulses.length === 1`, `r1 ≤ 2`);
+4. kamera cuma nudge tipis (`punch ≤ 0.35`, dulu 1.0);
+5. serpihan ≤ 12 (terukur 7);
+6. lontaran tetap mental (`vh ≥ 5`, spin ≥ 10), puncak > 0.8 m, ≥3 mantulan;
+7. semua efek reda lagi (`punch`/`pulses`/`shake` kembali nol).

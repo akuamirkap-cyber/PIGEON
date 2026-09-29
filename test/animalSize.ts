@@ -4,7 +4,7 @@
  *   1. skala model yang digambar World.tsx (`CAT_SCALE` / `CHICKEN_SCALE`) memang 1.7x / 1.2x,
  *   2. hitbox clearance di engine (`CHICKEN_HIT`, `CAT_CLEAR_H`) masih menutupi tinggi model,
  *   3. radius ragdoll ikut membesar, jadi hewan yang ter-`YEET` mendarat DI aspal, bukan terbenam,
- *   4. tiap tabrakan hewan memicu hit-stop + punch kamera + gelombang denyut + serpihan POW,
+ *   4. tiap tabrakan hewan memicu denyut tipis (1 cincin) TANPA screen shake & TANPA freeze-frame,
  *      hewannya mental tinggi & mantul-mantul, dan semua efek itu reda lagi (tidak nyangkut).
  *
  * Jalankan:
@@ -14,8 +14,7 @@ import {
   engine,
   GRAVITY,
   JUMP_V,
-  HITSTOP_TIME,
-  HITSTOP_SCALE,
+  ANIMAL_PUNCH,
   CAT_SIZE_BOOST,
   CHICKEN_SIZE_BOOST,
   CAT_MODEL_SCALE,
@@ -149,31 +148,44 @@ for (const kind of ["cat", "chicken"] as const) {
   );
 }
 
-log.push("=== MENTAL + efek DENYUT ala kartun ===");
+log.push("=== MENTAL + denyut tipis (tanpa shake & tanpa freeze) ===");
 for (const kind of ["cat", "chicken"] as const) {
   const m = standStill(kind, 3);
   let frames = 0;
   while (m.phase !== "hit" && frames < 300) { step(1); frames++; }
-  // tepat setelah kena: hit-stop, punch kamera, denyut, dan ledakan partikel
+  // 1. TIDAK ada freeze-frame: waktu dunia jalan penuh (dt tidak diperlambat)
+  const t0 = engine.time;
+  const d0 = engine.distance;
+  step(1);
   check(
-    `${kind} memicu hit-stop (freeze-frame)`,
-    engine.hitStop > HITSTOP_TIME * 0.5 && HITSTOP_SCALE < 1,
-    `hitStop=${engine.hitStop.toFixed(3)}s, skala waktu=${HITSTOP_SCALE}`,
+    `${kind} tanpa freeze-frame (waktu & jalan tetap normal)`,
+    Math.abs(engine.time - t0 - DT) < 1e-6 && engine.distance > d0,
+    `Δt=${(engine.time - t0).toFixed(4)}s (harus ${DT.toFixed(4)}), dunia tetap jalan`,
   );
-  check(`${kind} memicu punch kamera`, engine.punch > 0.8, `punch=${engine.punch.toFixed(2)}`);
-  const rings = engine.pulses.filter((q) => q.kind === "ring").length;
-  const flashes = engine.pulses.filter((q) => q.kind === "flash").length;
-  const flat = engine.pulses.filter((q) => q.flat).length;
-  check(`${kind} memicu gelombang DENYUT`, rings >= 3 && flashes >= 1, `ring=${rings} flash=${flashes} (shockwave tanah=${flat})`);
-  const pow = engine.particles.filter((p) => p.max < 0.45 && p.size > 0.15).length;
-  check(`${kind} menyemburkan serpihan POW`, pow >= 10, `${pow} partikel`);
+  // 2. TIDAK ada screen shake
+  check(`${kind} tanpa screen shake`, engine.shake === 0, `shake=${engine.shake}`);
+  // 3. denyut cuma SATU cincin tipis
+  check(
+    `${kind} cuma memicu 1 cincin denyut tipis`,
+    engine.pulses.length === 1 && engine.pulses[0].r1 <= 2,
+    `${engine.pulses.length} cincin, radius ${engine.pulses[0]?.r0}->${engine.pulses[0]?.r1}`,
+  );
+  // 4. nudge kamera tipis (bukan punch besar)
+  check(
+    `${kind} kamera cuma nudge tipis`,
+    engine.punch > 0 && engine.punch <= ANIMAL_PUNCH + 1e-6,
+    `punch=${engine.punch} (dulu 1.0)`,
+  );
+  // 5. serpihan seperlunya
+  const pow = engine.particles.filter((p) => p.gravity === 3).length; // partikel "pow" punya gravity 3
+  check(`${kind} serpihan tipis (≤12)`, pow > 0 && pow <= 12, `${pow} partikel`);
+  // 6. lontaran tetap MENTAL (bagian yang diminta tetap ada)
   const rag = m.rag!;
   check(
-    `${kind} dilontarkan MENTAL (tinggi & muter)`,
+    `${kind} tetap dilontarkan MENTAL (tinggi & muter)`,
     rag.vh >= 5 && Math.abs(rag.wz) >= 10,
     `vh=${rag.vh.toFixed(1)} m/s, spin=${Math.abs(rag.wz).toFixed(1)} rad/s, vs=${rag.vs.toFixed(1)}`,
   );
-  // jejak terbang: puncak tertinggi & jumlah mantulan
   let peak = 0;
   let bounces = 0;
   let prevB = 0;
@@ -190,12 +202,12 @@ for (const kind of ["cat", "chicken"] as const) {
   check(
     `${kind} mental tinggi + mantul-mantul`,
     peak > 0.8 && bounces >= 3 && bouncyHop,
-    `puncak ${peak.toFixed(2)} m, ${bounces}x mantul, ada mantulan >2 m/s`,
+    `puncak ${peak.toFixed(2)} m, ${bounces}x mantul`,
   );
   check(
-    `${kind} denyut ikut reda (tidak nyangkut)`,
-    engine.punch === 0 && engine.pulses.length === 0 && engine.hitStop === 0,
-    `punch=${engine.punch} pulses=${engine.pulses.length} hitStop=${engine.hitStop}`,
+    `${kind} denyut reda & tanpa sisa efek`,
+    engine.punch === 0 && engine.pulses.length === 0 && engine.shake === 0,
+    `punch=${engine.punch} pulses=${engine.pulses.length} shake=${engine.shake}`,
   );
 }
 

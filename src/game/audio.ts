@@ -102,11 +102,10 @@ export const sfx = {
     tone(480, 0.12, "sine", { to: 160, vol: 0.35 });
     tone(920, 0.08, "triangle", { to: 280, vol: 0.25 });
   },
-  /** Kartun "POW!": thump bass + noise tabrakan + slide-whistle kocak. */
+  /** Kartun "POW!" tipis: thump bass pendek + noise tabrakan (tanpa slide-whistle). */
   thwack: () => {
-    tone(150, 0.18, "square", { to: 52, vol: 0.38 });
-    noise(0.14, 0.3, 1500);
-    tone(1250, 0.2, "triangle", { to: 300, vol: 0.18, delay: 0.02 });
+    tone(150, 0.13, "square", { to: 62, vol: 0.26 });
+    noise(0.1, 0.2, 1400);
   },
   /** Boing kenyal saat hewan mantul di aspal. */
   boing: () => {

@@ -448,10 +448,9 @@ const MoverView = memo(function MoverView({
 
   useFrame(() => {
     if (!flashMat) return;
-    // denyut kilat: nyala terang lalu berkedip cepat sambil meredup
+    // kilatan badan yang tipis: nyala sebentar lalu cepat meredup (tanpa kedip lebay)
     if (m.phase === "hit") {
-      const fade = Math.max(0, 1 - m.hitT / 0.34);
-      flashMat.emissiveIntensity = fade * (1.5 + 0.55 * Math.sin(m.hitT * 70));
+      flashMat.emissiveIntensity = 0.85 * Math.max(0, 1 - m.hitT / 0.22);
     } else {
       flashMat.emissiveIntensity = 0;
     }
@@ -1040,88 +1039,68 @@ function Breads() {
   return <instancedMesh ref={ref} args={[geo, voxelMaterial, MAX_BREAD]} frustumCulled={false} castShadow />;
 }
 
-/* ---------- Denyut: cincin shockwave + kilatan saat hewan mental ---------- */
-const PULSE_POOL = 6;
+/* ---------- Denyut: satu cincin tipis saat hewan mental ---------- */
+const PULSE_POOL = 4;
 
 function Pulses() {
   const { camera } = useThree();
-  const ringGeo = useMemo(() => new THREE.RingGeometry(0.62, 1, 44), []);
-  const discGeo = useMemo(() => new THREE.CircleGeometry(1, 28), []);
+  // band tipis (0.94..1) -> efeknya halus, seperti ripple knockback
+  const ringGeo = useMemo(() => new THREE.RingGeometry(0.94, 1, 40), []);
   const ringRefs = useRef<(THREE.Mesh | null)[]>([]);
-  const discRefs = useRef<(THREE.Mesh | null)[]>([]);
   const mats = useMemo(
     () =>
-      Array.from({ length: PULSE_POOL * 2 }, () =>
-        new THREE.MeshBasicMaterial({
-          color: "#ffffff",
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-        }),
+      Array.from(
+        { length: PULSE_POOL },
+        () =>
+          new THREE.MeshBasicMaterial({
+            color: "#ffffff",
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+          }),
       ),
     [],
   );
   useEffect(
     () => () => {
       ringGeo.dispose();
-      discGeo.dispose();
       mats.forEach((m) => m.dispose());
     },
-    [ringGeo, discGeo, mats],
+    [ringGeo, mats],
   );
 
   useFrame(() => {
-    let ri = 0;
-    let di = 0;
+    let i = 0;
     for (const q of engine.pulses) {
-      const isRing = q.kind === "ring";
-      const idx = isRing ? ri : di;
-      if (idx >= PULSE_POOL) continue;
-      const mesh = isRing ? ringRefs.current[ri] : discRefs.current[di];
-      const mat = isRing ? mats[ri] : mats[PULSE_POOL + di];
-      if (isRing) ri++;
-      else di++;
+      if (i >= PULSE_POOL) break;
+      const mesh = ringRefs.current[i];
+      const mat = mats[i];
+      i++;
       if (!mesh) continue;
       const k = Math.min(1, q.t / q.max);
-      const grow = 1 - Math.pow(1 - k, 3); // melesat cepat lalu melambat
-      const radius = q.r0 + (q.r1 - q.r0) * grow;
+      const grow = 1 - Math.pow(1 - k, 3); // mengembang cepat lalu melambat
       mesh.visible = true;
       mesh.position.set(q.x, q.y, q.z);
-      if (q.flat) mesh.rotation.set(-Math.PI / 2, 0, 0);
-      else mesh.quaternion.copy(camera.quaternion); // billboard: selalu menghadap pemain
-      mesh.scale.setScalar(radius);
+      mesh.quaternion.copy(camera.quaternion); // billboard: selalu menghadap pemain
+      mesh.scale.setScalar(q.r0 + (q.r1 - q.r0) * grow);
       mat.color.setRGB(q.cr, q.cg, q.cb);
-      mat.opacity = (q.kind === "flash" ? 0.9 : 0.95) * Math.pow(1 - k, 1.5);
+      mat.opacity = 0.6 * Math.pow(1 - k, 1.6); // tipis & cepat hilang
     }
-    // sembunyikan sisa pool
-    for (let i = ri; i < PULSE_POOL; i++) if (ringRefs.current[i]) ringRefs.current[i]!.visible = false;
-    for (let i = di; i < PULSE_POOL; i++) if (discRefs.current[i]) discRefs.current[i]!.visible = false;
+    for (let j = i; j < PULSE_POOL; j++) if (ringRefs.current[j]) ringRefs.current[j]!.visible = false;
   });
 
   return (
     <group>
       {Array.from({ length: PULSE_POOL }, (_, i) => (
         <mesh
-          key={`ring${i}`}
+          key={i}
           ref={(m) => {
             ringRefs.current[i] = m;
           }}
           geometry={ringGeo}
           material={mats[i]}
-          visible={false}
-          frustumCulled={false}
-        />
-      ))}
-      {Array.from({ length: PULSE_POOL }, (_, i) => (
-        <mesh
-          key={`flash${i}`}
-          ref={(m) => {
-            discRefs.current[i] = m;
-          }}
-          geometry={discGeo}
-          material={mats[PULSE_POOL + i]}
           visible={false}
           frustumCulled={false}
         />
