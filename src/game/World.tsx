@@ -308,7 +308,7 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
       ]);
     }
     return null;
-  }, [m.variant]);
+  }, [m.variant, isElder]);
 
   useFrame(() => {
     const root = rootRef.current;
