@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { engine } from "./engine";
+import { useUI } from "./store";
 import { BACK, FUJI, FUJI_CY, buildClouds } from "./backdrop";
-import { PANO, paintFuji, paintHills } from "./backdropPaint";
+import { PANO, paintFuji, paintHills, paintCityNight, paintCityDay } from "./backdropPaint";
 
 /**
  * Distant scenery that travels with the camera (so it sits at "infinity"): a painted Mount Fuji billboard,
@@ -13,6 +14,11 @@ import { PANO, paintFuji, paintHills } from "./backdropPaint";
  */
 export function Backdrop() {
   const gl = useThree((s) => s.gl);
+  const mode = useUI((s) => s.trackMode);
+  const tod = useUI((s) => s.shibuyaTime);
+  const cloudyW = useUI((s) => s.weather === "cloudy");
+  const night = mode === "shibuya" && tod === "malam";
+  const cloudy = cloudyW && !night;
   const root = useRef<THREE.Group>(null);
   const fuji = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Group>(null);
@@ -33,7 +39,18 @@ export function Backdrop() {
       return t;
     };
     const fujiTex = mk(paintFuji(), false);
-    const hillsTex = mk(paintHills(hillsW, hillsW / 8), true);
+    // Shibuya: kejauhan selalu berupa kota Tokyo — malam skyline neon, siang hari
+    // skyline putih/kaca biru + kota rendah (sesuai foto asli); mode lain tetap bukit.
+    const dayTod = tod === "malam" ? "siang" : tod;
+    const dayMist = cloudy ? "#dfe7ee" : dayTod === "pagi" ? "#ffe7cd" : dayTod === "sore" ? "#f7cda4" : "#dbeeff";
+    const hillsTex = mk(
+      mode === "shibuya"
+        ? night
+          ? paintCityNight(hillsW, hillsW / 8)
+          : paintCityDay(hillsW, hillsW / 8, dayTod, dayMist)
+        : paintHills(hillsW, hillsW / 8),
+      true,
+    );
     const mat = (map: THREE.Texture, side: THREE.Side) =>
       new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, alphaToCoverage: true, fog: false, depthWrite: false, depthTest: false, side, toneMapped: false });
     const hillsH = PANO.topY + PANO.botY;
@@ -45,10 +62,18 @@ export function Backdrop() {
       fujiGeo: new THREE.PlaneGeometry(FUJI.w, FUJI.h),
       hillsGeo: new THREE.CylinderGeometry(BACK.hills, BACK.hills, hillsH, 192, 1, true),
       hillsY: (PANO.topY - PANO.botY) / 2,
-      cloudMat: new THREE.MeshBasicMaterial({ vertexColors: true, fog: false, depthWrite: false, depthTest: false, toneMapped: false }),
+      // night clouds turn into dim indigo silhouettes lit faintly from the city below
+      cloudMat: new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        color: night ? "#575d8a" : cloudy ? "#f4f7fa" : mode === "shibuya" && tod === "sore" ? "#ffd9b3" : mode === "shibuya" && tod === "pagi" ? "#fff0e0" : "#ffffff",
+        fog: false,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+      }),
       clouds: buildClouds(),
     };
-  }, [gl]);
+  }, [gl, mode, tod, night, cloudy]);
   useEffect(
     () => () => {
       built.fujiTex.dispose();
@@ -84,7 +109,7 @@ export function Backdrop() {
   const noCurve = { noCurve: true };
   return (
     <group ref={root}>
-      <mesh ref={fuji} geometry={built.fujiGeo} material={built.fujiMat} userData={noCurve} frustumCulled={false} renderOrder={-94} />
+      {!night && <mesh ref={fuji} geometry={built.fujiGeo} material={built.fujiMat} userData={noCurve} frustumCulled={false} renderOrder={-94} />}
       <group ref={cloudsRef}>
         {built.clouds.map((c, i) => (
           <mesh

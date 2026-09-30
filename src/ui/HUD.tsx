@@ -37,6 +37,7 @@ export function HUD() {
   const tricksOn = useUI((s) => s.tricksOn);
   const speedMode = useUI((s) => s.speedMode);
   const trackMode = useUI((s) => s.trackMode);
+  const shibuyaTime = useUI((s) => s.shibuyaTime);
   const inRun = phase === "playing" || phase === "crashed";
   const enabled = TRICKS.filter((t) => tricksOn[t.kind]);
   const nextTrick = enabled.length ? enabled[cycleIndex % enabled.length] : null;
@@ -77,7 +78,17 @@ export function HUD() {
       {/* track mode badge */}
       {inRun && (
         <div className="absolute left-[4%] top-[10.5%] rounded-full bg-black/35 px-2.5 py-1 font-display text-[2.8cqw] leading-none text-white/90 backdrop-blur-[2px]">
-          {trackMode === "haruna" ? "⛰️ MT. HARUNA TOUGE" : "🏙️ TOKYO CITY"}
+          {trackMode === "haruna"
+            ? "⛰️ MT. HARUNA TOUGE"
+            : trackMode === "shibuya"
+              ? shibuyaTime === "pagi"
+                ? "🌅 SHIBUYA PAGI"
+                : shibuyaTime === "siang"
+                  ? "🏙️ SHIBUYA SIANG"
+                  : shibuyaTime === "sore"
+                    ? "🌇 SHIBUYA SORE"
+                    : "🌃 SHIBUYA NIGHT"
+              : "🏙️ TOKYO CITY"}
         </div>
       )}
 
@@ -161,14 +172,18 @@ export function HUD() {
         </div>
       )}
 
-      {/* trick popups */}
-      <div className="absolute left-0 right-0 top-[19%] flex flex-col items-center gap-1">
+      {/* trick / info popups — rapi & tidak menutupi jalan: ukuran dibatasi, satu baris, maks 3 tumpuk */}
+      <div className="absolute left-0 right-0 top-[20%] flex flex-col items-center gap-1">
         {popups.map((p) => (
-          <div key={p.id} className="popup flex flex-col items-center">
-            <div className="font-display txt-outline text-[8cqw] leading-none" style={{ color: p.color }}>
+          <div key={p.id} className="popup flex max-w-[86%] flex-col items-center">
+            <div className="font-display txt-outline max-w-full truncate whitespace-nowrap text-[5.8cqw] leading-none" style={{ color: p.color }}>
               {p.text}
             </div>
-            {p.sub && <div className="font-display txt-outline-sm mt-1 text-[4.5cqw] leading-none text-white">{p.sub}</div>}
+            {p.sub && (
+              <div className="mt-1 max-w-full truncate whitespace-nowrap rounded-full bg-black/30 px-2.5 py-0.5 font-display text-[2.9cqw] leading-none text-white/95 backdrop-blur-[2px]">
+                {p.sub}
+              </div>
+            )}
           </div>
         ))}
       </div>

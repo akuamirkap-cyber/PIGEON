@@ -15,6 +15,8 @@ export interface Part {
   rx?: number;
   ry?: number;
   rz?: number;
+  /** self-luminous part (neon sign, lit window, headlight): rendered unlit at full brightness */
+  glow?: boolean;
 }
 
 const tmpColor = new THREE.Color();
@@ -36,7 +38,8 @@ export function buildVoxelGeometry(parts: Part[]): THREE.BufferGeometry {
     for (let i = 0; i < count; i++) {
       const ny = normals.getY(i);
       const nx = normals.getX(i);
-      const shade = ny > 0.5 ? 1.05 : ny < -0.5 ? 0.75 : nx > 0.5 ? 0.97 : 1;
+      // glow parts keep their exact colour on every face (smooth, even light like a real lightbox)
+      const shade = p.glow ? 1 : ny > 0.5 ? 1.05 : ny < -0.5 ? 0.75 : nx > 0.5 ? 0.97 : 1;
       colors[i * 3] = Math.min(1, tmpColor.r * shade);
       colors[i * 3 + 1] = Math.min(1, tmpColor.g * shade);
       colors[i * 3 + 2] = Math.min(1, tmpColor.b * shade);
@@ -63,8 +66,49 @@ export function getGeometry(key: string, make: () => Part[]): THREE.BufferGeomet
   return g;
 }
 
+/** A model split into a lit half (scene lighting) and a glow half (self-luminous neon). */
+export interface GeoPair {
+  lit: THREE.BufferGeometry;
+  glow: THREE.BufferGeometry | null;
+}
+
+/** Split parts into lit + glow geometries so signs/windows shine at night. */
+export function buildVoxelPair(parts: Part[]): GeoPair {
+  const glowParts = parts.filter((p) => p.glow);
+  if (glowParts.length === 0) return { lit: buildVoxelGeometry(parts), glow: null };
+  return { lit: buildVoxelGeometry(parts.filter((p) => !p.glow)), glow: buildVoxelGeometry(glowParts) };
+}
+
+const pairCache = new Map<string, GeoPair>();
+
+/** Cached lit/glow geometry pair by key. */
+export function getGeometryPair(key: string, make: () => Part[]): GeoPair {
+  let p = pairCache.get(key);
+  if (!p) {
+    p = buildVoxelPair(make());
+    pairCache.set(key, p);
+  }
+  return p;
+}
+
 /** Shared flat-shaded material for all voxel models. */
 export const voxelMaterial = applyCurve(new THREE.MeshLambertMaterial({ vertexColors: true }));
+
+/** Unlit material for self-luminous parts: neon boxes glow evenly no matter how dark the night is
+ *  (still bends with the world curve and fades into the distance haze). */
+export const glowMaterial = applyCurve(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }));
+
+/** Boost HDR untuk material glow: > 1 saat malam supaya HANYA glow yang melewati
+ *  threshold bloom (permukaan putih biasa mentok di 1.0 dan tidak ikut mekar). */
+export function setGlowBoost(v: number) {
+  (glowMaterial as THREE.MeshBasicMaterial).color.setScalar(v);
+}
+
+/** Aspal malam Shibuya yang HALUS: Phong dengan specular biru-keunguan supaya jalan
+ *  memantulkan kilau lampu kota (kesan wet-look tanpa biaya reflection map). */
+export const glossyGroundMaterial = applyCurve(
+  new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 80, specular: new THREE.Color("#6a70a0") }),
+);
 
 export function rand(min: number, max: number) {
   return min + Math.random() * (max - min);

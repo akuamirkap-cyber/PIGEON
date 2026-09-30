@@ -85,7 +85,7 @@ function TrackModeRow() {
   const setTrackMode = useUI((s) => s.setTrackMode);
   const addPopup = useUI((s) => s.addPopup);
 
-  const selectTrack = (mode: "haruna" | "tokyo") => {
+  const selectTrack = (mode: "haruna" | "tokyo" | "shibuya") => {
     if (mode === trackMode) return;
     unlockAudio();
     setTrackMode(mode);
@@ -93,13 +93,16 @@ function TrackModeRow() {
     if (mode === "haruna") {
       sfx.unlock();
       addPopup("TRACK: MT. HARUNA", "#ff9f1c", "Gunma Touge Downhill & Hairpins");
+    } else if (mode === "shibuya") {
+      sfx.click();
+      addPopup("TRACK: SHIBUYA NIGHT", "#c77dff", "Neon Scramble City Lights");
     } else {
       sfx.click();
-      addPopup("TRACK: TOKYO CITY", "#2ec4b6", "Shibuya Streets & Crossings");
+      addPopup("TRACK: TOKYO CITY", "#2ec4b6", "City Streets & Crossings");
     }
   };
 
-  const cell = (mode: "haruna" | "tokyo", title: string, badge: string, activeBg: string, activeShadow: string) => {
+  const cell = (mode: "haruna" | "tokyo" | "shibuya", title: string, badge: string, activeBg: string, activeShadow: string) => {
     const active = trackMode === mode;
     return (
       <button
@@ -117,8 +120,9 @@ function TrackModeRow() {
 
   return (
     <div className="flex w-full items-center gap-1 rounded-2xl bg-[#1f2430]/25 p-1 backdrop-blur-[3px]">
-      {cell("haruna", "MT. HARUNA", "GUNMA", "bg-[#ffc46b]", "#c9700a")}
-      {cell("tokyo", "TOKYO CITY", "SHIBUYA", "bg-[#7ce0d4]", "#1f9a8f")}
+      {cell("haruna", "HARUNA", "GUNMA", "bg-[#ffc46b]", "#c9700a")}
+      {cell("tokyo", "TOKYO", "CITY", "bg-[#7ce0d4]", "#1f9a8f")}
+      {cell("shibuya", "SHIBUYA", "NIGHT", "bg-[#d5a8ff]", "#8b3fd6")}
     </div>
   );
 }
@@ -139,6 +143,12 @@ function SettingsRow() {
   const setCurve = useUI((s) => s.setWorldCurve);
   const wheel = useUI((s) => s.wheelColor);
   const setWheel = useUI((s) => s.setWheelColor);
+  const weather = useUI((s) => s.weather);
+  const toggleWeather = useUI((s) => s.toggleWeather);
+  const nightBright = useUI((s) => s.nightBright);
+  const cycleNightBright = useUI((s) => s.cycleNightBright);
+  const shibuyaTime = useUI((s) => s.shibuyaTime);
+  const cycleShibuyaTime = useUI((s) => s.cycleShibuyaTime);
   const addPopup = useUI((s) => s.addPopup);
   const [tips, setTips] = useState(false);
 
@@ -185,6 +195,36 @@ function SettingsRow() {
         <CyclePill label="SPEED" value={speed === 1 ? "NORMAL" : `${speed}×`} accent={speed > 1 ? "#c9700a" : undefined} onTap={() => setSpeed(speed === 1 ? 2 : speed === 2 ? 3 : 1)} />
         <CyclePill label="CURVE" value={curve === "subway" ? "SUBWAY" : "FLAT"} onTap={toggleCurve} />
         <CyclePill label="BOARD" value={deck === "baguette" ? "ROTI" : "PRO"} accent={deck === "baguette" ? "#c9700a" : undefined} onTap={toggleDeck} />
+      </div>
+      <div className="flex w-full gap-1.5">
+        <CyclePill
+          label="CUACA"
+          value={weather === "cloudy" ? "BERAWAN" : "CERAH"}
+          accent={weather === "cloudy" ? "#6b7f93" : undefined}
+          onTap={() => {
+            toggleWeather();
+            sfx.click();
+            addPopup(weather === "sunny" ? "SIANG BERAWAN ☁️" : "SIANG CERAH ☀️", weather === "sunny" ? "#8fa3b8" : "#ffc46b", weather === "sunny" ? "langit lembut keperakan" : "matahari penuh");
+          }}
+        />
+        <CyclePill
+          label="LAMPU"
+          value={nightBright === 0 ? "REDUP" : nightBright === 1 ? "PAS" : "TERANG"}
+          accent={nightBright === 2 ? "#c9a13d" : undefined}
+          onTap={() => {
+            cycleNightBright();
+            sfx.click();
+          }}
+        />
+        <CyclePill
+          label="WAKTU"
+          value={shibuyaTime.toUpperCase()}
+          accent={shibuyaTime !== "malam" ? "#d98b3d" : undefined}
+          onTap={() => {
+            cycleShibuyaTime();
+            sfx.click();
+          }}
+        />
       </div>
       <div className="flex w-full gap-1.5">
         <CyclePill label="TURN" value={turn === "new" ? "STEER" : "SLIDE"} onTap={() => setTurn(turn === "new" ? "old" : "new")} />

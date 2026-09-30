@@ -262,34 +262,30 @@ export function railParts(length = 7, variant = 0): Part[] {
 
 /** Cute toast slice: rounded crust, a knob of butter, and a happy face. Faces +z. */
 export function breadParts(): Part[] {
+  // Roti tawar bersih tanpa z-fighting:
+  // - potongan crust boleh saling tumpang tindih (warna sama = aman)
+  // - crumb dibuat SATU lapisan tembus depan-belakang yang menonjol 0.015 dari crust,
+  //   jadi tidak ada dua permukaan beda warna yang koplanar (sumber "permukaan rusak")
   const crust = "#c98a4b";
   const crumb = "#f6dfae";
   const crumb2 = "#f9e8c3";
-  const d = 0.22;
   return [
-    // crust outline (rounded corners via stepped boxes)
-    { x: 0, y: 0.34, z: 0, w: 0.62, h: 0.56, d, color: crust },
-    { x: 0, y: 0.7, z: 0, w: 0.5, h: 0.16, d, color: crust },
-    { x: -0.2, y: 0.66, z: 0, w: 0.22, h: 0.2, d, color: crust },
-    { x: 0.2, y: 0.66, z: 0, w: 0.22, h: 0.2, d, color: crust },
-    { x: 0, y: 0.07, z: 0, w: 0.5, h: 0.08, d, color: crust },
-    // crumb face
-    { x: 0, y: 0.35, z: 0.01, w: 0.5, h: 0.46, d: d + 0.02, color: crumb },
-    { x: 0, y: 0.64, z: 0.01, w: 0.38, h: 0.14, d: d + 0.02, color: crumb },
-    { x: -0.17, y: 0.6, z: 0.01, w: 0.14, h: 0.14, d: d + 0.02, color: crumb },
-    { x: 0.17, y: 0.6, z: 0.01, w: 0.14, h: 0.14, d: d + 0.02, color: crumb },
-    { x: 0, y: 0.14, z: 0.01, w: 0.4, h: 0.06, d: d + 0.02, color: crumb2 },
-    // butter
-    { x: 0.03, y: 0.62, z: 0.13, w: 0.2, h: 0.12, d: 0.08, color: "#ffe066" },
-    { x: 0.05, y: 0.66, z: 0.15, w: 0.1, h: 0.06, d: 0.06, color: "#fff3b0" },
-    // kawaii face
-    { x: -0.12, y: 0.4, z: 0.12, w: 0.07, h: 0.09, d: 0.02, color: "#3b2a1a" },
-    { x: 0.12, y: 0.4, z: 0.12, w: 0.07, h: 0.09, d: 0.02, color: "#3b2a1a" },
-    { x: -0.2, y: 0.3, z: 0.12, w: 0.09, h: 0.05, d: 0.02, color: "#ffb3b3" },
-    { x: 0.2, y: 0.3, z: 0.12, w: 0.09, h: 0.05, d: 0.02, color: "#ffb3b3" },
-    { x: 0, y: 0.27, z: 0.12, w: 0.1, h: 0.03, d: 0.02, color: "#3b2a1a" },
-    { x: -0.06, y: 0.295, z: 0.12, w: 0.03, h: 0.03, d: 0.02, color: "#3b2a1a" },
-    { x: 0.06, y: 0.295, z: 0.12, w: 0.03, h: 0.03, d: 0.02, color: "#3b2a1a" },
+    // crust (satu warna, aman saling menimpa)
+    { x: 0, y: 0.34, z: 0, w: 0.62, h: 0.56, d: 0.22, color: crust },
+    { x: 0, y: 0.68, z: 0, w: 0.5, h: 0.14, d: 0.22, color: crust },
+    { x: -0.2, y: 0.64, z: 0, w: 0.22, h: 0.18, d: 0.22, color: crust },
+    { x: 0.2, y: 0.64, z: 0, w: 0.22, h: 0.18, d: 0.22, color: crust },
+    { x: 0, y: 0.07, z: 0, w: 0.5, h: 0.08, d: 0.22, color: crust },
+    // crumb: menonjol jelas di depan & belakang (d 0.25 > crust 0.22)
+    { x: 0, y: 0.36, z: 0, w: 0.48, h: 0.44, d: 0.25, color: crumb },
+    { x: 0, y: 0.62, z: 0, w: 0.36, h: 0.12, d: 0.25, color: crumb },
+    { x: -0.16, y: 0.58, z: 0, w: 0.14, h: 0.12, d: 0.25, color: crumb },
+    { x: 0.16, y: 0.58, z: 0, w: 0.14, h: 0.12, d: 0.25, color: crumb },
+    // garis crumb terang, menonjol lagi 0.01 dari crumb utama
+    { x: 0, y: 0.15, z: 0, w: 0.38, h: 0.06, d: 0.26, color: crumb2 },
+    // mentega menempel di muka depan
+    { x: 0.03, y: 0.55, z: 0.14, w: 0.2, h: 0.12, d: 0.07, color: "#ffe066" },
+    { x: 0.05, y: 0.585, z: 0.165, w: 0.1, h: 0.06, d: 0.05, color: "#fff3b0" },
   ];
 }
 
@@ -306,6 +302,62 @@ export interface BuildingSpec {
   awningColor: string;
   lit: number;
   cols: number;
+  /** Shibuya Night styling: dark glass facade, almost every window lit in neon hues, rooftop neon trim. */
+  night?: boolean;
+  /** accent neon hue used for trims / vertical sign when night */
+  neon?: string;
+  /** zakkyo-biru: how many stacked company signboards climb the facade (0 = none) */
+  signStack?: number;
+  /** big glowing video screen across the mid floors */
+  screen?: boolean;
+  /** glowing advertising panel on stilts above the roof */
+  roofBillboard?: boolean;
+  /** tiered setback top for a distinctive Tokyo silhouette */
+  tiered?: boolean;
+}
+
+/** Neon hues used across the Shibuya night city (signs, windows, billboards). */
+/** Warna sign malam yang realistis ala Jepang: putih hangat, kuning, merah,
+ *  oranye, hijau sign, biru sign — TANPA magenta/cyan/ungu cyberpunk. */
+export const NEON_COLORS = ["#ffd23f", "#ff4438", "#ff8a3d", "#fff3c4", "#ffe93b", "#58c96b", "#4d9fff", "#ffb84d"];
+
+/** Lightbox colours of real Japanese company signboards (izakaya, karaoke, clinics, pachinko…). */
+export const SIGN_COLORS = ["#ffffff", "#ffd23f", "#ff5a5f", "#37c86b", "#2f9bff", "#ff8a3d", "#e8485a", "#3bbfae", "#fff3c4"];
+
+/** Night facades: real Shibuya mix — white/cream tile, warm beige, light concrete grey,
+ *  tan brick — plus only a few dark glass towers so the street never reads "cyberpunk". */
+const NIGHT_FACADES = [
+  "#e7e2d6", // white ceramic tile (paling umum di Jepang)
+  "#eceff2", // putih porselen
+  "#ded6c4", // krem hangat
+  "#cfd2d6", // beton abu terang
+  "#c9bda4", // tan / beige
+  "#b8bec8", // abu kebiruan terang
+  "#c4b49a", // beige tua
+  "#9aa4b0", // abu medium terang
+  "#9c8674", // bata cokelat muda
+  "#3a4051", // dark glass (hanya satu — jangan kebanyakan hitam)
+];
+
+export function makeShibuyaTowerSpec(w: number): BuildingSpec {
+  const neon = NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)];
+  const floors = 5 + Math.floor(Math.random() * 5); // 5..9 floors: a proper neon canyon
+  return {
+    w,
+    floors,
+    color: NIGHT_FACADES[Math.floor(Math.random() * NIGHT_FACADES.length)],
+    roof: "#454d5c",
+    awning: false,
+    awningColor: neon,
+    lit: 0.75 + Math.random() * 0.25,
+    cols: Math.max(2, Math.floor(w / 1.5)),
+    night: true,
+    neon,
+    signStack: Math.random() < 0.85 ? 3 + Math.floor(Math.random() * (floors - 2)) : 0,
+    screen: Math.random() < 0.35,
+    roofBillboard: Math.random() < 0.5,
+    tiered: floors >= 7 && Math.random() < 0.55,
+  };
 }
 
 export function makeBuildingSpec(w: number): BuildingSpec {
@@ -335,17 +387,118 @@ export function buildingParts(s: BuildingSpec): Part[] {
   ];
   const winW = 0.6;
   const spacing = s.w / s.cols;
-  for (let f = 0; f < s.floors; f++) {
-    for (let c = 0; c < s.cols; c++) {
-      const x = -s.w / 2 + spacing * (c + 0.5);
-      if (f === 0 && c === Math.floor(s.cols / 2)) {
-        parts.push({ x, y: 0.95, z: 0.04, w: 0.9, h: 1.3, d: 0.1, color: "#5a3e2b" });
-        parts.push({ x: x + 0.25, y: 0.95, z: 0.1, w: 0.1, h: 0.1, d: 0.06, color: "#ffd166" });
+  if (s.night) {
+    // Shibuya zakkyo-biru — JENDELA RAPI: bidang jendela di-inset dari tepi supaya
+    // tidak menabrak rak sign kiri maupun strip sign vertikal kanan; grid seragam;
+    // lampu menyala per-LANTAI (kantor/ruangan menyala serentak, bukan bintik acak);
+    // jendela mati = kaca kebiruan gelap, BUKAN hitam pekat.
+    const winColors = ["#ffe9a3", "#ffd166", "#fff3c4", "#f6efdc"];
+    const glassDark = "#3c4763";
+    const seedW = Math.abs(Math.round(s.w * 7));
+    const xL = -s.w / 2 + ((s.signStack ?? 0) > 0 ? 1.35 : 0.6);
+    const xR = s.w / 2 - 1.0;
+    const span = Math.max(1.2, xR - xL);
+    const wCols = Math.max(2, Math.floor(span / 0.95));
+    const wSp = span / wCols;
+    const wW = Math.min(0.68, wSp * 0.62);
+    for (let f = 0; f < s.floors; f++) {
+      if (f === 0) {
+        // lantai dasar: etalase toko kaca menyala selebar bidang jendela
+        parts.push({ x: (xL + xR) / 2, y: 0.92, z: 0.04, w: span * 0.94, h: 1.28, d: 0.1, color: "#ffe9a3", glow: true });
         continue;
       }
-      const lit = ((f * 7 + c * 3) % 10) / 10 < s.lit * 0.5;
-      parts.push({ x, y: 0.5 + f * floorH + 0.75, z: 0.04, w: winW, h: 0.72, d: 0.1, color: lit ? "#ffe9a3" : "#bfe8ff" });
-      parts.push({ x, y: 0.5 + f * floorH + 0.36, z: 0.08, w: winW + 0.1, h: 0.08, d: 0.16, color: "#f5f5f5" });
+      const fy = 0.5 + f * floorH + 0.75;
+      const floorLit = ((f * 13 + s.floors * 7 + seedW) % 10) / 10 < s.lit * 0.8;
+      const wc = winColors[(f * 2 + seedW) % winColors.length];
+      for (let c = 0; c < wCols; c++) {
+        const x = xL + wSp * (c + 0.5);
+        const lit = floorLit ? (c * 3 + f) % 7 !== 0 : (c * 5 + f * 3) % 11 === 0;
+        parts.push({ x, y: fy, z: 0.04, w: wW, h: 0.72, d: 0.1, color: lit ? wc : glassDark, glow: lit });
+      }
+    }
+    // glowing storefront fascia band above the ground floor (shop name lightbox)
+    const fascia = SIGN_COLORS[Math.abs(Math.round(s.w * 7 + s.floors * 3)) % SIGN_COLORS.length];
+    parts.push({ x: 0, y: 1.78, z: 0.14, w: s.w * 0.92, h: 0.5, d: 0.16, color: fascia, glow: true });
+    parts.push({ x: -s.w * 0.12, y: 1.78, z: 0.24, w: s.w * 0.42, h: 0.22, d: 0.03, color: "#1f2430" });
+
+    // ZAKKYO SIGN STACK: protruding lit company signboards climbing the left edge floor by floor
+    const nSigns = Math.min(s.signStack ?? 0, s.floors - 1);
+    if (nSigns > 0) {
+      const sxL = -s.w / 2 + 0.55;
+      // steel rail carrying the boxes
+      parts.push({ x: sxL, y: 1.4 + (nSigns * floorH) / 2, z: 0.28, w: 0.12, h: nSigns * floorH + 0.4, d: 0.12, color: "#2b3040" });
+      for (let i = 0; i < nSigns; i++) {
+        const sy = 1.85 + i * floorH;
+        const sc = SIGN_COLORS[(i * 3 + Math.abs(Math.round(s.w * 11))) % SIGN_COLORS.length];
+        parts.push({ x: sxL, y: sy, z: 0.34, w: 1.0, h: 0.78, d: 0.22, color: sc, glow: true });
+        // dark "lettering" bar so each box reads as a real signboard, not a lamp
+        parts.push({ x: sxL, y: sy + (i % 2 ? 0.12 : -0.1), z: 0.46, w: 0.68, h: 0.2, d: 0.03, color: i % 3 === 0 ? "#c02434" : "#1f2430" });
+      }
+    }
+
+    // big glowing video screen across the mid floors of some towers
+    if (s.screen && s.floors >= 5) {
+      const scW = s.w * 0.62;
+      const scH = floorH * 2.1;
+      const scY = 0.5 + 2.4 * floorH + scH / 2;
+      parts.push({ x: s.w * 0.08, y: scY, z: 0.12, w: scW + 0.24, h: scH + 0.24, d: 0.12, color: "#262c3a" });
+      parts.push({ x: s.w * 0.08, y: scY, z: 0.2, w: scW, h: scH, d: 0.06, color: s.neon ?? "#ffd23f", glow: true });
+      parts.push({ x: s.w * 0.08 - scW * 0.18, y: scY + scH * 0.22, z: 0.25, w: scW * 0.5, h: 0.26, d: 0.03, color: "#ffffff", glow: true });
+      parts.push({ x: s.w * 0.08 + scW * 0.2, y: scY - scH * 0.24, z: 0.25, w: scW * 0.34, h: 0.2, d: 0.03, color: "#1f2430" });
+    }
+
+    // vertical kanji neon sign strip down the right edge
+    const sx = s.w / 2 - 0.35;
+    parts.push({ x: sx, y: h * 0.55, z: 0.22, w: 0.5, h: h * 0.62, d: 0.14, color: "#2a3040" });
+    const glyphN = Math.max(3, Math.floor((h * 0.62) / 0.8));
+    for (let i = 0; i < glyphN; i++) {
+      parts.push({ x: sx, y: h * 0.55 + h * 0.27 - i * 0.8, z: 0.31, w: 0.34, h: 0.4, d: 0.03, color: i % 2 ? "#ffffff" : (s.neon ?? "#ffd23f"), glow: true });
+    }
+
+    // TIERED SETBACK TOP: stepped penthouse floors give each tower its own silhouette
+    if (s.tiered) {
+      const t1w = s.w * 0.68;
+      parts.push({ x: -s.w * 0.1, y: h + 0.75, z: -depth / 2, w: t1w, h: 1.3, d: depth * 0.8, color: s.color });
+      for (let c = 0; c < Math.max(2, Math.floor(t1w / 1.4)); c++) {
+        const x = -s.w * 0.1 - t1w / 2 + (t1w / Math.max(2, Math.floor(t1w / 1.4))) * (c + 0.5);
+        if ((c * 5 + s.floors) % 3 !== 0) parts.push({ x, y: h + 0.8, z: -depth / 2 + depth * 0.4 + 0.04, w: 0.5, h: 0.6, d: 0.08, color: "#ffe9a3", glow: true });
+      }
+      parts.push({ x: -s.w * 0.1, y: h + 1.5, z: -depth / 2, w: t1w + 0.2, h: 0.16, d: depth * 0.8 + 0.2, color: s.roof });
+      parts.push({ x: -s.w * 0.16, y: h + 2.0, z: -depth / 2, w: t1w * 0.5, h: 0.85, d: depth * 0.55, color: s.color });
+      parts.push({ x: -s.w * 0.16, y: h + 2.5, z: -depth / 2, w: t1w * 0.5 + 0.2, h: 0.14, d: depth * 0.55 + 0.2, color: s.roof });
+    }
+
+    // ROOFTOP BILLBOARD on stilts — the glowing crown of Japanese high streets
+    if (s.roofBillboard) {
+      const bw = s.w * 0.8;
+      const by = h + (s.tiered ? 3.4 : 1.6);
+      const bc = SIGN_COLORS[(Math.abs(Math.round(s.w * 13)) + 4) % SIGN_COLORS.length];
+      parts.push({ x: -bw * 0.35, y: by - 0.7, z: -depth / 2, w: 0.14, h: 1.4, d: 0.14, color: "#2b3040" });
+      parts.push({ x: bw * 0.35, y: by - 0.7, z: -depth / 2, w: 0.14, h: 1.4, d: 0.14, color: "#2b3040" });
+      parts.push({ x: 0, y: by + 0.55, z: -depth / 2, w: bw, h: 1.35, d: 0.2, color: bc, glow: true });
+      parts.push({ x: -bw * 0.12, y: by + 0.62, z: -depth / 2 + 0.14, w: bw * 0.55, h: 0.34, d: 0.03, color: bc === "#ffffff" ? "#c02434" : "#ffffff", glow: true });
+      parts.push({ x: bw * 0.28, y: by + 0.3, z: -depth / 2 + 0.14, w: bw * 0.22, h: 0.22, d: 0.03, color: "#1f2430" });
+    } else {
+      // rooftop neon trim + red aircraft warning beacon on tall towers
+      parts.push({ x: 0, y: h + 0.3, z: 0.02, w: s.w + 0.1, h: 0.1, d: 0.1, color: s.neon ?? "#ff8a3d", glow: true });
+      if (s.floors >= 6) {
+        parts.push({ x: 0, y: h + 1.1, z: -depth / 2, w: 0.12, h: 1.4, d: 0.12, color: "#39404f" });
+        parts.push({ x: 0, y: h + 1.9, z: -depth / 2, w: 0.22, h: 0.22, d: 0.22, color: "#ff1f3d", glow: true });
+      }
+    }
+  } else {
+    for (let f = 0; f < s.floors; f++) {
+      for (let c = 0; c < s.cols; c++) {
+        const x = -s.w / 2 + spacing * (c + 0.5);
+        if (f === 0 && c === Math.floor(s.cols / 2)) {
+          parts.push({ x, y: 0.95, z: 0.04, w: 0.9, h: 1.3, d: 0.1, color: "#5a3e2b" });
+          parts.push({ x: x + 0.25, y: 0.95, z: 0.1, w: 0.1, h: 0.1, d: 0.06, color: "#ffd166" });
+          continue;
+        }
+        const lit = ((f * 7 + c * 3) % 10) / 10 < s.lit * 0.5;
+        parts.push({ x, y: 0.5 + f * floorH + 0.75, z: 0.04, w: winW, h: 0.72, d: 0.1, color: lit ? "#ffe9a3" : "#bfe8ff" });
+        parts.push({ x, y: 0.5 + f * floorH + 0.36, z: 0.08, w: winW + 0.1, h: 0.08, d: 0.16, color: "#f5f5f5" });
+      }
     }
   }
   if (s.awning) {
@@ -401,7 +554,7 @@ export function lampParts(): Part[] {
     { x: 0, y: 0.1, z: 0, w: 0.4, h: 0.2, d: 0.4, color: "#3f444c" },
     { x: 0, y: 1.7, z: 0, w: 0.16, h: 3.2, d: 0.16, color: "#4a4f57" },
     { x: 0, y: 3.3, z: 0.4, w: 0.14, h: 0.14, d: 0.9, color: "#4a4f57" },
-    { x: 0, y: 3.15, z: 0.85, w: 0.4, h: 0.22, d: 0.4, color: "#fff2b0" },
+    { x: 0, y: 3.15, z: 0.85, w: 0.4, h: 0.22, d: 0.4, color: "#fff2b0", glow: true },
     { x: 0, y: 3.3, z: 0.85, w: 0.46, h: 0.1, d: 0.46, color: "#4a4f57" },
   ];
 }
@@ -816,7 +969,15 @@ const PED_OUTFITS = [
   { top: "#2a9d8f", pants: "#6c584c", hair: "#111111", skin: "#c68642" },
   { top: "#9b5de5", pants: "#3a3a3a", hair: "#5a3825", skin: "#e0ac69" },
   { top: "#f4a261", pants: "#264653", hair: "#8d5524", skin: "#f1c9a5" },
+  // varian 5..7 = SALARYMAN: setelan jas kantor (jaket & celana senada gelap)
+  { top: "#2e3546", pants: "#2e3546", hair: "#1b1b1f", skin: "#f1c9a5" },
+  { top: "#23272f", pants: "#23272f", hair: "#111111", skin: "#e8b98e" },
+  { top: "#3d4459", pants: "#3d4459", hair: "#2b1d12", skin: "#f6d7bd" },
 ];
+/** Jumlah varian outfit pejalan kaki (0..4 kasual, 5..7 setelan jas kantor). */
+export const PED_VARIANTS = PED_OUTFITS.length;
+/** Varian >= 5 adalah salaryman berjas (kemeja putih + dasi + tas kerja dikempit). */
+export const isSuitVariant = (v: number) => v % PED_VARIANTS >= 5;
 
 /** Kakek/nenek yang menyeberang: cardigan hangat, rambut putih, kacamata, dan tongkat. */
 const ELDER_OUTFITS = [
@@ -909,8 +1070,8 @@ export function pedestrianHeadParts(variant: number, isHit = false, elderly = fa
   return parts;
 }
 
-/** Pedestrian torso. Origin at torso center (y = 0). */
-export function pedestrianTorsoParts(variant: number, elderly = false): Part[] {
+/** Pedestrian torso. Origin at torso center (y = 0). `kid` menambah tas randoseru sekolah. */
+export function pedestrianTorsoParts(variant: number, elderly = false, kid = false): Part[] {
   const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
   const parts: Part[] = [
     { x: 0, y: 0, z: 0, w: 0.42, h: 0.68, d: 0.52, color: o.top },
@@ -920,6 +1081,20 @@ export function pedestrianTorsoParts(variant: number, elderly = false): Part[] {
     // punggung agak bungkuk (punuk di belakang bahu) + kerah cardigan
     parts.push({ x: -0.16, y: 0.2, z: 0, w: 0.16, h: 0.3, d: 0.44, color: o.top });
     parts.push({ x: 0.0, y: 0.31, z: 0, w: 0.44, h: 0.06, d: 0.5, color: "#ffffff" });
+  } else if (isSuitVariant(variant) && !kid) {
+    // SALARYMAN: kemeja putih menyembul di dada + dasi + kerah/lapel jas
+    parts.push({ x: 0.215, y: 0.0, z: 0, w: 0.02, h: 0.56, d: 0.2, color: "#f6f7f9" });
+    parts.push({ x: 0.228, y: 0.04, z: 0, w: 0.015, h: 0.38, d: 0.085, color: variant % 2 ? "#a8323e" : "#31518f" });
+    parts.push({ x: 0.215, y: 0.27, z: 0.12, w: 0.035, h: 0.1, d: 0.1, color: o.top });
+    parts.push({ x: 0.215, y: 0.27, z: -0.12, w: 0.035, h: 0.1, d: 0.1, color: o.top });
+  }
+  if (kid) {
+    // RANDOSERU: tas sekolah kulit khas anak Jepang (merah / hitam) di punggung
+    const rc = variant % 2 ? "#b5323c" : "#262b33";
+    parts.push({ x: -0.3, y: 0.0, z: 0, w: 0.17, h: 0.46, d: 0.4, color: rc });
+    parts.push({ x: -0.33, y: 0.25, z: 0, w: 0.13, h: 0.07, d: 0.42, color: rc });
+    parts.push({ x: -0.22, y: 0.1, z: 0.17, w: 0.045, h: 0.34, d: 0.07, color: "#3a3f47" });
+    parts.push({ x: -0.22, y: 0.1, z: -0.17, w: 0.045, h: 0.34, d: 0.07, color: "#3a3f47" });
   }
   return parts;
 }
@@ -968,6 +1143,65 @@ export function pedestrianParts(variant: number, isHit = false, elderly = false)
     parts.push({ x: 0.1, y: 2.1, z: -0.34, w: 1.0, h: 0.12, d: 1.0, color: variant % 2 ? "#ff5c8a" : "#4cc9f0" });
     parts.push({ x: 0.1, y: 2.2, z: -0.34, w: 0.6, h: 0.1, d: 0.6, color: variant % 2 ? "#ff8fb1" : "#7fdbff" });
   }
+  return parts;
+}
+
+/** Tas kerja kulit yang DIKEMPIT salaryman di sisi badan (dipasang pada grup lengan kiri;
+ *  origin di sendi bahu, tas menempel rapat antara lengan dan pinggul). */
+export function briefcaseParts(variant = 0): Part[] {
+  const c = variant % 2 ? "#4a3423" : "#26292f";
+  const trim = variant % 2 ? "#5f4830" : "#363b44";
+  return [
+    { x: 0.04, y: -0.44, z: -0.1, w: 0.52, h: 0.36, d: 0.1, color: c },
+    { x: 0.04, y: -0.28, z: -0.1, w: 0.54, h: 0.05, d: 0.12, color: trim },
+    { x: 0.04, y: -0.22, z: -0.1, w: 0.16, h: 0.07, d: 0.05, color: "#1c1f24" },
+    { x: 0.305, y: -0.4, z: -0.065, w: 0.014, h: 0.06, d: 0.045, color: "#c9a13d" },
+    { x: 0.305, y: -0.4, z: -0.135, w: 0.014, h: 0.06, d: 0.045, color: "#c9a13d" },
+  ];
+}
+
+/** Pagar pembatas trotoar pipa putih khas kota Jepang (横断防止柵): tiang + 2 rel horizontal. */
+export function guardFenceParts(len = 3.2): Part[] {
+  const white = "#eef1f4";
+  const parts: Part[] = [];
+  for (let i = 0; i < 3; i++) {
+    parts.push({ x: -len / 2 + (len / 2) * i, y: 0.37, z: 0, w: 0.1, h: 0.74, d: 0.1, color: white });
+  }
+  parts.push({ x: 0, y: 0.72, z: 0, w: len, h: 0.1, d: 0.1, color: white });
+  parts.push({ x: 0, y: 0.42, z: 0, w: len, h: 0.07, d: 0.07, color: "#e2e6ea" });
+  return parts;
+}
+
+/** Planter TROTOAR Shibuya: bak bata/beton berisi semak, rumpun rumput & bunga; varian 2 = pagar tanaman (hedge). */
+export function sidewalkPlanterParts(variant: number): Part[] {
+  const v = Math.abs(variant) % 3;
+  const parts: Part[] = [];
+  if (v === 2) {
+    // hedge panjang di bak beton rendah
+    parts.push({ x: 0, y: 0.14, z: 0, w: 2.6, h: 0.28, d: 0.5, color: "#9aa0a8" });
+    parts.push({ x: 0, y: 0.5, z: 0, w: 2.4, h: 0.5, d: 0.4, color: "#3f7a45" });
+    parts.push({ x: -0.7, y: 0.78, z: 0, w: 0.8, h: 0.16, d: 0.36, color: "#4c8a4f" });
+    parts.push({ x: 0.6, y: 0.76, z: 0, w: 0.9, h: 0.14, d: 0.36, color: "#5e9b57" });
+    return parts;
+  }
+  const box = v === 0 ? "#9c5a3c" : "#a8adb5"; // bak bata merah / beton
+  const rim = v === 0 ? "#7d452e" : "#8d939c";
+  parts.push({ x: 0, y: 0.2, z: 0, w: 1.5, h: 0.4, d: 0.55, color: box });
+  parts.push({ x: 0, y: 0.42, z: 0, w: 1.58, h: 0.08, d: 0.63, color: rim });
+  parts.push({ x: 0, y: 0.45, z: 0, w: 1.38, h: 0.06, d: 0.44, color: "#4a3a28" });
+  // semak hijau
+  parts.push({ x: -0.35, y: 0.58, z: 0, w: 0.5, h: 0.28, d: 0.36, color: "#4c8a4f" });
+  parts.push({ x: 0.3, y: 0.56, z: 0.02, w: 0.46, h: 0.24, d: 0.34, color: "#5e9b57" });
+  // rumpun rumput
+  for (const gx of [-0.6, 0.05, 0.55]) {
+    parts.push({ x: gx, y: 0.62, z: -0.1, w: 0.07, h: 0.3, d: 0.07, color: "#6fae5c" });
+    parts.push({ x: gx + 0.08, y: 0.58, z: 0.08, w: 0.06, h: 0.24, d: 0.06, color: "#87c46a" });
+  }
+  // bunga warna-warni
+  const fl = v === 0 ? ["#e84855", "#ffd166", "#ff8fa3"] : ["#ffffff", "#b48ce0", "#ffd166"];
+  [-0.45, -0.1, 0.25, 0.55].forEach((fx, i) => {
+    parts.push({ x: fx, y: 0.72 + (i % 2) * 0.05, z: i % 2 ? 0.12 : -0.08, w: 0.11, h: 0.11, d: 0.11, color: fl[i % fl.length] });
+  });
   return parts;
 }
 
@@ -1048,6 +1282,8 @@ export function puddleParts(variant: number): Part[] {
 /* ---------- Perempatan (4-Way Crossroads / Intersection) ---------- */
 
 export const INTERSECTION_W = 8.4;
+/** Varian cross-street LEBAR 6 jalur — biar perempatan tidak sempit. */
+export const INTERSECTION_W_WIDE = 12.6;
 /** Panjang jalan lintas di tiap sisi perempatan (dari dek |lat| 4 sampai ujungnya). */
 export const CROSS_STREET_LEN = 38;
 /** Titik tengah jalan lintas tiap sisi (|lat| 4 → 42). */
@@ -1055,7 +1291,7 @@ const CROSS_STREET_MID = 4 + CROSS_STREET_LEN / 2;
 export const HOOD_JUMP_CLEAR_H = 0.88;
 
 /** Complete 4-way asphalt cross-street with raised lateral roadbeds, sidewalks, corner curb cuts, tactile blocks, and 4-way zebra crossings. */
-export function intersectionRoadParts(): Part[] {
+export function intersectionRoadParts(W: number = INTERSECTION_W): Part[] {
   const asphalt = "#424752";
   const asphaltDark = "#383c44";
   const white = "#f8fafc";
@@ -1068,14 +1304,13 @@ export function intersectionRoadParts(): Part[] {
   const metal = "#4b5563";
   const parts: Part[] = [];
 
-  const W = INTERSECTION_W; // 8.4
-  const halfW = W / 2; // 4.2
+  const halfW = W / 2;
 
   // 1. Center Junction Asphalt (inside the main street, y = 0.016 to prevent z-fighting with main road y = 0)
   parts.push({ x: 0, y: 0.016, z: 0, w: W, h: 0.024, d: 8.0, color: asphalt });
   // Subtle tire wear grooves across the junction
-  parts.push({ x: -1.8, y: 0.018, z: 0, w: 1.4, h: 0.025, d: 7.8, color: asphaltDark });
-  parts.push({ x: 1.8, y: 0.018, z: 0, w: 1.4, h: 0.025, d: 7.8, color: asphaltDark });
+  parts.push({ x: -halfW * 0.43, y: 0.018, z: 0, w: 1.4, h: 0.025, d: 7.8, color: asphaltDark });
+  parts.push({ x: halfW * 0.43, y: 0.018, z: 0, w: 1.4, h: 0.025, d: 7.8, color: asphaltDark });
 
   // 2. Lateral Cross-Streets (Left: z = -4.0 to -30, Right: z = +4.0 to +30)
   // Raised to y = 0.145 (surface top at y = 0.175) so it cleanly overlays ground sidewalk (0.12) & curbs (0.14)
@@ -1094,13 +1329,13 @@ export function intersectionRoadParts(): Part[] {
   // 3. Sidewalks along both sides of the Cross-Street (x = -halfW - 0.7 and x = +halfW + 0.7)
   for (const side of [-1, 1]) {
     const curbX = side * (halfW + 0.18);
-    const walkX = side * (halfW + 0.95);
+    const walkX = side * (halfW + 1.46);
     for (const dir of [-1, 1]) {
       const walkZ = dir * CROSS_STREET_MID;
       // Curb stone along the side street
       parts.push({ x: curbX, y: 0.18, z: walkZ, w: 0.36, h: 0.14, d: CROSS_STREET_LEN - 0.5, color: curb });
-      // Sidewalk paving tiles along the side street
-      parts.push({ x: walkX, y: 0.165, z: walkZ, w: 1.25, h: 0.11, d: CROSS_STREET_LEN - 0.5, color: sidewalk });
+      // Sidewalk paving tiles along the side street — lebar 2.2 m, muat 2 orang berdampingan
+      parts.push({ x: walkX, y: 0.165, z: walkZ, w: 2.2, h: 0.11, d: CROSS_STREET_LEN - 0.5, color: sidewalk });
     }
   }
 
@@ -1115,8 +1350,8 @@ export function intersectionRoadParts(): Part[] {
     }
   }
 
-  // 5. White Stop Lines before the intersection
-  for (const sz of [-4.5, 4.5]) {
+  // 5. White Stop Lines before the intersection (di belakang zebra, seperti aturan Jepang)
+  for (const sz of [-7.0, 7.0]) {
     parts.push({ x: 0, y: 0.18, z: sz, w: W - 1.2, h: 0.022, d: 0.45, color: white });
   }
 
@@ -1133,26 +1368,29 @@ export function intersectionRoadParts(): Part[] {
     }
     // Painted directional arrows on the cross-street lanes
     const arrowZ = dir * 11;
-    for (const ax of [-2.0, 2.0]) {
+    const arrowXs = halfW > 5 ? [-4.3, -2.0, 2.0, 4.3] : [-2.0, 2.0];
+    for (const ax of arrowXs) {
       parts.push({ x: ax, y: 0.18, z: arrowZ, w: 0.22, h: 0.022, d: 1.6, color: white });
       parts.push({ x: ax - 0.25, y: 0.18, z: arrowZ + dir * 0.4, w: 0.2, h: 0.022, d: 0.5, color: white });
       parts.push({ x: ax + 0.25, y: 0.18, z: arrowZ + dir * 0.4, w: 0.2, h: 0.022, d: 0.5, color: white });
     }
   }
 
-  // 7. Complete 4-Way Zebra Crossings (Pedestrian Crosswalks)
-  // A. Entrance & Exit Crossings across the Main Street (x = -4.5 and x = +4.5)
-  for (const sx of [-4.5, 4.5]) {
-    // 9 white stripes across the main street lanes
+  // 7. ZEBRA CROSS 4 ARAH — desain benar ala Jepang:
+  // pita selebar ~2.3 m; tiap garis MEMANJANG searah laju mobil dan berulang
+  // searah langkah pejalan kaki, jadi terbaca sebagai zebra sungguhan.
+  // A. Menyeberangi main street (pejalan jalan sepanjang z; garis memanjang di x)
+  for (const sx of [-(halfW + 1.5), halfW + 1.5]) {
     for (let zi = -4; zi <= 4; zi++) {
-      parts.push({ x: sx, y: 0.025, z: zi * 0.84, w: 0.7, h: 0.022, d: 0.48, color: white });
+      parts.push({ x: sx, y: 0.025, z: zi * 0.82, w: 2.3, h: 0.022, d: 0.46, color: white });
     }
   }
-  // B. Crossings across the Left & Right Cross-Streets (z = -4.5 and z = +4.5)
-  for (const sz of [-4.5, 4.5]) {
-    // 9 white stripes across the cross street lanes
-    for (let xi = -4; xi <= 4; xi++) {
-      parts.push({ x: xi * 0.85, y: 0.182, z: sz, w: 0.48, h: 0.022, d: 0.7, color: white });
+  // B. Menyeberangi cross-street kiri/kanan (pejalan jalan sepanjang x; garis memanjang di z)
+  for (const sz of [-5.5, 5.5]) {
+    const nx = Math.floor((W - 1.6) / 0.82);
+    for (let xi = 0; xi < nx; xi++) {
+      const x = -((nx - 1) * 0.82) / 2 + xi * 0.82;
+      parts.push({ x, y: 0.182, z: sz, w: 0.46, h: 0.022, d: 2.2, color: white });
     }
   }
 
@@ -1574,8 +1812,8 @@ export function ramenShopParts(): Part[] {
     { x: 0, y: 0.9, z: 0.03, w: W, h: 1.8, d: 0.08, color: WOOD }, // wooden ground floor front
     // sliding door + big kitchen window
     { x: -1.4, y: 0.95, z: 0.09, w: 1.2, h: 1.7, d: 0.05, color: "#3b2a1a" },
-    { x: -1.4, y: 1.05, z: 0.12, w: 1.0, h: 1.2, d: 0.03, color: "#ffd98a" }, // warm light inside
-    { x: 0.9, y: 1.15, z: 0.09, w: 2.2, h: 1.0, d: 0.05, color: "#ffd98a" },
+    { x: -1.4, y: 1.05, z: 0.12, w: 1.0, h: 1.2, d: 0.03, color: "#ffd98a", glow: true }, // warm light inside
+    { x: 0.9, y: 1.15, z: 0.09, w: 2.2, h: 1.0, d: 0.05, color: "#ffd98a", glow: true },
     { x: 0.9, y: 1.15, z: 0.12, w: 2.3, h: 0.06, d: 0.03, color: WOOD_D },
     { x: 0.9, y: 1.15, z: 0.12, w: 0.06, h: 1.0, d: 0.03, color: WOOD_D },
     // counter with steaming bowls
@@ -1583,7 +1821,7 @@ export function ramenShopParts(): Part[] {
     { x: 0.4, y: 0.86, z: 0.12, w: 0.22, h: 0.12, d: 0.06, color: "#ffffff" },
     { x: 1.2, y: 0.86, z: 0.12, w: 0.22, h: 0.12, d: 0.06, color: "#ffffff" },
     // signboard 「ラーメン」 (chunky glyph blocks) on a red board above the noren
-    { x: 0, y: 2.25, z: 0.12, w: W - 0.6, h: 0.6, d: 0.1, color: "#c1121f" },
+    { x: 0, y: 2.25, z: 0.12, w: W - 0.6, h: 0.6, d: 0.1, color: "#c1121f", glow: true },
     { x: -1.6, y: 2.25, z: 0.18, w: 0.12, h: 0.4, d: 0.02, color: "#ffffff" },
     { x: -1.42, y: 2.4, z: 0.18, w: 0.3, h: 0.08, d: 0.02, color: "#ffffff" },
     { x: -0.9, y: 2.25, z: 0.18, w: 0.3, h: 0.08, d: 0.02, color: "#ffffff" },
@@ -2294,16 +2532,16 @@ export function konbiniShopParts(): Part[] {
     // Roof parapet
     { x: 0, y: 3.8, z: -2.0, w: 7.0, h: 0.2, d: 4.2, color: "#cbd5e1" },
     // Iconic Konbini 3-Stripe Fascia Header
-    { x: 0, y: 3.25, z: 0.04, w: 6.8, h: 0.85, d: 0.14, color: "#ffffff" },
-    { x: 0, y: 3.48, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#10b981" }, // Green stripe
-    { x: 0, y: 3.32, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#f97316" }, // Orange stripe
-    { x: 0, y: 3.16, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#ef4444" }, // Red stripe
+    { x: 0, y: 3.25, z: 0.04, w: 6.8, h: 0.85, d: 0.14, color: "#ffffff", glow: true },
+    { x: 0, y: 3.48, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#10b981", glow: true }, // Green stripe
+    { x: 0, y: 3.32, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#f97316", glow: true }, // Orange stripe
+    { x: 0, y: 3.16, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#ef4444", glow: true }, // Red stripe
     // Illuminated "24h" logo box
     { x: -2.4, y: 3.32, z: 0.14, w: 0.7, h: 0.45, d: 0.06, color: "#0284c7" },
-    { x: -2.4, y: 3.32, z: 0.17, w: 0.5, h: 0.3, d: 0.02, color: "#ffffff" },
+    { x: -2.4, y: 3.32, z: 0.17, w: 0.5, h: 0.3, d: 0.02, color: "#ffffff", glow: true },
     // Large glass front windows (left & right)
-    { x: -1.75, y: 1.4, z: 0.02, w: 2.8, h: 2.2, d: 0.08, color: glass },
-    { x: 2.1, y: 1.4, z: 0.02, w: 2.1, h: 2.2, d: 0.08, color: glass },
+    { x: -1.75, y: 1.4, z: 0.02, w: 2.8, h: 2.2, d: 0.08, color: glass, glow: true },
+    { x: 2.1, y: 1.4, z: 0.02, w: 2.1, h: 2.2, d: 0.08, color: glass, glow: true },
     // Window mullions / dark metal framing
     { x: -1.75, y: 2.5, z: 0.05, w: 2.85, h: 0.08, d: 0.06, color: frame },
     { x: -1.75, y: 0.3, z: 0.05, w: 2.85, h: 0.08, d: 0.06, color: frame },
@@ -2330,8 +2568,8 @@ export function neonSignboardParts(variant: number): Part[] {
     // Red glowing Ramen / Izakaya lantern sign
     return [
       { x: 0, y: 0.4, z: 0, w: 0.45, h: 0.8, d: 0.45, color: "#334155" }, // metal frame
-      { x: 0, y: 0.85, z: 0, w: 0.38, h: 0.7, d: 0.38, color: "#dc2626" }, // glowing red body
-      { x: 0, y: 0.85, z: 0.2, w: 0.26, h: 0.5, d: 0.02, color: "#fef08a" }, // illuminated kanji face
+      { x: 0, y: 0.85, z: 0, w: 0.38, h: 0.7, d: 0.38, color: "#dc2626", glow: true }, // glowing red body
+      { x: 0, y: 0.85, z: 0.2, w: 0.26, h: 0.5, d: 0.02, color: "#fef08a", glow: true }, // illuminated kanji face
       { x: 0, y: 1.22, z: 0, w: 0.42, h: 0.08, d: 0.42, color: "#1e293b" }, // cap
     ];
   }
@@ -2339,10 +2577,144 @@ export function neonSignboardParts(variant: number): Part[] {
   return [
     { x: 0, y: 0.1, z: 0, w: 0.45, h: 0.2, d: 0.4, color: "#1e293b" }, // dark base
     { x: 0, y: 0.7, z: 0, w: 0.38, h: 1.0, d: 0.22, color: "#0284c7" }, // blue frame
-    { x: 0, y: 0.7, z: 0, w: 0.32, h: 0.9, d: 0.24, color: "#ffffff" }, // glowing white panel
-    { x: 0, y: 0.9, z: 0.13, w: 0.24, h: 0.24, d: 0.02, color: "#f97316" }, // orange accent logo
-    { x: 0, y: 0.6, z: 0.13, w: 0.22, h: 0.08, d: 0.02, color: "#10b981" }, // green OPEN text
+    { x: 0, y: 0.7, z: 0, w: 0.32, h: 0.9, d: 0.24, color: "#ffffff", glow: true }, // glowing white panel
+    { x: 0, y: 0.9, z: 0.13, w: 0.24, h: 0.24, d: 0.02, color: "#f97316", glow: true }, // orange accent logo
+    { x: 0, y: 0.6, z: 0.13, w: 0.22, h: 0.08, d: 0.02, color: "#10b981", glow: true }, // green OPEN text
   ];
+}
+
+/** Giant Shibuya glowing advertising billboard / video wall on a steel scaffold (faces +z toward the road). */
+export function billboardParts(variant: number): Part[] {
+  const v = ((variant % 3) + 3) % 3;
+  const steel = "#2b3040";
+  const parts: Part[] = [
+    // scaffold legs + cross beam
+    { x: -1.5, y: 1.4, z: -0.3, w: 0.16, h: 2.8, d: 0.16, color: steel },
+    { x: 1.5, y: 1.4, z: -0.3, w: 0.16, h: 2.8, d: 0.16, color: steel },
+    { x: 0, y: 2.55, z: -0.3, w: 3.3, h: 0.14, d: 0.14, color: steel },
+  ];
+  const y0 = 2.8; // bottom of the screen
+  const W = 4.2;
+  const H = 2.4;
+  // dark frame + glowing back-panel
+  parts.push({ x: 0, y: y0 + H / 2, z: -0.18, w: W + 0.3, h: H + 0.3, d: 0.3, color: "#10131e" });
+  if (v === 0) {
+    // hot-pink idol ad: pink glow field, white headline bars, yellow star chip
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ff4438", glow: true });
+    parts.push({ x: -0.6, y: y0 + H * 0.68, z: 0.09, w: W * 0.55, h: 0.3, d: 0.03, color: "#ffffff", glow: true });
+    parts.push({ x: -0.9, y: y0 + H * 0.42, z: 0.09, w: W * 0.4, h: 0.22, d: 0.03, color: "#ffe0ef", glow: true });
+    parts.push({ x: 1.35, y: y0 + H * 0.5, z: 0.09, w: 0.85, h: 0.85, d: 0.03, color: "#ffe93b", glow: true });
+    parts.push({ x: -1.2, y: y0 + H * 0.18, z: 0.09, w: 0.9, h: 0.2, d: 0.03, color: "#fff3c4", glow: true });
+  } else if (v === 1) {
+    // cyan video wall: teal field, sky block, white ticker, magenta logo
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ffd23f", glow: true });
+    parts.push({ x: 0.7, y: y0 + H * 0.62, z: 0.09, w: W * 0.5, h: H * 0.5, d: 0.03, color: "#2079ff", glow: true });
+    parts.push({ x: -1.1, y: y0 + H * 0.7, z: 0.09, w: W * 0.34, h: 0.5, d: 0.03, color: "#ffffff", glow: true });
+    parts.push({ x: 0, y: y0 + 0.24, z: 0.09, w: W * 0.86, h: 0.24, d: 0.03, color: "#0b1026" });
+    parts.push({ x: -1.5, y: y0 + 0.24, z: 0.12, w: 0.5, h: 0.14, d: 0.03, color: "#ffe93b", glow: true });
+    parts.push({ x: 1.45, y: y0 + H * 0.32, z: 0.09, w: 0.6, h: 0.6, d: 0.03, color: "#ff4438", glow: true });
+  } else {
+    // mega SALE stack: warm yellow field, red banner, white price bars
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ffe93b", glow: true });
+    parts.push({ x: 0, y: y0 + H * 0.74, z: 0.09, w: W * 0.9, h: 0.52, d: 0.03, color: "#ff1f3d", glow: true });
+    parts.push({ x: -0.8, y: y0 + H * 0.74, z: 0.12, w: W * 0.42, h: 0.26, d: 0.03, color: "#ffffff", glow: true });
+    parts.push({ x: -0.5, y: y0 + H * 0.34, z: 0.09, w: W * 0.5, h: 0.3, d: 0.03, color: "#1f2430" });
+    parts.push({ x: 1.3, y: y0 + H * 0.3, z: 0.09, w: 0.9, h: 0.7, d: 0.03, color: "#58c96b", glow: true });
+  }
+  // little maintenance catwalk + spotlights pointing at the board
+  parts.push({ x: 0, y: y0 - 0.12, z: 0.28, w: W * 0.9, h: 0.08, d: 0.35, color: steel });
+  parts.push({ x: -W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4", glow: true });
+  parts.push({ x: W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4", glow: true });
+  return parts;
+}
+
+/** Slow-and-go night traffic on the opposite carriageway: sedans, a taxi and a city bus,
+ *  built FACING -x so they read as oncoming (headlights toward the player). Purely decorative. */
+export function jamCarParts(variant: number): Part[] {
+  const v = ((variant % 5) + 5) % 5;
+  const glass = "#7fb6de";
+  const tire = "#22242a";
+  if (v === 4) {
+    // green city bus (Toei style) with a row of warm lit windows
+    const body = "#3f7d5a";
+    const parts: Part[] = [
+      { x: 0, y: 1.05, z: 0, w: 5.4, h: 1.7, d: 1.7, color: body },
+      { x: 0, y: 0.35, z: 0, w: 5.4, h: 0.3, d: 1.7, color: "#2c5940" },
+      { x: -2.72, y: 1.2, z: 0, w: 0.06, h: 0.9, d: 1.5, color: glass }, // front glass (-x!)
+      { x: 2.72, y: 1.2, z: 0, w: 0.06, h: 0.8, d: 1.5, color: "#28323c" },
+      { x: -2.74, y: 0.62, z: 0.55, w: 0.06, h: 0.2, d: 0.34, color: "#fffbe6", glow: true }, // headlights
+      { x: -2.74, y: 0.62, z: -0.55, w: 0.06, h: 0.2, d: 0.34, color: "#fffbe6", glow: true },
+      { x: 2.74, y: 0.62, z: 0.55, w: 0.06, h: 0.18, d: 0.3, color: "#ff2a2a", glow: true }, // taillights
+      { x: 2.74, y: 0.62, z: -0.55, w: 0.06, h: 0.18, d: 0.3, color: "#ff2a2a", glow: true },
+      { x: -2.7, y: 1.95, z: 0, w: 0.5, h: 0.24, d: 1.2, color: "#ffd23f", glow: true }, // route sign box
+    ];
+    for (let i = 0; i < 5; i++) {
+      parts.push({ x: -1.7 + i * 0.95, y: 1.35, z: 0.86, w: 0.7, h: 0.5, d: 0.04, color: "#ffe9a3", glow: true });
+      parts.push({ x: -1.7 + i * 0.95, y: 1.35, z: -0.86, w: 0.7, h: 0.5, d: 0.04, color: "#ffe9a3", glow: true });
+    }
+    for (const wx of [-1.9, 1.9]) {
+      parts.push({ x: wx, y: 0.32, z: 0.8, w: 0.62, h: 0.62, d: 0.24, color: tire });
+      parts.push({ x: wx, y: 0.32, z: -0.8, w: 0.62, h: 0.62, d: 0.24, color: tire });
+    }
+    return parts;
+  }
+  // sedans / taxi — compact voxel car mirrored to face -x
+  const bodies = ["#d7dbe2", "#2f3a4c", "#8c2f3b", "#f2c230"]; // white, dark blue, red, TAXI yellow
+  const body = bodies[v];
+  const parts: Part[] = [
+    { x: 0, y: 0.42, z: 0, w: 3.25, h: 0.36, d: 1.6, color: body },
+    { x: -1.05, y: 0.68, z: 0, w: 1.15, h: 0.22, d: 1.5, color: body }, // hood toward -x
+    { x: -1.64, y: 0.52, z: 0, w: 0.04, h: 0.18, d: 0.85, color: "#1f2229" }, // grille
+    { x: -1.64, y: 0.64, z: 0.52, w: 0.06, h: 0.18, d: 0.32, color: "#fffbe6", glow: true }, // headlights ON
+    { x: -1.64, y: 0.64, z: -0.52, w: 0.06, h: 0.18, d: 0.32, color: "#fffbe6", glow: true },
+    { x: 0.22, y: 1.15, z: 0, w: 1.55, h: 0.56, d: 1.36, color: body }, // cabin
+    { x: -0.58, y: 1.12, z: 0, w: 0.12, h: 0.44, d: 1.2, color: glass },
+    { x: 1.02, y: 1.12, z: 0, w: 0.1, h: 0.42, d: 1.2, color: glass },
+    { x: 0.22, y: 1.15, z: 0.69, w: 1.25, h: 0.38, d: 0.04, color: glass },
+    { x: 0.22, y: 1.15, z: -0.69, w: 1.25, h: 0.38, d: 0.04, color: glass },
+    { x: 1.28, y: 0.68, z: 0, w: 0.65, h: 0.22, d: 1.5, color: body }, // trunk toward +x
+    { x: 1.64, y: 0.64, z: 0.52, w: 0.06, h: 0.16, d: 0.3, color: "#ff2a2a", glow: true }, // brake lights ON
+    { x: 1.64, y: 0.64, z: -0.52, w: 0.06, h: 0.16, d: 0.3, color: "#ff2a2a", glow: true },
+  ];
+  if (v === 3) parts.push({ x: 0.22, y: 1.55, z: 0, w: 0.5, h: 0.2, d: 0.4, color: "#ffe9a3", glow: true }); // taxi roof lamp
+  for (const wx of [-1.0, 1.0]) {
+    parts.push({ x: wx, y: 0.29, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: tire });
+    parts.push({ x: wx, y: 0.29, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: tire });
+  }
+  return parts;
+}
+
+/** Shibuya landmark: silver cylindrical fashion tower (109-style) with a glowing crown sign. */
+export function tower109Parts(): Part[] {
+  const tile = "#8f95a3";
+  const tileDark = "#767c8b";
+  const parts: Part[] = [
+    // cylinder approximated by a plus-shaped voxel core (reads round from the road)
+    { x: 0, y: 5.4, z: -2.6, w: 4.6, h: 10.8, d: 3.2, color: tile },
+    { x: 0, y: 5.4, z: -2.6, w: 3.2, h: 10.8, d: 4.6, color: tile },
+    { x: 0, y: 5.4, z: -2.6, w: 4.0, h: 10.8, d: 4.0, color: tileDark },
+    // deep foundation
+    { x: 0, y: -0.95, z: -2.6, w: 4.8, h: 2.5, d: 4.8, color: "#5c616e" },
+  ];
+  // ribbon windows wrapping every floor
+  for (let f = 0; f < 7; f++) {
+    const y = 1.5 + f * 1.35;
+    const lit = f % 3 !== 1;
+    parts.push({ x: 0, y, z: -0.72, w: 3.4, h: 0.6, d: 0.08, color: lit ? "#ffe9a3" : "#1a1f2e", glow: lit });
+    parts.push({ x: 0, y, z: -4.48, w: 3.4, h: 0.6, d: 0.08, color: lit ? "#9be8ff" : "#1a1f2e", glow: lit });
+  }
+  // glowing entrance
+  parts.push({ x: 0, y: 1.0, z: -0.66, w: 2.2, h: 1.6, d: 0.12, color: "#fff3c4", glow: true });
+  // crown: dark band + silver cap + the iconic glowing sign panel
+  parts.push({ x: 0, y: 11.1, z: -2.6, w: 4.9, h: 0.6, d: 4.9, color: "#2b3040" });
+  parts.push({ x: 0, y: 11.65, z: -2.6, w: 4.3, h: 0.5, d: 4.3, color: tile });
+  parts.push({ x: 0, y: 11.15, z: -0.12, w: 2.6, h: 0.5, d: 0.1, color: "#f4f6fa", glow: true });
+  parts.push({ x: -0.55, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434", glow: true }); // 1
+  parts.push({ x: 0.0, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434", glow: true }); // 0
+  parts.push({ x: 0.55, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434", glow: true }); // 9
+  // red beacon
+  parts.push({ x: 0, y: 12.2, z: -2.6, w: 0.2, h: 0.5, d: 0.2, color: "#ff1f3d", glow: true });
+  return parts;
 }
 
 /** Mount Haruna Touge Route 33 Sign (Gunma Prefecture Road / 県道33号). */
@@ -2377,7 +2749,7 @@ export function tougeStreetlampParts(): Part[] {
     // Rounded lamp shade
     { x: 0, y: 3.58, z: -0.72, w: 0.32, h: 0.14, d: 0.38, color: lampHousing },
     // Glowing warm sodium lamp bulb
-    { x: 0, y: 3.5, z: -0.72, w: 0.24, h: 0.06, d: 0.28, color: amberGlow },
+    { x: 0, y: 3.5, z: -0.72, w: 0.24, h: 0.06, d: 0.28, color: amberGlow, glow: true },
   ];
 }
 
@@ -2607,3 +2979,162 @@ export function catRagdollFlyingParts(variant: number): Part[] {
 
 
 
+
+/* ---------- Rambu & perlengkapan perempatan ---------- */
+
+/** Rambu STOP Jepang (止まれ): segitiga merah terbalik di tiang — dipasang di sudut perempatan. */
+export function stopSignParts(): Part[] {
+  const red = "#d90429";
+  return [
+    { x: 0, y: 0.05, z: 0, w: 0.28, h: 0.1, d: 0.28, color: "#6b7078" },
+    { x: 0, y: 1.05, z: 0, w: 0.08, h: 2.1, d: 0.08, color: "#8d949c" },
+    // segitiga terbalik: 3 pelat menyempit ke bawah (menyala biar kebaca malam)
+    { x: 0, y: 2.32, z: 0.03, w: 0.05, h: 0.3, d: 0.96, color: red, glow: true },
+    { x: 0, y: 2.06, z: 0.03, w: 0.05, h: 0.24, d: 0.62, color: red, glow: true },
+    { x: 0, y: 1.86, z: 0.03, w: 0.05, h: 0.18, d: 0.3, color: red, glow: true },
+    // tulisan 止まれ (bar putih)
+    { x: 0, y: 2.36, z: 0.07, w: 0.02, h: 0.12, d: 0.66, color: "#ffffff", glow: true },
+    // garis tepi putih atas
+    { x: 0, y: 2.5, z: 0.05, w: 0.03, h: 0.06, d: 0.9, color: "#ffffff", glow: true },
+  ];
+}
+
+/** Rambu penyeberangan pejalan kaki Jepang: panel biru persegi dengan figur pejalan putih. */
+export function pedCrossingSignParts(): Part[] {
+  const blue = "#1d4ed8";
+  return [
+    { x: 0, y: 0.05, z: 0, w: 0.28, h: 0.1, d: 0.28, color: "#6b7078" },
+    { x: 0, y: 1.1, z: 0, w: 0.08, h: 2.2, d: 0.08, color: "#8d949c" },
+    // panel biru menyala
+    { x: 0, y: 2.5, z: 0.03, w: 0.06, h: 0.86, d: 0.86, color: blue, glow: true },
+    // figur pejalan kaki (putih): kepala, badan, kaki melangkah
+    { x: 0, y: 2.76, z: 0.07, w: 0.03, h: 0.14, d: 0.14, color: "#ffffff", glow: true },
+    { x: 0, y: 2.56, z: 0.07, w: 0.03, h: 0.26, d: 0.16, color: "#ffffff", glow: true },
+    { x: 0, y: 2.32, z: 0.13, w: 0.03, h: 0.24, d: 0.08, color: "#ffffff", glow: true },
+    { x: 0, y: 2.32, z: 0.0, w: 0.03, h: 0.22, d: 0.08, color: "#ffffff", glow: true },
+    // zebra kecil di bawah figur
+    { x: 0, y: 2.16, z: 0.05, w: 0.03, h: 0.05, d: 0.6, color: "#ffffff", glow: true },
+  ];
+}
+
+/** Lampu jalan avenue dua kepala untuk median Shibuya (menyinari dua arah jalur). */
+export function avenueLampParts(): Part[] {
+  const pole = "#3f444c";
+  return [
+    { x: 0, y: 0.12, z: 0, w: 0.5, h: 0.24, d: 0.5, color: pole },
+    { x: 0, y: 2.4, z: 0, w: 0.18, h: 4.6, d: 0.18, color: "#4a4f57" },
+    // lengan silang dua arah
+    { x: 0, y: 4.6, z: 0, w: 0.14, h: 0.14, d: 2.6, color: "#4a4f57" },
+    // dua kepala lampu + bohlam menyala hangat
+    { x: 0, y: 4.52, z: 1.2, w: 0.5, h: 0.14, d: 0.55, color: "#4a4f57" },
+    { x: 0, y: 4.42, z: 1.2, w: 0.42, h: 0.1, d: 0.46, color: "#fff2b0", glow: true },
+    { x: 0, y: 4.52, z: -1.2, w: 0.5, h: 0.14, d: 0.55, color: "#4a4f57" },
+    { x: 0, y: 4.42, z: -1.2, w: 0.42, h: 0.1, d: 0.46, color: "#fff2b0", glow: true },
+    // aksen banner kota kecil di tiang (khas avenue Jepang)
+    { x: 0, y: 3.2, z: 0.28, w: 0.06, h: 0.9, d: 0.42, color: "#ff5fa2", glow: true },
+  ];
+}
+
+/**
+ * SHIBUYA SCRAMBLE CROSSING: perempatan raksasa selebar avenue 6 jalur.
+ * Frame lokal: +x searah jalan pemain, +z = arah lat (median di z≈4.35, jalur lawan z 5..12.3).
+ * Zebra putihnya self-luminous supaya menyala bersih di malam hari.
+ */
+export function scrambleRoadParts(): Part[] {
+  const asphalt = "#3b4152";
+  const asphaltDark = "#343a4a";
+  const zebra = "#dde2ec"; // cat marka biasa (lit) — TIDAK glow, supaya tidak ikut bloom
+  const parts: Part[] = [];
+  const XW = 13.4; // lebar cross-street raksasa
+  const XH = XW / 2;
+
+  // 1. Hamparan aspal junction menutupi SELURUH avenue (median ikut dipaving — plaza scramble)
+  parts.push({ x: 0, y: 0.016, z: 0, w: XW, h: 0.024, d: 8.0, color: asphalt });
+  parts.push({ x: 0, y: 0.016, z: 8.65, w: XW, h: 0.024, d: 7.35, color: asphalt });
+  parts.push({ x: 0, y: 0.09, z: 4.35, w: XW, h: 0.175, d: 1.6, color: asphaltDark }); // median dipaving rata
+  // bekas jejak ban menyilang
+  parts.push({ x: -3.4, y: 0.02, z: 0, w: 1.6, h: 0.026, d: 7.6, color: asphaltDark });
+  parts.push({ x: 3.4, y: 0.02, z: 0, w: 1.6, h: 0.026, d: 7.6, color: asphaltDark });
+
+  // 2. Cross-street raksasa dua sisi (ditinggikan menimpa trotoar seperti perempatan biasa)
+  for (const [z0, z1] of [
+    [-30, -4.0],
+    [12.3, 30],
+  ] as const) {
+    const mid = (z0 + z1) / 2;
+    parts.push({ x: 0, y: 0.145, z: mid, w: XW, h: 0.06, d: z1 - z0, color: asphalt });
+    // marka tengah cross street
+    parts.push({ x: 0, y: 0.18, z: mid, w: 0.14, h: 0.012, d: (z1 - z0) * 0.86, color: "#e9e9e9" });
+  }
+
+  // 3. ZEBRA menyeberangi avenue di kedua tepi junction (pita lebar 2.5 m, garis
+  //    memanjang searah laju mobil = sumbu x, berulang searah langkah pejalan = z)
+  for (const bx of [-XH + 1.6, XH - 1.6]) {
+    for (let z = -3.2; z <= 12.0; z += 0.9) {
+      const onMedian = z > 3.4 && z < 5.3;
+      parts.push({ x: bx, y: onMedian ? 0.19 : 0.04, z, w: 2.5, h: 0.02, d: 0.48, color: zebra });
+    }
+  }
+
+  // 4. ZEBRA menyeberangi cross-street di kedua sisi (garis memanjang searah laju = z)
+  for (const bz of [-5.4, 13.7]) {
+    for (let x = -XH + 1.2; x <= XH - 1.2; x += 0.85) {
+      parts.push({ x, y: 0.19, z: bz, w: 0.46, h: 0.02, d: 2.2, color: zebra });
+    }
+  }
+
+  // 5. ZEBRA DIAGONAL X — tanda tangan Shibuya Scramble!
+  // Garis-garisnya TEGAK LURUS arah jalan pejalan (desain zebra yang benar).
+  const dA = { x0: -4.9, z0: -2.4, x1: 4.9, z1: 10.2 }; // diagonal /
+  const dB = { x0: -4.9, z0: 10.2, x1: 4.9, z1: -2.4 }; // diagonal \
+  const ND = 17;
+  for (const dg of [dA, dB]) {
+    const dx = dg.x1 - dg.x0;
+    const dz = dg.z1 - dg.z0;
+    const ry = Math.atan2(dx, dz); // sumbu-w garis jadi tegak lurus arah jalan
+    for (let i = 1; i < ND - 1; i++) {
+      const t = i / (ND - 1);
+      const x = dg.x0 + t * dx;
+      const z = dg.z0 + t * dz;
+      const y = z > 3.4 && z < 5.3 ? 0.19 : 0.045;
+      parts.push({ x, y, z, w: 2.4, h: 0.02, d: 0.5, ry, color: zebra });
+    }
+  }
+
+  // 6. Garis henti tebal di jalur pemain & jalur lawan
+  parts.push({ x: -XH - 0.35, y: 0.04, z: 0, w: 0.4, h: 0.018, d: 7.4, color: zebra });
+  parts.push({ x: XH + 0.35, y: 0.04, z: 8.6, w: 0.4, h: 0.018, d: 7.2, color: zebra });
+
+  return parts;
+}
+
+
+/* ---------- Lampu kendaraan malam hari (overlay glow, hanya dirender saat mode malam) ---------- */
+
+/** Lampu mobil `carParts` (hadap +x): headlight hangat menyala + taillight merah. */
+export function carLightParts(): Part[] {
+  return [
+    { x: 1.66, y: 0.65, z: 0.5, w: 0.1, h: 0.26, d: 0.34, color: "#fff8d8", glow: true },
+    { x: 1.66, y: 0.65, z: -0.5, w: 0.1, h: 0.26, d: 0.34, color: "#fff8d8", glow: true },
+    { x: -1.66, y: 0.65, z: 0.5, w: 0.1, h: 0.22, d: 0.3, color: "#ff3b3b", glow: true },
+    { x: -1.66, y: 0.65, z: -0.5, w: 0.1, h: 0.22, d: 0.3, color: "#ff3b3b", glow: true },
+  ];
+}
+
+/** Lampu motor `motorcycleParts` (hadap +x). */
+export function motoLightParts(): Part[] {
+  return [
+    { x: 0.7, y: 0.86, z: 0, w: 0.1, h: 0.18, d: 0.26, color: "#fff8d8", glow: true },
+    { x: -0.73, y: 0.62, z: 0, w: 0.08, h: 0.12, d: 0.18, color: "#ff3b3b", glow: true },
+  ];
+}
+
+/** Lampu mobil silang `crossingCarParts` (hadap +x). */
+export function crossCarLightParts(): Part[] {
+  return [
+    { x: 1.66, y: 0.64, z: 0.52, w: 0.1, h: 0.24, d: 0.36, color: "#fff8d8", glow: true },
+    { x: 1.66, y: 0.64, z: -0.52, w: 0.1, h: 0.24, d: 0.36, color: "#fff8d8", glow: true },
+    { x: -1.62, y: 0.64, z: 0.52, w: 0.1, h: 0.2, d: 0.3, color: "#ff3b3b", glow: true },
+    { x: -1.62, y: 0.64, z: -0.52, w: 0.1, h: 0.2, d: 0.3, color: "#ff3b3b", glow: true },
+  ];
+}

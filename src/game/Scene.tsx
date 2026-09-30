@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { clamp } from "./voxel";
+import { clamp, setGlowBoost } from "./voxel";
 import { engine, track } from "./engine";
 import { useUI } from "./store";
 import { World } from "./World";
@@ -9,6 +9,10 @@ import { Player } from "./Player";
 import { Podium } from "./Podium";
 import { Backdrop } from "./Backdrop";
 import { applyCurveToScene, curveUniforms, disableCurve, curveDisabled } from "./curve";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 /**
  * Subway-Surfers style third-person chase camera:
@@ -144,7 +148,8 @@ function CameraRig() {
 
     // Dynamic world curvature (gentle, smooth horizon without extreme warping)
     const isSubway = useUI.getState().worldCurve === "subway";
-    const isHaruna = useUI.getState().trackMode === "haruna";
+    const trackModeNow = useUI.getState().trackMode;
+    const isHaruna = trackModeNow === "haruna";
     const dist = engine.distance;
     // Gentle horizon drift in Tokyo mode; on Haruna mountain touge, actual 3D hairpin curves lead naturally
     const wave = isHaruna ? 0 : Math.sin(dist * 0.006) * 0.0004;
@@ -167,6 +172,22 @@ function CameraRig() {
       curveUniforms.uCurveSide.value = isSubway ? c.curveSide : 0;
       curveUniforms.uCurveStart.value = 8.0; // keeps the first 8m ahead completely flat and clear
       curveUniforms.uHazeRange.value.set(c.hazeNear, c.hazeFar);
+      // distance haze matches the world: pale daylight mist vs deep indigo Shibuya night
+      {
+        const st = useUI.getState();
+        const isNightNow = trackModeNow === "shibuya" && st.shibuyaTime === "malam";
+        curveUniforms.uHazeColor.value.set(
+          isNightNow
+            ? "#1b1838"
+            : st.weather === "cloudy"
+              ? "#dfe7ee"
+              : trackModeNow === "shibuya" && st.shibuyaTime === "sore"
+                ? "#f7cda4"
+                : trackModeNow === "shibuya" && st.shibuyaTime === "pagi"
+                  ? "#ffe7cd"
+                  : "#dbeeff",
+        );
+      }
     }
 
     // newly created materials (buildings, thumbnails, etc.) get patched lazily
@@ -185,6 +206,24 @@ function CameraRig() {
 
 function Lights() {
   const light = useRef<THREE.DirectionalLight>(null);
+  const mode = useUI((s) => s.trackMode);
+  const tod = useUI((s) => s.shibuyaTime);
+  // PENTING: hook harus selalu terpanggil dengan urutan sama — jangan pakai && antar useUI
+  const cloudyWeather = useUI((s) => s.weather === "cloudy");
+  const nightBright = useUI((s) => s.nightBright);
+  const night = mode === "shibuya" && tod === "malam";
+  const cloudy = cloudyWeather && !night;
+  const nightMul = [0.82, 1, 1.18][nightBright];
+  // Preset cahaya: malam / berawan / Shibuya pagi (emas lembut) / Shibuya sore (senja oranye) / siang cerah
+  const preset = night
+    ? { hemi: ["#c3caff", "#454a70", 1.5 * nightMul] as const, amb: [0.82 * nightMul, "#aeb5ff"] as const, dir: [1.5 * nightMul, "#d7ddff"] as const }
+    : cloudy
+      ? { hemi: ["#e8edf4", "#93a0ad", 1.4] as const, amb: [0.5, "#eef2f7"] as const, dir: [1.15, "#eef2f6"] as const }
+      : mode === "shibuya" && tod === "pagi"
+        ? { hemi: ["#fff0dd", "#8a90b8", 1.55] as const, amb: [0.3, "#ffe9d0"] as const, dir: [1.9, "#fff0d8"] as const }
+        : mode === "shibuya" && tod === "sore"
+          ? { hemi: ["#ffd9b0", "#6a7095", 1.35] as const, amb: [0.34, "#ffd3ae"] as const, dir: [1.75, "#ffc088"] as const }
+          : { hemi: ["#ffffff", "#b0c4d8", 1.7] as const, amb: [0.2, "#ffffff"] as const, dir: [2.1, "#ffffff"] as const };
   const target = useMemo(() => new THREE.Object3D(), []);
   useEffect(() => {
     const l = light.current;
@@ -218,9 +257,11 @@ function Lights() {
   });
   return (
     <>
-      <hemisphereLight args={["#ffffff", "#b0c4d8", 1.7]} />
-      <ambientLight intensity={0.2} />
-      <directionalLight ref={light} position={[-2, 25, 4.5]} intensity={2.1} castShadow />
+      {/* Shibuya Night: bright "city that never sleeps" ambience — the sky stays dark but streets
+          and facades are washed by warm shop light + violet sky bounce, and every sign self-glows */}
+      <hemisphereLight args={[...preset.hemi]} />
+      <ambientLight intensity={preset.amb[0]} color={preset.amb[1]} />
+      <directionalLight ref={light} position={[-2, 25, 4.5]} intensity={preset.dir[0]} color={preset.dir[1]} castShadow />
       <primitive object={target} />
     </>
   );
@@ -231,8 +272,62 @@ function Loop() {
   return null;
 }
 
+/** Bloom malam SELEKTIF via HDR: material glow di-boost > 1.0 (render target half-float),
+ *  threshold bloom = 1.0, jadi HANYA lampu/sign glow yang mekar — cat marka jalan, zebra,
+ *  dan permukaan putih biasa (maks 1.0) dijamin TIDAK ikut bloom. Radius besar + strength
+ *  kalem = halo lembut yang tidak menyilaukan. Kecerahan mengikuti setelan LAMPU. */
+function NightBloom() {
+  const { gl, scene, camera, size } = useThree();
+  const nightBright = useUI((s) => s.nightBright);
+  const built = useMemo(() => {
+    const composer = new EffectComposer(gl);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.42, 0.7, 1.0);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+    return { composer, bloom };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gl, scene, camera]);
+  useEffect(() => {
+    built.composer.setPixelRatio(gl.getPixelRatio());
+    built.composer.setSize(size.width, size.height);
+  }, [built, gl, size]);
+  useEffect(() => {
+    // REDUP / PAS / TERANG — semua tetap smooth, hanya intens halonya yang berubah
+    built.bloom.strength = [0.3, 0.42, 0.55][nightBright];
+    built.bloom.radius = 0.7;
+    built.bloom.threshold = 1.0;
+    setGlowBoost([1.28, 1.42, 1.58][nightBright]);
+  }, [built, nightBright]);
+  useEffect(() => () => built.composer.dispose(), [built]);
+  useFrame(() => built.composer.render(), 1);
+  return null;
+}
+
+function NightBloomGate() {
+  const night = useUI((s) => s.trackMode === "shibuya" && s.shibuyaTime === "malam");
+  useEffect(() => {
+    // siang hari: glow kembali 1:1 (tanpa boost HDR)
+    if (!night) setGlowBoost(1);
+  }, [night]);
+  return night ? <NightBloom /> : null;
+}
+
 /** Sky dome + distant haze so the curved horizon fades nicely. */
+const SKY_DAY = { top: "#2f86dc", mid: "#cbe6f8", bot: "#e2f1fb" };
+// Shibuya Night: deep indigo zenith melting into a violet-magenta city glow at the horizon
+const SKY_NIGHT = { top: "#0a0e2c", mid: "#5b3a92", bot: "#2c2456" };
+// Siang berawan yang lembut: zenith abu kebiruan turun ke horizon putih keperakan
+const SKY_CLOUDY = { top: "#7d93ab", mid: "#c9d6e0", bot: "#eaf0f5" };
+// Shibuya pagi: biru muda dengan horizon emas lembut
+const SKY_PAGI = { top: "#4f9be0", mid: "#ffdab6", bot: "#ffedd6" };
+// Shibuya sore: senja — zenith biru tua, horizon oranye hangat
+const SKY_SORE = { top: "#3d4f8f", mid: "#ff9e6e", bot: "#ffd9a0" };
 function Sky() {
+  const mode = useUI((s) => s.trackMode);
+  const tod = useUI((s) => s.shibuyaTime);
+  const cloudy = useUI((s) => s.weather === "cloudy");
+  const night = mode === "shibuya" && tod === "malam";
   const mat = useMemo(() => {
     const m = new THREE.ShaderMaterial({
       side: THREE.BackSide,
@@ -248,6 +343,20 @@ function Sky() {
     });
     return m;
   }, []);
+  useEffect(() => {
+    const pal = night
+      ? SKY_NIGHT
+      : cloudy
+        ? SKY_CLOUDY
+        : mode === "shibuya" && tod === "pagi"
+          ? SKY_PAGI
+          : mode === "shibuya" && tod === "sore"
+            ? SKY_SORE
+            : SKY_DAY;
+    (mat.uniforms.top.value as THREE.Color).set(pal.top);
+    (mat.uniforms.mid.value as THREE.Color).set(pal.mid);
+    (mat.uniforms.bot.value as THREE.Color).set(pal.bot);
+  }, [night, cloudy, mode, tod, mat]);
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ camera }) => {
     if (ref.current) ref.current.position.copy(camera.position);
@@ -292,6 +401,7 @@ export function Scene({ onContextLost }: { onContextLost?: () => void }) {
       style={{ position: "absolute", inset: 0, touchAction: "none" }}
     >
       <CameraRig />
+      <NightBloomGate />
       <Lights />
       <Loop />
       <Sky />

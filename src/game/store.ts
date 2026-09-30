@@ -4,7 +4,7 @@ import { TRICKS, type TrickKind } from "./tricks";
 
 export type Phase = "menu" | "playing" | "crashed" | "gameover";
 export type TurnMode = "old" | "new";
-export type TrackMode = "tokyo" | "haruna";
+export type TrackMode = "tokyo" | "haruna" | "shibuya";
 export type MenuView = "main" | "skins" | "tricks" | "exit" | "bye";
 /** Warna ban skateboard: default HITAM, bisa diganti merah/hijau/kuning/biru (atau ikut warna skin). */
 export type WheelColor = "auto" | "black" | "red" | "green" | "yellow" | "blue";
@@ -56,9 +56,18 @@ interface UIState {
   /** "old" = smooth slide between lanes with cosmetic lean; "new" = real wheel steering (heading drives the lateral motion) */
   turnMode: TurnMode;
   setTurnMode: (m: TurnMode) => void;
-  /** "tokyo" = city streets & parks; "haruna" = Mount Haruna (Gunma Touge) continuous downhill & hairpins */
+  /** "tokyo" = city streets & parks; "haruna" = Mount Haruna (Gunma Touge) downhill & hairpins; "shibuya" = neon night city (Shibuya scramble) */
   trackMode: TrackMode;
   setTrackMode: (m: TrackMode) => void;
+  /** cuaca mode siang: cerah / berawan indah */
+  weather: "sunny" | "cloudy";
+  toggleWeather: () => void;
+  /** kecerahan lampu malam: 0 = redup, 1 = pas, 2 = terang */
+  nightBright: 0 | 1 | 2;
+  cycleNightBright: () => void;
+  /** waktu hari untuk Shibuya: pagi / siang / sore / malam */
+  shibuyaTime: "pagi" | "siang" | "sore" | "malam";
+  cycleShibuyaTime: () => void;
   deckOverride: "default" | "baguette";
   setDeckOverride: (d: "default" | "baguette") => void;
   wheelColor: WheelColor;
@@ -165,8 +174,33 @@ export const useUI = create<UIState>((set, get) => ({
   },
   trackMode: (() => {
     const m = load<string>("pigeon-sk8-trackmode", "haruna");
-    return (m === "tokyo" ? "tokyo" : "haruna") as TrackMode;
+    return (m === "tokyo" || m === "shibuya" ? m : "haruna") as TrackMode;
   })(),
+  weather: load<"sunny" | "cloudy">("pigeon-sk8-weather", "sunny") === "cloudy" ? "cloudy" : "sunny",
+  toggleWeather: () => {
+    const weather = get().weather === "sunny" ? "cloudy" : "sunny";
+    save("pigeon-sk8-weather", weather);
+    set({ weather });
+  },
+  nightBright: ((): 0 | 1 | 2 => {
+    const v = load<number>("pigeon-sk8-nightbright", 1);
+    return v === 0 || v === 2 ? v : 1;
+  })(),
+  cycleNightBright: () => {
+    const nightBright = (((get().nightBright + 1) % 3) as 0 | 1 | 2);
+    save("pigeon-sk8-nightbright", nightBright);
+    set({ nightBright });
+  },
+  shibuyaTime: ((): "pagi" | "siang" | "sore" | "malam" => {
+    const v = load<string>("pigeon-sk8-shibuyatime", "malam");
+    return v === "pagi" || v === "siang" || v === "sore" ? v : "malam";
+  })(),
+  cycleShibuyaTime: () => {
+    const order = ["pagi", "siang", "sore", "malam"] as const;
+    const shibuyaTime = order[(order.indexOf(get().shibuyaTime) + 1) % 4];
+    save("pigeon-sk8-shibuyatime", shibuyaTime);
+    set({ shibuyaTime });
+  },
   setTrackMode: (trackMode) => {
     save("pigeon-sk8-trackmode", trackMode);
     set({ trackMode });
@@ -215,7 +249,7 @@ export const useUI = create<UIState>((set, get) => ({
   },
   addPopup: (text, color, sub) => {
     const id = ++popupId;
-    set((s) => ({ popups: [...s.popups.slice(-3), { id, text, sub, color }] }));
+    set((s) => ({ popups: [...s.popups.slice(-2), { id, text, sub, color }] }));
     setTimeout(() => set((s) => ({ popups: s.popups.filter((p) => p.id !== id) })), 1100);
   },
   finishRun: (score, bread, cause) => {
