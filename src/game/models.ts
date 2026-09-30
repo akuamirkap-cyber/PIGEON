@@ -2562,6 +2562,248 @@ export function konbiniShopParts(): Part[] {
   ];
 }
 
+/** Warna papan nama toko per varian (fascia + aksen + warna tenda). */
+const SHOP_THEMES = [
+  { fascia: "#12805c", accent: "#7ef0c0", wall: "#f4f1e8", awn: "#1f9d6e", awn2: "#ffffff", name: "薬" }, // apotek
+  { fascia: "#8a3324", accent: "#ffd9a0", wall: "#efe6d2", awn: "#a4402c", awn2: "#f3ead8", name: "本" }, // toko buku
+  { fascia: "#1f4fa3", accent: "#8fd3ff", wall: "#e8edf5", awn: "#2b62c0", awn2: "#ffffff", name: "電" }, // toko elektronik
+  { fascia: "#b8860b", accent: "#ffe9a3", wall: "#f6ecd8", awn: "#c9922a", awn2: "#fff6df", name: "食" }, // toko makanan
+];
+
+/**
+ * TOKO JEPANG (shoten / 商店): ruko 2 lantai dengan etalase kaca lebar, tenda bergaris,
+ * papan nama menyala, papan reklame vertikal, AC outdoor, dan barang dagangan di trotoar.
+ * Menghadap +z (ke jalan), dinding depan di z = 0, menjulur ke -z — sama seperti toko lain.
+ */
+export function shopParts(variant: number): Part[] {
+  const th = SHOP_THEMES[((variant % SHOP_THEMES.length) + SHOP_THEMES.length) % SHOP_THEMES.length];
+  const W = 5.2;
+  const D = 4.5;
+  const glass = "#bfe8ff";
+  const frame = "#3a4150";
+  const parts: Part[] = [
+    // pondasi dalam supaya tidak mengambang di tanah miring
+    { x: 0, y: -0.95, z: -D / 2, w: W + 0.15, h: 2.5, d: D + 0.15, color: "#8e8a83" },
+    // badan 2 lantai
+    { x: 0, y: 1.85, z: -D / 2, w: W, h: 3.7, d: D, color: th.wall },
+    // parapet + lis atap
+    { x: 0, y: 3.82, z: -D / 2, w: W + 0.22, h: 0.22, d: D + 0.22, color: "#c3c8d2" },
+    // ---- LANTAI 1: etalase kaca lebar + pintu geser otomatis ----
+    { x: 0, y: 0.95, z: 0.02, w: W, h: 1.9, d: 0.08, color: "#dfe4ec" },
+    { x: -1.35, y: 1.15, z: 0.06, w: 2.5, h: 1.5, d: 0.07, color: glass, glow: true },
+    { x: 1.85, y: 1.15, z: 0.06, w: 1.3, h: 1.5, d: 0.07, color: glass, glow: true },
+    { x: 0.42, y: 1.0, z: 0.06, w: 1.05, h: 1.8, d: 0.07, color: "#8fd0ee" }, // pintu
+    { x: 0.42, y: 1.0, z: 0.1, w: 0.06, h: 1.8, d: 0.05, color: frame }, // garis daun pintu
+    { x: 0.42, y: 0.06, z: 0.2, w: 1.3, h: 0.05, d: 0.55, color: "#4b5261" }, // keset
+    // rangka etalase
+    { x: -1.35, y: 1.95, z: 0.1, w: 2.6, h: 0.08, d: 0.06, color: frame },
+    { x: -1.35, y: 0.36, z: 0.1, w: 2.6, h: 0.08, d: 0.06, color: frame },
+    { x: -2.6, y: 1.15, z: 0.1, w: 0.08, h: 1.6, d: 0.06, color: frame },
+    { x: -0.1, y: 1.15, z: 0.1, w: 0.08, h: 1.6, d: 0.06, color: frame },
+    // rak barang terlihat dari luar
+    { x: -1.35, y: 0.72, z: -0.3, w: 2.2, h: 0.08, d: 0.4, color: "#c9b48d" },
+    { x: -1.35, y: 1.24, z: -0.3, w: 2.2, h: 0.08, d: 0.4, color: "#c9b48d" },
+    { x: -2.0, y: 0.9, z: -0.3, w: 0.24, h: 0.3, d: 0.24, color: "#e76f51" },
+    { x: -1.6, y: 0.9, z: -0.3, w: 0.24, h: 0.3, d: 0.24, color: "#2a9d8f" },
+    { x: -1.2, y: 0.9, z: -0.3, w: 0.24, h: 0.3, d: 0.24, color: "#e9c46a" },
+    { x: -0.8, y: 1.42, z: -0.3, w: 0.24, h: 0.28, d: 0.24, color: "#4d9fff" },
+    { x: -1.4, y: 1.42, z: -0.3, w: 0.24, h: 0.28, d: 0.24, color: "#ff8a3d" },
+    // ---- PAPAN NAMA (fascia) menyala di atas etalase ----
+    { x: 0, y: 2.42, z: 0.1, w: W, h: 0.78, d: 0.16, color: th.fascia, glow: true },
+    { x: 0, y: 2.42, z: 0.19, w: W - 0.5, h: 0.5, d: 0.03, color: th.accent, glow: true },
+    // glyph "kanji" sederhana dari blok putih
+    { x: -1.5, y: 2.42, z: 0.22, w: 0.34, h: 0.08, d: 0.02, color: "#ffffff", glow: true },
+    { x: -1.5, y: 2.42, z: 0.22, w: 0.08, h: 0.34, d: 0.02, color: "#ffffff", glow: true },
+    { x: -0.95, y: 2.5, z: 0.22, w: 0.3, h: 0.08, d: 0.02, color: "#ffffff", glow: true },
+    { x: -0.95, y: 2.34, z: 0.22, w: 0.3, h: 0.08, d: 0.02, color: "#ffffff", glow: true },
+    { x: -0.95, y: 2.42, z: 0.22, w: 0.08, h: 0.34, d: 0.02, color: "#ffffff", glow: true },
+    { x: -0.35, y: 2.42, z: 0.22, w: 0.3, h: 0.3, d: 0.02, color: "#ffffff", glow: true },
+    { x: 0.25, y: 2.5, z: 0.22, w: 0.3, h: 0.08, d: 0.02, color: "#ffffff", glow: true },
+    { x: 0.25, y: 2.34, z: 0.22, w: 0.3, h: 0.08, d: 0.02, color: "#ffffff", glow: true },
+    { x: 0.85, y: 2.42, z: 0.22, w: 0.08, h: 0.34, d: 0.02, color: "#ffffff", glow: true },
+    { x: 1.05, y: 2.42, z: 0.22, w: 0.08, h: 0.34, d: 0.02, color: "#ffffff", glow: true },
+    { x: 1.7, y: 2.42, z: 0.22, w: 0.5, h: 0.34, d: 0.02, color: "#ffffff", glow: true },
+    // ---- TENDA bergaris (stripe awning) di atas etalase ----
+    { x: 0, y: 2.0, z: 0.5, w: W + 0.35, h: 0.1, d: 1.0, color: th.awn },
+    { x: -1.95, y: 2.0, z: 0.5, w: 0.62, h: 0.11, d: 1.0, color: th.awn2 },
+    { x: -0.65, y: 2.0, z: 0.5, w: 0.62, h: 0.11, d: 1.0, color: th.awn2 },
+    { x: 0.65, y: 2.0, z: 0.5, w: 0.62, h: 0.11, d: 1.0, color: th.awn2 },
+    { x: 1.95, y: 2.0, z: 0.5, w: 0.62, h: 0.11, d: 1.0, color: th.awn2 },
+    { x: 0, y: 2.06, z: 0.95, w: W + 0.35, h: 0.06, d: 0.16, color: "#2f3644" },
+    // ---- LANTAI 2: jendela + pagar balkon + AC outdoor ----
+    { x: -1.5, y: 3.25, z: 0.04, w: 1.0, h: 0.85, d: 0.08, color: "#ffe9a3" },
+    { x: 0.1, y: 3.25, z: 0.04, w: 1.0, h: 0.85, d: 0.08, color: "#9fc9e8" },
+    { x: 1.7, y: 3.25, z: 0.04, w: 0.8, h: 0.85, d: 0.08, color: "#9fc9e8" },
+    { x: -1.5, y: 3.25, z: 0.09, w: 0.06, h: 0.85, d: 0.05, color: frame },
+    { x: 0.1, y: 3.25, z: 0.09, w: 0.06, h: 0.85, d: 0.05, color: frame },
+    { x: 1.7, y: 3.25, z: 0.09, w: 0.06, h: 0.85, d: 0.05, color: frame },
+    { x: 0, y: 2.82, z: 0.2, w: W - 0.3, h: 0.07, d: 0.34, color: "#b9bfc9" }, // lantai balkon
+    { x: 0, y: 3.02, z: 0.34, w: W - 0.3, h: 0.06, d: 0.06, color: "#8f97a4" }, // rel pagar
+    { x: -2.1, y: 2.94, z: 0.34, w: 0.06, h: 0.22, d: 0.06, color: "#8f97a4" },
+    { x: 2.1, y: 2.94, z: 0.34, w: 0.06, h: 0.22, d: 0.06, color: "#8f97a4" },
+    { x: 2.05, y: 3.6, z: 0.3, w: 0.7, h: 0.5, d: 0.34, color: "#d3d8e0" }, // AC outdoor
+    { x: 2.05, y: 3.6, z: 0.48, w: 0.5, h: 0.34, d: 0.04, color: "#8f97a4" },
+    // ---- PAPAN REKLAME VERTIKAL di sudut (khas toko Jepang) ----
+    { x: 2.45, y: 2.6, z: 0.42, w: 0.34, h: 2.2, d: 0.12, color: th.fascia, glow: true },
+    { x: 2.45, y: 3.25, z: 0.5, w: 0.2, h: 0.24, d: 0.02, color: "#ffffff", glow: true },
+    { x: 2.45, y: 2.85, z: 0.5, w: 0.2, h: 0.24, d: 0.02, color: "#ffffff", glow: true },
+    { x: 2.45, y: 2.45, z: 0.5, w: 0.2, h: 0.24, d: 0.02, color: "#ffffff", glow: true },
+    { x: 2.45, y: 2.05, z: 0.5, w: 0.2, h: 0.24, d: 0.02, color: "#ffffff", glow: true },
+    // lampu sorot kecil di bawah fascia
+    { x: -1.2, y: 2.02, z: 0.2, w: 0.16, h: 0.08, d: 0.12, color: "#fff3c4", glow: true },
+    { x: 1.2, y: 2.02, z: 0.2, w: 0.16, h: 0.08, d: 0.12, color: "#fff3c4", glow: true },
+    // ---- DAGANGAN DI TROTOAR: papan A-frame, pot, dan krat ----
+    { x: -2.2, y: 0.34, z: 0.72, w: 0.5, h: 0.68, d: 0.08, color: "#1f2430" },
+    { x: -2.2, y: 0.46, z: 0.77, w: 0.36, h: 0.07, d: 0.02, color: "#ffffff" },
+    { x: -2.2, y: 0.3, z: 0.77, w: 0.3, h: 0.07, d: 0.02, color: "#ffffff" },
+    { x: -2.2, y: 0.14, z: 0.72, w: 0.5, h: 0.06, d: 0.2, color: "#4a4f57" },
+    { x: 2.0, y: 0.22, z: 0.72, w: 0.42, h: 0.44, d: 0.42, color: "#c96f3c" }, // pot
+    { x: 2.0, y: 0.55, z: 0.72, w: 0.52, h: 0.3, d: 0.52, color: "#3f9d4e" }, // tanaman
+    { x: 1.1, y: 0.16, z: 0.78, w: 0.44, h: 0.32, d: 0.36, color: "#c08a4a" }, // krat
+    { x: 1.1, y: 0.46, z: 0.78, w: 0.44, h: 0.28, d: 0.36, color: "#b07c3e" },
+  ];
+  return parts;
+}
+
+/**
+ * Kotak sebatas badan (x0,x1,z0,z1) dari sekumpulan Part: hanya bagian yang bawahnya di
+ * bawah `bodyH` dihitung, supaya kanopi pohon / papan nama tinggi TIDAK dianggap menghalangi
+ * pejalan kaki yang lewat di bawahnya. Return null bila tidak ada bagian setinggi badan.
+ */
+export function bodyBox(parts: Part[], bodyH = 1.35): [number, number, number, number] | null {
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let z0 = Infinity;
+  let z1 = -Infinity;
+  let n = 0;
+  for (const p of parts) {
+    if (p.y - p.h / 2 >= bodyH) continue;
+    n++;
+    x0 = Math.min(x0, p.x - p.w / 2);
+    x1 = Math.max(x1, p.x + p.w / 2);
+    z0 = Math.min(z0, p.z - p.d / 2);
+    z1 = Math.max(z1, p.z + p.d / 2);
+  }
+  return n ? [x0, x1, z0, z1] : null;
+}
+
+const _partsCache = new Map<string, Part[] | null>();
+
+/**
+ * Part dari sebuah dekorasi berdasarkan jenis+varian — dipakai penjaga penempatan di engine
+ * supaya footprint yang diuji adalah footprint model yang BENAR-BENAR digambar (bukan tebakan).
+ */
+export function decorPartsOf(kind: string, variant = 0, spec?: BuildingSpec): Part[] | null {
+  const key = `${kind}#${variant}#${spec ? `${spec.w.toFixed(2)}|${spec.floors}` : ""}`;
+  if (_partsCache.has(key)) return _partsCache.get(key)!;
+  let parts: Part[] | null = null;
+  switch (kind) {
+    case "building":
+      parts = spec ? buildingParts(spec) : null;
+      break;
+    case "shop":
+      parts = shopParts(variant);
+      break;
+    case "ramen":
+      parts = ramenShopParts();
+      break;
+    case "machiya":
+      parts = machiyaShopParts(variant);
+      break;
+    case "house":
+      parts = japaneseHouseParts(variant);
+      break;
+    case "village_house":
+      parts = japaneseVillageHouseParts(variant);
+      break;
+    case "konbini":
+      parts = konbiniShopParts();
+      break;
+    case "tower109":
+      parts = tower109Parts();
+      break;
+    case "vending":
+      parts = vendingParts(variant);
+      break;
+    case "mamachari":
+      parts = mamachariParts(variant);
+      break;
+    case "neon_sign":
+      parts = neonSignboardParts(variant);
+      break;
+    case "sidewalk_planter":
+      parts = sidewalkPlanterParts(variant);
+      break;
+    case "guard_fence":
+      parts = guardFenceParts(3.2);
+      break;
+    case "lamp":
+      parts = lampParts();
+      break;
+    case "avenue_lamp":
+      parts = avenueLampParts();
+      break;
+    case "hydrant":
+      parts = hydrantParts();
+      break;
+    case "lantern":
+      parts = stoneLanternParts();
+      break;
+    case "tree":
+      parts = treeParts(variant);
+      break;
+    case "autumn_tree":
+      parts = autumnTreeParts(variant);
+      break;
+    case "sakura":
+      parts = sakuraParts(variant, 1 + (variant % 2) * 0.18);
+      break;
+    case "bush":
+      parts = bushParts(variant);
+      break;
+    case "flowers":
+      parts = flowersParts(variant);
+      break;
+    case "rock":
+      parts = mountainRockParts(variant);
+      break;
+    case "billboard":
+      parts = billboardParts(variant);
+      break;
+    case "jam_car":
+      parts = jamCarParts(variant);
+      break;
+    case "chevron":
+      parts = chevronSignParts(variant > 0 ? 1 : -1);
+      break;
+    case "touge_lamp":
+      parts = tougeStreetlampParts();
+      break;
+    case "touge_sign":
+      parts = tougeRouteSignParts();
+      break;
+    case "guardrail":
+      parts = guardrailParts(12);
+      break;
+    default:
+      parts = null;
+  }
+  _partsCache.set(key, parts);
+  return parts;
+}
+
+const _bodyBoxCache = new Map<string, [number, number, number, number] | null>();
+
+/** `bodyBox` ter-cache per jenis+varian (dipanggil tiap dekorasi dipasang). */
+export function decorBodyBox(kind: string, variant = 0, spec?: BuildingSpec, bodyH = 1.35): [number, number, number, number] | null {
+  const key = `${kind}#${variant}#${spec ? `${spec.w.toFixed(2)}|${spec.floors}` : ""}#${bodyH}`;
+  if (_bodyBoxCache.has(key)) return _bodyBoxCache.get(key)!;
+  const parts = decorPartsOf(kind, variant, spec);
+  const box = parts ? bodyBox(parts, bodyH) : null;
+  _bodyBoxCache.set(key, box);
+  return box;
+}
+
 /** Illuminated sidewalk neon signboard (Kanji / Ramen / Konbini). */
 export function neonSignboardParts(variant: number): Part[] {
   if (variant % 2 === 0) {
@@ -3036,80 +3278,150 @@ export function avenueLampParts(): Part[] {
 }
 
 /**
- * SHIBUYA SCRAMBLE CROSSING: perempatan raksasa selebar avenue 6 jalur.
+ * SHIBUYA SCRAMBLE CROSSING — perempatan raksasa selebar avenue 6 jalur.
  * Frame lokal: +x searah jalan pemain, +z = arah lat (median di z≈4.35, jalur lawan z 5..12.3).
- * Zebra putihnya self-luminous supaya menyala bersih di malam hari.
+ *
+ * Desainnya dibuat BERATURAN supaya rapi:
+ *  - seluruh kotak junction satu bidang aspal datar (tidak ada tambalan acak),
+ *  - 4 zebra lurus + 2 zebra diagonal ala Shibuya, SEMUA garisnya SEJAJAR arah jalan kaki
+ *    (zebra sungguhan), lebar garis & jaraknya seragam di seluruh perempatan,
+ *  - garis henti tepat di luar zebra, tactile paving kuning di ujung tiap zebra.
  */
+export const SCRAMBLE = {
+  HALF_X: 6.7, // setengah lebar cross-street (searah jalan pemain)
+  Z_NEAR: -4.0, // bibir curb dekat
+  Z_FAR: 12.3, // bibir curb jauh
+  MEDIAN_0: 3.7,
+  MEDIAN_1: 5.0,
+  ROAD_Y: 0.045, // tinggi cat marka di atas aspal junction
+  DECK_Y: 0.19, // tinggi cat marka di atas dek cross-street / median
+  CW: 3.6, // lebar zebra
+  BAR: 0.42, // lebar garis zebra
+  PITCH: 0.8, // jarak antar garis zebra
+} as const;
+
 export function scrambleRoadParts(): Part[] {
+  const S = SCRAMBLE;
   const asphalt = "#3b4152";
   const asphaltDark = "#343a4a";
   const zebra = "#dde2ec"; // cat marka biasa (lit) — TIDAK glow, supaya tidak ikut bloom
+  const tactile = "#f2c14e"; // tenji block kuning khas Jepang
   const parts: Part[] = [];
-  const XW = 13.4; // lebar cross-street raksasa
-  const XH = XW / 2;
+  const deckH = 0.06;
 
-  // 1. Hamparan aspal junction menutupi SELURUH avenue (median ikut dipaving — plaza scramble)
-  parts.push({ x: 0, y: 0.016, z: 0, w: XW, h: 0.024, d: 8.0, color: asphalt });
-  parts.push({ x: 0, y: 0.016, z: 8.65, w: XW, h: 0.024, d: 7.35, color: asphalt });
-  parts.push({ x: 0, y: 0.09, z: 4.35, w: XW, h: 0.175, d: 1.6, color: asphaltDark }); // median dipaving rata
-  // bekas jejak ban menyilang
-  parts.push({ x: -3.4, y: 0.02, z: 0, w: 1.6, h: 0.026, d: 7.6, color: asphaltDark });
-  parts.push({ x: 3.4, y: 0.02, z: 0, w: 1.6, h: 0.026, d: 7.6, color: asphaltDark });
+  /* 1. SATU bidang aspal junction menutupi seluruh avenue (median ikut dipaving jadi plaza). */
+  const jz0 = S.Z_NEAR;
+  const jz1 = S.Z_FAR;
+  parts.push({ x: 0, y: S.ROAD_Y - deckH, z: (jz0 + jz1) / 2, w: S.HALF_X * 2, h: deckH, d: jz1 - jz0, color: asphalt });
+  // median dipaving rata + lis curb tipis supaya tetap terbaca sebagai pulau
+  const mz = (S.MEDIAN_0 + S.MEDIAN_1) / 2;
+  parts.push({ x: 0, y: S.DECK_Y - 0.175, z: mz, w: S.HALF_X * 2, h: 0.175, d: S.MEDIAN_1 - S.MEDIAN_0, color: asphaltDark });
+  parts.push({ x: 0, y: S.DECK_Y + 0.01, z: S.MEDIAN_0 + 0.07, w: S.HALF_X * 2, h: 0.02, d: 0.14, color: "#8f97a8" });
+  parts.push({ x: 0, y: S.DECK_Y + 0.01, z: S.MEDIAN_1 - 0.07, w: S.HALF_X * 2, h: 0.02, d: 0.14, color: "#8f97a8" });
 
-  // 2. Cross-street raksasa dua sisi (ditinggikan menimpa trotoar seperti perempatan biasa)
+  /* 2. Cross-street dua sisi (ditinggikan menimpa trotoar, sama seperti perempatan biasa). */
   for (const [z0, z1] of [
-    [-30, -4.0],
-    [12.3, 30],
+    [-30, S.Z_NEAR],
+    [S.Z_FAR, 30],
   ] as const) {
     const mid = (z0 + z1) / 2;
-    parts.push({ x: 0, y: 0.145, z: mid, w: XW, h: 0.06, d: z1 - z0, color: asphalt });
-    // marka tengah cross street
-    parts.push({ x: 0, y: 0.18, z: mid, w: 0.14, h: 0.012, d: (z1 - z0) * 0.86, color: "#e9e9e9" });
-  }
-
-  // 3. ZEBRA menyeberangi avenue di kedua tepi junction (pita lebar 2.5 m, garis
-  //    memanjang searah laju mobil = sumbu x, berulang searah langkah pejalan = z)
-  for (const bx of [-XH + 1.6, XH - 1.6]) {
-    for (let z = -3.2; z <= 12.0; z += 0.9) {
-      const onMedian = z > 3.4 && z < 5.3;
-      parts.push({ x: bx, y: onMedian ? 0.19 : 0.04, z, w: 2.5, h: 0.02, d: 0.48, color: zebra });
+    parts.push({ x: 0, y: S.DECK_Y - deckH, z: mid, w: S.HALF_X * 2, h: deckH, d: z1 - z0, color: asphalt });
+    // marka tengah cross-street: putus-putus rapi (bukan garis panjang menabrak zebra)
+    for (let z = z0 + 1.2; z < z1 - 1.2; z += 3.0) {
+      if (Math.abs(z - (z0 < 0 ? -5.2 : 13.5)) < 3.2) continue;
+      parts.push({ x: 0, y: S.DECK_Y, z: z + 0.8, w: 0.16, h: 0.02, d: 1.6, color: "#e9e9e9" });
     }
   }
 
-  // 4. ZEBRA menyeberangi cross-street di kedua sisi (garis memanjang searah laju = z)
-  for (const bz of [-5.4, 13.7]) {
-    for (let x = -XH + 1.2; x <= XH - 1.2; x += 0.85) {
-      parts.push({ x, y: 0.19, z: bz, w: 0.46, h: 0.02, d: 2.2, color: zebra });
-    }
-  }
+  /** Tinggi cat marka pada ketinggian z tertentu (median & dek lebih tinggi dari aspal junction). */
+  const paintY = (z: number) => (z > S.MEDIAN_0 - 0.05 && z < S.MEDIAN_1 + 0.05 ? S.DECK_Y : S.ROAD_Y);
 
-  // 5. ZEBRA DIAGONAL X — tanda tangan Shibuya Scramble!
-  // Garis-garisnya TEGAK LURUS arah jalan pejalan (desain zebra yang benar).
-  const dA = { x0: -4.9, z0: -2.4, x1: 4.9, z1: 10.2 }; // diagonal /
-  const dB = { x0: -4.9, z0: 10.2, x1: 4.9, z1: -2.4 }; // diagonal \
-  const ND = 17;
-  for (const dg of [dA, dB]) {
-    const dx = dg.x1 - dg.x0;
-    const dz = dg.z1 - dg.z0;
-    const ry = Math.atan2(dx, dz); // sumbu-w garis jadi tegak lurus arah jalan
-    for (let i = 1; i < ND - 1; i++) {
-      const t = i / (ND - 1);
-      const x = dg.x0 + t * dx;
-      const z = dg.z0 + t * dz;
-      const y = z > 3.4 && z < 5.3 ? 0.19 : 0.045;
-      parts.push({ x, y, z, w: 2.4, h: 0.02, d: 0.5, ry, color: zebra });
+  /* 3. ZEBRA lurus menyeberangi avenue (pejalan melangkah searah z -> garisnya memanjang searah z). */
+  const avenueZebra = (cx: number) => {
+    const za = -3.6;
+    const zb = 11.9;
+    const n = Math.round(S.CW / S.PITCH);
+    for (let k = 0; k < n; k++) {
+      const x = cx - S.CW / 2 + S.PITCH * (k + 0.5);
+      // satu garis dipecah 3 segmen: aspal dekat | median | aspal jauh (ketinggian beda)
+      const segs: [number, number][] = [
+        [za, S.MEDIAN_0],
+        [S.MEDIAN_0, S.MEDIAN_1],
+        [S.MEDIAN_1, zb],
+      ];
+      for (const [s0, s1] of segs) {
+        const y = s1 <= S.MEDIAN_0 + 1e-6 || s0 >= S.MEDIAN_1 - 1e-6 ? S.ROAD_Y : S.DECK_Y;
+        parts.push({ x, y, z: (s0 + s1) / 2, w: S.BAR, h: 0.02, d: s1 - s0, color: zebra });
+      }
     }
-  }
+    // tactile paving kuning di kedua ujung zebra
+    parts.push({ x: cx, y: paintY(za + 0.25), z: za + 0.25, w: S.CW, h: 0.022, d: 0.4, color: tactile });
+    parts.push({ x: cx, y: paintY(zb - 0.25), z: zb - 0.25, w: S.CW, h: 0.022, d: 0.4, color: tactile });
+  };
+  avenueZebra(-S.HALF_X + S.CW / 2);
+  avenueZebra(S.HALF_X - S.CW / 2);
 
-  // 6. Garis henti tebal di jalur pemain & jalur lawan
-  parts.push({ x: -XH - 0.35, y: 0.04, z: 0, w: 0.4, h: 0.018, d: 7.4, color: zebra });
-  parts.push({ x: XH + 0.35, y: 0.04, z: 8.6, w: 0.4, h: 0.018, d: 7.2, color: zebra });
+  /* 4. ZEBRA lurus menyeberangi cross-street (pejalan melangkah searah x). */
+  const streetZebra = (cz: number) => {
+    const xa = -S.HALF_X + 0.4;
+    const xb = S.HALF_X - 0.4;
+    const n = Math.round(S.CW / S.PITCH);
+    for (let k = 0; k < n; k++) {
+      const z = cz - S.CW / 2 + S.PITCH * (k + 0.5);
+      parts.push({ x: (xa + xb) / 2, y: S.DECK_Y, z, w: xb - xa, h: 0.02, d: S.BAR, color: zebra });
+    }
+    parts.push({ x: xa + 0.25, y: S.DECK_Y + 0.002, z: cz, w: 0.4, h: 0.022, d: S.CW, color: tactile });
+    parts.push({ x: xb - 0.25, y: S.DECK_Y + 0.002, z: cz, w: 0.4, h: 0.022, d: S.CW, color: tactile });
+  };
+  streetZebra(-5.2);
+  streetZebra(13.5);
+
+  /* 5. ZEBRA DIAGONAL X — tanda tangan Shibuya. Garisnya SEJAJAR arah langkah pejalan. */
+  const diagonal = (ax: number, az: number, bx: number, bz: number) => {
+    const dx = bx - ax;
+    const dz = bz - az;
+    const L = Math.hypot(dx, dz);
+    const ux = dx / L;
+    const uz = dz / L;
+    const ry = Math.atan2(-uz, ux); // sumbu panjang kotak (x lokal) searah langkah
+    const px = -uz; // vektor tegak lurus (untuk menggeser antar garis)
+    const pz = ux;
+    const n = Math.round(S.CW / S.PITCH);
+    const SEG = 22; // dipecah supaya mengikuti ketinggian median tanpa terlihat patah
+    for (let k = 0; k < n; k++) {
+      const off = -S.CW / 2 + S.PITCH * (k + 0.5);
+      for (let i = 0; i < SEG; i++) {
+        const t0 = i / SEG;
+        const t1 = (i + 0.82) / SEG;
+        const tm = (t0 + t1) / 2;
+        const x = ax + dx * tm + px * off;
+        const z = az + dz * tm + pz * off;
+        parts.push({
+          x,
+          y: paintY(z),
+          z,
+          w: L / SEG,
+          h: 0.02,
+          d: S.BAR,
+          ry,
+          color: zebra,
+        });
+      }
+    }
+  };
+  diagonal(-4.9, -3.6, 4.9, 11.9);
+  diagonal(4.9, -3.6, -4.9, 11.9);
+
+  /* 6. Garis henti tebal, tepat DI LUAR zebra dan hanya di sisi kiri (lalu lintas kiri). */
+  const stopBar = (x: number, z0: number, z1: number) =>
+    parts.push({ x, y: S.ROAD_Y, z: (z0 + z1) / 2, w: 0.42, h: 0.02, d: z1 - z0, color: zebra });
+  stopBar(-S.HALF_X - 0.65, S.Z_NEAR, S.MEDIAN_0); // arah pemain, sebelum junction
+  stopBar(S.HALF_X + 0.65, S.MEDIAN_1, S.Z_FAR); // arah lawan
+  parts.push({ x: -3.15, y: S.DECK_Y, z: -8.4, w: 5.9, h: 0.02, d: 0.42, color: zebra }); // cross-street sisi pemain
+  parts.push({ x: 3.15, y: S.DECK_Y, z: 16.7, w: 5.9, h: 0.02, d: 0.42, color: zebra }); // cross-street sisi lawan
 
   return parts;
 }
-
-
-/* ---------- Lampu kendaraan malam hari (overlay glow, hanya dirender saat mode malam) ---------- */
 
 /** Lampu mobil `carParts` (hadap +x): headlight hangat menyala + taillight merah. */
 export function carLightParts(): Part[] {

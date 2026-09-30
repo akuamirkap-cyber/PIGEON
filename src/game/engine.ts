@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ARM_LEN, CHUNK_LEN, GATE_LAT, TRAIN_CAR_LEN, TRAIN_GAP, TRAIN_W, HOOD_JUMP_CLEAR_H, makeBuildingSpec, makeShibuyaTowerSpec, type BuildingSpec } from "./models";
+import { ARM_LEN, CHUNK_LEN, GATE_LAT, TRAIN_CAR_LEN, TRAIN_GAP, TRAIN_W, HOOD_JUMP_CLEAR_H, makeBuildingSpec, makeShibuyaTowerSpec, decorBodyBox, type BuildingSpec } from "./models";
 import { TRICK_MAP, TRICKS, type TrickKind } from "./tricks";
 import { useUI, type Phase } from "./store";
 import { sfx } from "./audio";
@@ -131,6 +131,41 @@ export const RARE_FLASH_T = 0.9;
 // If not pressed within 2s, speed smoothly decays back to normal ("perlahan").
 // The kicking swing animation remains smooth and natural ("ayunanya jangan dicepetin ttp smooth").
 export const SPRINT_WINDOW = 2.0; // 2 seconds idle window before decay begins
+
+/** Lateral tepi jalan tempat pejalan kaki mulai menyeberang (di dalam koridor trotoar). */
+export const PED_CURB_LAT = 4.4;
+
+/* ---------- Lalu lintas jalur seberang (Shibuya) ----------
+ * Mobil di jalur berlawanan harus benar-benar berjalan, merayap seperti macet kota,
+ * berhenti rapi di garis henti perempatan, dan tidak pernah saling menumpuk. */
+export const JAM_LANE_LAT = [6.15, 8.65, 11.15];
+export function jamHalfLen(variant: number): number {
+  return variant === 4 ? 2.95 : 1.7; // bus lebih panjang
+}
+const JAM_AHEAD = 210; // sejauh apa mobil di-spawn ke depan pemain
+const JAM_GAP_MIN = 9.5; // jarak antar bumper saat lancar
+const JAM_GAP_MAX = 16.5;
+
+/* ---------- Kaveling bangunan ----------
+ * Gedung tidak boleh saling menembus dan tidak boleh menempel rapat. */
+export const BUILDING_GAP_STREET = 0.5;
+export const BUILDING_GAP_SHIBUYA = 0.5;
+/** Jenis dekorasi yang menempati kaveling (dikelola `fitLot`). */
+export const LOT_KINDS = new Set<DecorKind>(["building", "shop", "ramen", "machiya", "house", "village_house", "konbini", "tower109"]);
+/** Pita trotoar yang harus bebas dari benda setinggi badan. */
+export const PED_CORRIDOR_NEAR: [number, number] = [-6.6, -5.2];
+export const PED_CORRIDOR_FAR: [number, number] = [13.9, 15.4];
+const PED_CORRIDOR_PAD = 0.12;
+/** Batas penyempitan gedung; lebih sempit dari ini modelnya terlihat aneh. */
+export const MIN_LOT_SCALE = 0.75;
+/** Setengah jarak antar kaveling berurutan. Kaveling dipasang tiap 6 m (lx 3 & 9, lalu 3 lagi
+ *  di chunk berikutnya), jadi tiap kaveling hanya boleh memakan 3 m ke kiri dan ke kanan.
+ *  Tanpa ini kaveling pertama "memakan" jatah tetangganya dan kaveling kedua selalu ditolak. */
+export const LOT_HALF_PITCH = 3.0;
+/** Kunci garis depan kaveling — kaveling hanya boleh bertumpuk dengan yang segaris. */
+export function lotKey(lat: number): string {
+  return `L${Math.round(lat * 2)}`;
+}
 export interface Puddle {
   id: number;
   s: number;
@@ -205,6 +240,7 @@ export interface Bread {
 }
 export type DecorKind =
   | "building"
+  | "shop"
   | "tree"
   | "lamp"
   | "hydrant"
@@ -243,6 +279,31 @@ export interface Decor {
   spec?: BuildingSpec;
   /** placed on the camera side of the road (positive lat) => model is turned to face the road */
   frontSide?: boolean;
+  /** posisi kaveling di sumbu track — dipakai menjaga jarak antar gedung */
+  s?: number;
+  lat?: number;
+  /** gedung boleh sedikit disempitkan (sumbu X) supaya kavelingnya muat tanpa menempel */
+  scaleX?: number;
+  /** setengah lebar yang benar-benar terpakai di kaveling */
+  halfS?: number;
+}
+/** Mobil lalu lintas merayap di jalur seberang Shibuya — bergerak, bukan pajangan. */
+export interface JamCar {
+  id: number;
+  s: number;
+  lat: number;
+  lane: number;
+  speed: number;
+  cruise: number;
+  variant: number;
+  phase: number;
+  waiting: boolean;
+}
+/** Kaveling bangunan yang sudah terisi pada satu garis depan. */
+interface BuiltLot {
+  key: string;
+  from: number;
+  to: number;
 }
 export interface Chunk {
   id: number;
@@ -591,6 +652,11 @@ class Engine {
   breadFx: { rel: number; lat: number; h: number; age: number }[] = [];
   puddles: Puddle[] = [];
   overpassCars: OverpassCar[] = [];
+  /** Lalu lintas merayap di jalur seberang Shibuya (mobilnya benar-benar jalan). */
+  jamCars: JamCar[] = [];
+  jamCursor: number[] = [0, 0, 0];
+  /** Kaveling bangunan yang sudah terisi, per garis depan — dipakai menjaga jarak antar gedung. */
+  builtLots: BuiltLot[] = [];
   roadSigns: Decor[] = [];
   // NOS
   nos = 0; // 0..NOS_MAX
@@ -738,6 +804,9 @@ class Engine {
     this.breadFx = [];
     this.puddles = [];
     this.overpassCars = [];
+    this.jamCars = [];
+    this.jamCursor = [0, 0, 0];
+    this.builtLots = [];
     this.roadSigns = [];
     this.sprint = 0;
     this.sprintTimer = 0;
@@ -1483,6 +1552,7 @@ class Engine {
     this.cull();
 
     this.updateMovers(dt);
+    this.updateJamTraffic(dt);
     this.updateOverpass(dt);
     this.updateCrossings(dt);
     this.updateIntersections(dt);
@@ -2742,13 +2812,13 @@ class Engine {
       for (let i = 0; i < n; i++) {
         const dir = Math.random() < 0.5 ? 1 : -1;
         const px = s - 3.5 + i * 1.8 + rand(-0.4, 0.4);
-        const m = this.newMover("pedestrian", px, -1, -dir * 6.8);
+        const m = this.newMover("pedestrian", px, -1, -dir * PED_CURB_LAT);
         m.dir = dir;
         m.speed = rand(1.7, 2.4);
         // gelombang scramble ala Shibuya asli: banyak salaryman berjas pulang kantor
         m.variant = Math.random() < 0.4 ? randInt(5, 7) : randInt(0, 4);
         const eta = (px - this.distance) / est;
-        const walk = (6.8 - 1.2) / m.speed;
+        const walk = (PED_CURB_LAT - 1.2) / m.speed;
         m.delay = Math.max(0.1, eta - walk + rand(-0.9, 0.9));
         this.movers.push(m);
       }
@@ -2756,6 +2826,11 @@ class Engine {
     }
     // clear static obstacles & bread directly in the crossroads area (s - 8.5 to s + 8.5)
     const half = scramble ? 11 : wide ? 10.5 : 8.5;
+    // mobil jalur seberang yang kebetulan berdiri di dalam kotak perempatan ikut dibuang,
+    // supaya tidak ada yang "nembus" zebra yang baru saja dibuat
+    const n0 = this.jamCars.length;
+    this.jamCars = this.jamCars.filter((c) => c.s < s - 7.5 || c.s > s + 12.5);
+    if (this.jamCars.length !== n0) this.moverVersion++;
     this.obstacles = this.obstacles.filter((o) => o.s < s - half || o.s > s + half);
     this.breads = this.breads.filter((b) => b.s < s - (half - 1) || b.s > s + (half - 1));
     this.puddles = this.puddles.filter((pu) => pu.s < s - half || pu.s > s + half);
@@ -2826,6 +2901,162 @@ class Engine {
   }
 
   /* ---------- Generation ---------- */
+  /** Pita trotoar yang harus bebas benda sebatas badan (hanya Shibuya yang punya kerumunan). */
+  private pedCorridors(): [number, number][] {
+    return track.mode === "shibuya" ? [PED_CORRIDOR_NEAR, PED_CORRIDOR_FAR] : [];
+  }
+
+  /**
+   * Geser `lat` dekorasi keluar dari koridor pejalan kaki bila kotak badannya menabrak.
+   * Properti di sisi jalan didorong ke arah jalan, yang di sisi gedung didorong menjauh,
+   * jadi trotoar tetap ramai tapi selalu ada lajur kosong untuk berjalan.
+   */
+  private outOfPedCorridor(lat: number, z0: number, z1: number): number {
+    const corridors = this.pedCorridors();
+    if (!corridors.length) return lat;
+    const flip = lat > 0; // model di sisi +lat diputar 180°, jadi badan menempati -z -> +z
+    const a = lat + (flip ? -z1 : z0);
+    const b = lat + (flip ? -z0 : z1);
+    let lo = Math.min(a, b);
+    let hi = Math.max(a, b);
+    for (const [c0, c1] of corridors) {
+      const pad0 = c0 - PED_CORRIDOR_PAD;
+      const pad1 = c1 + PED_CORRIDOR_PAD;
+      if (hi <= pad0 || lo >= pad1) continue; // sudah di luar koridor
+      // dorong ke sisi terdekat: properti jalan ke arah jalan, properti gedung menjauh
+      const shift = (lo + hi) / 2 < (c0 + c1) / 2 ? pad0 - hi : pad1 - lo;
+      lat += shift;
+      lo += shift;
+      hi += shift;
+    }
+    return lat;
+  }
+
+  /**
+   * Muat sebuah bangunan ke kavelingnya tanpa tumpang tindih dan tanpa menempel rapat.
+   * Gedung (`building`) boleh dipersempit parametrik; model lain boleh dipersempit sampai
+   * `MIN_LOT_SCALE`; kalau masih tidak muat kavelingnya dikosongkan (return null).
+   */
+  private fitLot(
+    k: DecorKind,
+    s: number,
+    lat: number,
+    variant: number,
+    spec: BuildingSpec | undefined,
+    gap: number,
+  ): { spec?: BuildingSpec; scaleX: number; half: number; from: number; to: number } | null {
+    const key = lotKey(lat);
+    const measure = (sp?: BuildingSpec) => {
+      const full = decorBodyBox(k, variant, sp, 1e6);
+      return full ? Math.max(Math.abs(full[0]), Math.abs(full[1])) : 1.5;
+    };
+    let hw = measure(spec);
+
+    // tetangga terdekat di kiri & kanan pada garis depan yang sama
+    let left = -Infinity;
+    let right = Infinity;
+    for (const lot of this.builtLots) {
+      if (lot.key !== key) continue;
+      if (lot.to <= s) left = Math.max(left, lot.to);
+      else if (lot.from >= s) right = Math.min(right, lot.from);
+      else return null; // kavelingnya memang sudah terpakai
+    }
+    const avail = Math.min(s - (left + gap), right - gap - s, LOT_HALF_PITCH - gap / 2);
+
+    // gedung parametrik: persempit dulu (lebih rapi daripada menyemprot seluruh model)
+    if (hw > avail && k === "building" && spec) {
+      const wNew = Math.max(3.4, Math.min(spec.w, avail * 2 - 0.25));
+      if (wNew >= 3.4 && wNew < spec.w) {
+        spec = { ...spec, w: wNew, cols: Math.max(2, Math.floor(wNew / (spec.night ? 1.5 : 1.6))) };
+        hw = measure(spec);
+      }
+    }
+    let scaleX = 1;
+    if (hw > avail) {
+      scaleX = Math.max(MIN_LOT_SCALE, avail / hw);
+      if (hw * scaleX > avail + 1e-6) return null; // terlalu sempit, kosongkan kaveling
+    }
+    const half = hw * scaleX;
+    return { spec, scaleX, half, from: s - half, to: s + half };
+  }
+
+  /**
+   * Lalu lintas jalur seberang Shibuya: mobil benar-benar berjalan (merayap macet),
+   * berhenti rapi di garis henti perempatan, dan tidak saling menumpuk sejalur.
+   */
+  private updateJamTraffic(dt: number) {
+    if (track.mode !== "shibuya") {
+      if (this.jamCars.length) {
+        this.jamCars = [];
+        this.moverVersion++;
+      }
+      return;
+    }
+    const d = this.distance;
+
+    // spawn: tiga lajur, kursor selalu di depan pemain
+    for (let lane = 0; lane < JAM_LANE_LAT.length; lane++) {
+      if (this.jamCursor[lane] < d + 30) this.jamCursor[lane] = d + 30 + Math.random() * 10;
+      let guard = 0;
+      while (this.jamCursor[lane] < d + JAM_AHEAD && guard++ < 8) {
+        const s = this.jamCursor[lane];
+        this.jamCars.push({
+          id: this.nextId++,
+          s,
+          lat: JAM_LANE_LAT[lane] + rand(-0.22, 0.22),
+          lane,
+          speed: 0,
+          cruise: rand(3.4, 7.4),
+          variant: randInt(0, 4),
+          phase: Math.random() * 6.28,
+          waiting: false,
+        });
+        this.jamCursor[lane] = s + rand(JAM_GAP_MIN, JAM_GAP_MAX);
+        this.moverVersion++;
+      }
+    }
+
+    // ikuti hukum "berhenti di depan halangan": mobil berjalan ke arah -s, jadi batas
+    // terdekat di depannya adalah titik henti dengan s TERBESAR yang masih di bawah c.s.
+    const byLane: JamCar[][] = [[], [], []];
+    for (const c of this.jamCars) byLane[c.lane].push(c);
+    for (const l of byLane) l.sort((a, b) => b.s - a.s); // paling depan dulu
+
+    let changed = false;
+    for (const laneCars of byLane) {
+      for (let k = 0; k < laneCars.length; k++) {
+        const c = laneCars[k];
+        let limit = -Infinity;
+        for (const it of this.intersections) {
+          const stop = it.s + (it.scramble ? 10.6 : 10.0); // garis henti di depan zebra
+          if (stop < c.s + 0.6 && stop > c.s - 70) limit = Math.max(limit, stop);
+        }
+        const leader = k + 1 < laneCars.length ? laneCars[k + 1] : null;
+        if (leader) {
+          // bumper depan leader ada di leader.s + setengah panjangnya; sisakan 1.4 m
+          const follow = leader.s + jamHalfLen(c.variant) + jamHalfLen(leader.variant) + 1.4;
+          if (follow < c.s + 0.2) limit = Math.max(limit, follow);
+        }
+        const wave = 0.55 + 0.45 * Math.sin(this.time * 0.42 + c.phase);
+        const target = Math.max(0, c.cruise * wave);
+        c.speed += (target - c.speed) * Math.min(1, dt * 2.2);
+        c.waiting = false;
+        if (limit > -Infinity) {
+          const vMax = Math.max(0, (c.s - limit) * 1.7); // rem mulus menjelang titik henti
+          if (vMax < c.speed) c.speed = vMax;
+          c.waiting = c.speed < 0.05;
+        }
+        c.s -= c.speed * dt;
+        if (c.s < d - 34) {
+          const at = this.jamCars.indexOf(c);
+          if (at >= 0) this.jamCars.splice(at, 1);
+          changed = true;
+        }
+      }
+    }
+    if (changed) this.moverVersion++;
+  }
+
   private place(s: number, lat: number, dy: number): { pos: Vec3; rotY: number } {
     track.frame(s, lat, dy, tmpV);
     const th = track.sample(s, tmpS).th;
@@ -2865,12 +3096,27 @@ class Engine {
     }
     const kind: Chunk["kind"] = isHaruna ? "haruna" : isShibuya ? "shibuya" : crossing ? "park" : Math.random() < 0.28 ? "park" : "street";
     const decor: Decor[] = [];
-    const add = (k: DecorKind, lx: number, lat: number, dy: number, variant = 0, spec?: BuildingSpec) => {
+    const add = (k: DecorKind, lx: number, latIn: number, dy: number, variant = 0, specIn?: BuildingSpec) => {
       // Keep cross-road clear of sidewalk decor, buildings, and trees (minimum 8.2m clearance)
       const absS = s0 + lx;
       if (this.intersections.some((it) => Math.abs(absS - it.s) < 9.6) || Math.abs(absS - this.nextIntersectionS) < 9.6) return;
+      let lat = latIn;
+      let spec = specIn;
+      // benda setinggi badan tidak boleh berdiri di koridor pejalan kaki
+      const body = decorBodyBox(k, variant, spec, 1.35);
+      if (body) lat = this.outOfPedCorridor(lat, body[2], body[3]);
+      let scaleX: number | undefined;
+      let halfS: number | undefined;
+      if (LOT_KINDS.has(k)) {
+        const fit = this.fitLot(k, absS, lat, variant, spec, isShibuya ? BUILDING_GAP_SHIBUYA : BUILDING_GAP_STREET);
+        if (!fit) return; // kaveling tidak muat -> dikosongkan, gedung tidak dipaksa menempel
+        spec = fit.spec;
+        scaleX = fit.scaleX < 1 ? fit.scaleX : undefined;
+        halfS = fit.half;
+        this.builtLots.push({ key: lotKey(lat), from: fit.from, to: fit.to });
+      }
       const pl = this.place(absS, lat, dy);
-      decor.push({ kind: k, pos: pl.pos, rotY: pl.rotY, variant, spec, frontSide: lat > 0 });
+      decor.push({ kind: k, pos: pl.pos, rotY: pl.rotY, variant, spec, frontSide: lat > 0, s: absS, lat, scaleX, halfS });
     };
 
     if (isHaruna) {
@@ -2944,25 +3190,26 @@ class Engine {
       // ---- and both frontages are walls of sign-stacked zakkyo towers. ----
       const towerLot = (lx: number, lat: number, dy: number) => {
         const r = Math.random();
-        if (r < 0.72) add("building", lx, lat, dy, 0, makeShibuyaTowerSpec(rand(5.2, 6.8)));
-        else if (r < 0.86) add("konbini", lx, lat, dy, 0); // glowing 24h konbini between towers
+        if (r < 0.5) add("building", lx, lat, dy, 0, makeShibuyaTowerSpec(rand(4.3, 5.2)));
+        else if (r < 0.66) add("shop", lx, lat, dy, randInt(0, 3)); // toko kecil berderet di antara menara
+        else if (r < 0.8) add("konbini", lx, lat, dy, 0); // glowing 24h konbini between towers
         else add("ramen", lx, lat, dy, 0); // late-night ramen bar
       };
       // 1. Near frontage: dense tower wall right on the playable sidewalk
-      towerLot(3, -8.05, 0.1);
-      towerLot(9, -8.05, 0.1);
+      towerLot(3, -9.3, 0.1);
+      towerLot(9, -9.3, 0.1);
       // far frontage across all 6 lanes (bigger footprint reads well from a distance)
       if (Math.random() < 0.85) towerLot(rand(2.5, 9.5), 18.6, -0.14);
 
       // 2. Landmark: the silver 109-style cylinder tower rises above the near skyline
-      if (id % 21 === 7) add("tower109", 6, -12.6, -0.12);
+      if (id % 21 === 7) add("tower109", 6, -14.6, -0.12);
 
       // 3. Second skyline row: taller towers looming behind the first
-      if (id % 21 !== 7) add("building", rand(2, 6), -13.5, -0.15, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
-      if (Math.random() < 0.7) add("building", rand(6, 10), 24.5, -0.28, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
+      if (id % 21 !== 7) add("building", rand(2, 6), -15.2, -0.15, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
+      if (Math.random() < 0.7) add("building", rand(6, 10), 25.2, -0.28, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
 
       // 4. Giant glowing video billboards on scaffolds (the Shibuya trademark)
-      if (id % 3 === 0) add("billboard", rand(3, 9), -7.6, 0.05, randInt(0, 2));
+      if (id % 3 === 0) add("billboard", rand(3, 9), -8.3, 0.05, randInt(0, 2));
       if (id % 4 === 2) add("billboard", rand(3, 9), 16.4, -0.06, randInt(0, 2));
 
       // railway crossings span the whole avenue — keep the median & opposite lanes clear there
@@ -2977,16 +3224,9 @@ class Engine {
       }
       if (id % 2 === 1 && !nearCrossing(6)) add("lamp", 6, 4.35, 0.16);
 
-      // 6. Opposite carriageway: slow-and-go traffic — KADANG 2x lebih ramai (jam kota)
-      const busyTraffic = Math.random() < 0.4;
-      for (const ln of [6.2, 8.6, 11.0]) {
-        const lx = rand(1.5, 10.5);
-        if (Math.random() < (busyTraffic ? 0.62 : 0.42) && !nearCrossing(lx)) add("jam_car", lx, ln, 0.02, randInt(0, 4));
-        if (busyTraffic) {
-          const lx2 = lx > 6 ? lx - rand(3.4, 4.6) : lx + rand(3.4, 4.6);
-          if (Math.random() < 0.6 && !nearCrossing(lx2)) add("jam_car", lx2, ln, 0.02, randInt(0, 4));
-        }
-      }
+      // 6. Opposite carriageway: mobilnya tidak lagi ditaruh sebagai dekorasi statis
+      //    (dulu diam, sejalur, dan sering numpuk). Sekarang tiga lajur ini diisi mobil yang
+      //    benar-benar berjalan merayap — lihat `updateJamTraffic` + `JamCars` di World.tsx.
 
       // 7. Buzzing sidewalks BOTH sides: neon signboards, vending machines, mamachari, trees
       if (Math.random() < 0.75) add("neon_sign", rand(1.5, 10.5), -4.4, 0.12, randInt(0, 2));
@@ -2996,8 +3236,8 @@ class Engine {
       if (Math.random() < 0.45) add("mamachari", rand(2, 10), -4.55, 0.12, randInt(0, 3));
       if (Math.random() < 0.35) add("mamachari", rand(2, 10), 12.85, 0.12, randInt(0, 3));
       // sidewalk street trees (Japanese avenues are green even under the neon)
-      if (Math.random() < 0.55) add("tree", rand(1.5, 10.5), rand(-6.7, -7.3), 0.12, randInt(0, 2));
-      if (Math.random() < 0.5) add("tree", rand(1.5, 10.5), rand(14.9, 15.5), 0.12, randInt(0, 2));
+      if (Math.random() < 0.55) add("tree", rand(1.5, 10.5), rand(-7.0, -7.85), 0.12, randInt(0, 2));
+      if (Math.random() < 0.5) add("tree", rand(1.5, 10.5), rand(15.6, 16.0), 0.12, randInt(0, 2));
 
       // 8. Lampu jalan rapat: tiap chunk di KEDUA trotoar + lampu avenue dua kepala di median
       add("lamp", id % 2 === 0 ? 3 : 9, -4.3, 0.06);
@@ -3045,21 +3285,23 @@ class Engine {
       // Balanced streetscape: previous city buildings, ramen shops, machiya merchant shops, 1-story houses, and multi-story village houses
       const lot = (lx: number) => {
         const r = Math.random();
-        if (r < 0.28) add("building", lx, -6.75, 0.1, 0, makeBuildingSpec(rand(5, 6.2)));
-        else if (r < 0.50) add("house", lx, -6.75, 0.1, randInt(0, 1)); // 1-story traditional house
-        else if (r < 0.68) add("machiya", lx, -6.75, 0.1, randInt(0, 1)); // machiya shop
-        else if (r < 0.84) add("ramen", lx, -6.75, 0.1, 0); // ramen shop
-        else add("village_house", lx, -6.75, 0.1, randInt(0, 3)); // 2-3 story village house
+        if (r < 0.22) add("building", lx, -7.2, 0.1, 0, makeBuildingSpec(rand(5, 6.2)));
+        else if (r < 0.4) add("shop", lx, -7.2, 0.1, randInt(0, 3)); // toko kecil ber-etalase
+        else if (r < 0.55) add("house", lx, -7.2, 0.1, randInt(0, 1)); // 1-story traditional house
+        else if (r < 0.7) add("machiya", lx, -7.2, 0.1, randInt(0, 1)); // machiya shop
+        else if (r < 0.86) add("ramen", lx, -7.2, 0.1, 0); // ramen shop
+        else add("village_house", lx, -7.2, 0.1, randInt(0, 3)); // 2-3 story village house
       };
       if (straight && id % 6 === 2) {
-        add("konbini", 6, -6.75, 0.1, 0);
-      } else if (straight && Math.random() < 0.35) {
+        add("konbini", 6, -7.2, 0.1, 0);
+      } else if (straight && Math.random() < 0.4) {
         const r = Math.random();
-        if (r < 0.32) add("building", 6, -6.75, 0.1, 0, makeBuildingSpec(rand(5.5, 7)));
-        else if (r < 0.56) add("house", 6, -6.75, 0.1, randInt(0, 1));
-        else if (r < 0.74) add("village_house", 6, -6.75, 0.1, randInt(0, 3));
-        else if (r < 0.88) add("machiya", 6, -6.75, 0.1, randInt(0, 1));
-        else add("ramen", 6, -6.75, 0.1, 0);
+        if (r < 0.24) add("building", 6, -7.2, 0.1, 0, makeBuildingSpec(rand(5.5, 7)));
+        else if (r < 0.44) add("shop", 6, -7.2, 0.1, randInt(0, 3));
+        else if (r < 0.62) add("house", 6, -7.2, 0.1, randInt(0, 1));
+        else if (r < 0.76) add("village_house", 6, -7.2, 0.1, randInt(0, 3));
+        else if (r < 0.88) add("machiya", 6, -7.2, 0.1, randInt(0, 1));
+        else add("ramen", 6, -7.2, 0.1, 0);
       } else {
         lot(3);
         lot(9);
@@ -3079,16 +3321,19 @@ class Engine {
       if (Math.random() < 0.5) add("sakura", rand(1.5, 10.5), -5.2, 0.12, randInt(0, 3));
       // Front sidewalk buildings & houses (facing the street)
       const rFront = Math.random();
-      if (rFront < 0.18) add("house", rand(2.5, 9.5), 9.4, -0.1, randInt(0, 1));
-      else if (rFront < 0.34) add("building", rand(2.5, 9.5), 9.4, -0.1, 0, makeBuildingSpec(rand(4.8, 5.8)));
-      else if (rFront < 0.46) add("machiya", rand(2.5, 9.5), 9.4, -0.1, randInt(0, 1));
-      else if (rFront < 0.58) add("village_house", rand(2.5, 9.5), 9.4, -0.1, randInt(0, 3));
+      if (rFront < 0.16) add("house", rand(2.5, 9.5), 9.4, -0.1, randInt(0, 1));
+      else if (rFront < 0.3) add("building", rand(2.5, 9.5), 9.4, -0.1, 0, makeBuildingSpec(rand(4.8, 5.8)));
+      else if (rFront < 0.42) add("machiya", rand(2.5, 9.5), 9.4, -0.1, randInt(0, 1));
+      else if (rFront < 0.52) add("village_house", rand(2.5, 9.5), 9.4, -0.1, randInt(0, 3));
+      else if (rFront < 0.66) add("shop", rand(2.5, 9.5), 9.4, -0.1, randInt(0, 3));
+      else if (rFront < 0.76) add("ramen", rand(2.5, 9.5), 9.4, -0.1, 0);
     } else {
       // Scenic park / countryside: greenery with occasional 1-story house, ramen shop, or village house
       const rBack = Math.random();
       if (rBack < 0.22) add("house", rand(3, 9), rand(-8.5, -11), -0.12, randInt(0, 1));
       else if (rBack < 0.36) add("village_house", rand(3, 9), rand(-8.5, -11), -0.12, randInt(0, 3));
-      else if (rBack < 0.46) add("ramen", rand(3, 9), rand(-8.5, -11), -0.12, 0);
+      else if (rBack < 0.44) add("ramen", rand(3, 9), rand(-8.5, -11), -0.12, 0);
+      else if (rBack < 0.54) add("shop", rand(3, 9), rand(-8.5, -11), -0.12, randInt(0, 3));
 
       if (Math.random() < 0.16) add("house", rand(3, 9), rand(8.5, 11), -0.12, randInt(0, 1));
       else if (Math.random() < 0.1) add("village_house", rand(3, 9), rand(8.5, 11), -0.12, randInt(0, 3));
@@ -3133,9 +3378,18 @@ class Engine {
     return false;
   }
 
-  private isNearBread(s: number, lane: number, extraBuffer = 5.0): boolean {
+  /**
+   * Apakah ada roti di sekitar `s`? Jalur yang sama dicek dengan buffer penuh, dan jalur
+   * SEBELAH ikut dicek dengan buffer lebih kecil: deretan roti yang berjejer bisa tertutup
+   * oleh obstacle di samping/belakangnya, jadi obstacle seperti itu tidak boleh ditaruh di sana.
+   */
+  private isNearBread(s: number, lane: number, extraBuffer = 5.0, sideBuffer = 2.2): boolean {
     for (const b of this.breads) {
-      if (b.lane === lane && Math.abs(b.s - s) < extraBuffer) return true;
+      if (b.lane === lane) {
+        if (Math.abs(b.s - s) < extraBuffer) return true;
+      } else if (sideBuffer > 0 && Math.abs(b.s - s) < sideBuffer) {
+        return true;
+      }
     }
     return false;
   }
@@ -3147,7 +3401,7 @@ class Engine {
     if (!force && this.laneReserved(lane, s)) return;
     const hLen = half ?? OBSTACLE_DEFS[kind].halfLen;
     // Guaranteed safety: Never spawn an obstacle near bread in the same lane (fair play, zero manipulation)
-    if (!force && this.isNearBread(s, lane, hLen + 5.0)) return;
+    if (!force && this.isNearBread(s, lane, hLen + 6.5, 2.4)) return;
     track.frame(s, LANE_LAT[lane], 0, tmpV);
     track.quat(s, tmpQ);
     const catVariant = kind === "car" && Math.random() < 0.48 ? randInt(0, 3) : undefined;
@@ -3172,7 +3426,7 @@ class Engine {
     const isRailBread = h > 0.8 && this.obstacles.some((o) => o.kind === "rail" && o.lane === lane && Math.abs(o.s - s) <= obstacleHalf(o) + 0.3);
     const isRampBread = h > 0.8 && this.obstacles.some((o) => o.kind === "ramp" && o.lane === lane && s > o.s && s < o.s + 12);
     // If not intentional rail/ramp air bread, ensure at least 5m clearance from any obstacle or mover in that lane
-    if (!isRailBread && !isRampBread && this.isNearObstacle(s, lane, 5.0)) {
+    if (!isRailBread && !isRampBread && this.isNearObstacle(s, lane, 6.5)) {
       return; // Do NOT place bread anywhere near obstacles!
     }
     track.frame(s, LANE_LAT[lane], h, tmpV);
@@ -3257,7 +3511,7 @@ class Engine {
     const lane = randInt(0, 2);
     const len = 12 + 6 * t;
     const signPl = this.place(x - 8, 4.6, 0.12);
-    this.roadSigns.push({ kind: "roadsign", pos: signPl.pos, rotY: signPl.rotY, variant: x });
+    this.roadSigns.push({ kind: "roadsign", pos: signPl.pos, rotY: signPl.rotY, variant: x, s: x - 8, lat: 4.6 });
     this.addObstacle("fence", x, lane, true);
     this.addObstacle("dirt", x + 3, lane, true);
     this.addObstacle("jackhammer", x + 6, lane, true);
@@ -3282,7 +3536,7 @@ class Engine {
     const elderIndex = Math.random() < 0.42 ? randInt(0, n - 1) : -1;
     for (let i = 0; i < n; i++) {
       const dir = Math.random() < 0.5 ? 1 : -1;
-      const m = this.newMover("pedestrian", x + i * 3.0, -1, -dir * 6.8);
+      const m = this.newMover("pedestrian", x + i * 3.0, -1, -dir * PED_CURB_LAT);
       m.dir = dir;
       const elderly = i === elderIndex;
       m.elderly = elderly;
@@ -3292,7 +3546,7 @@ class Engine {
       // time the walk so they are on the road when the player arrives
       // (lansia jalannya lambat, jadi mereka lebih lama ADA di tengah jalan)
       const eta = (x + i * 3.0 - d) / est;
-      const walk = (6.8 - 1.2) / m.speed;
+      const walk = (PED_CURB_LAT - 1.2) / m.speed;
       m.delay = Math.max(0.1, eta - walk + rand(-0.6, 0.6));
       this.movers.push(m);
     }
@@ -3307,12 +3561,17 @@ class Engine {
    */
   private clearLaneNear(s: number): number {
     const lanes = [1, 0, 2]; // tengah dulu (paling gampang diambil), lalu pinggir
+    // "Bersih" = SEJALUR saja: obstacle di jalur sebelah itu wajar dan tidak menutupi item.
+    // Kalau semua jalur ikut dicek, hampir tidak ada tempat yang lolos dan item langka hilang.
+    const CLEAR_S = 9.0;
     for (const lane of lanes) {
       const blocked =
-        this.obstacles.some((o) => o.kind !== "ramp" && o.kind !== "rail" && o.lane === lane && Math.abs(o.s - s) < 6) ||
-        this.movers.some((m) => m.kind !== "pedestrian" && Math.abs(m.lane - lane) < 0.5 && Math.abs(m.s - s) < 12) ||
-        this.crossCars.some((cc) => Math.abs(cc.s - s) < 8) ||
-        this.reserved.some((r) => r.lane === lane && s > r.from - 2 && s < r.until + 2);
+        this.obstacles.some((o) => o.kind !== "ramp" && o.kind !== "rail" && o.lane === lane && Math.abs(o.s - s) < CLEAR_S) ||
+        this.breads.some((b) => b.lane === lane && Math.abs(b.s - s) < CLEAR_S) ||
+        this.movers.some((m) => m.kind !== "pedestrian" && Math.abs(m.lane - lane) < 0.5 && Math.abs(m.s - s) < 16) ||
+        this.crossCars.some((cc) => Math.abs(cc.s - s) < 10) ||
+        this.rockets.some((r) => Math.abs(r.s - s) < 12) ||
+        this.reserved.some((r) => r.lane === lane && s > r.from - 3 && s < r.until + 3);
       if (!blocked) return lane;
     }
     return -1;
@@ -3343,6 +3602,9 @@ class Engine {
         this.rockets.push({ id: this.nextId++, s: x, lane, taken: false, kind: pickRareKind(), wx: tmpV.x, wy: tmpV.y, wz: tmpV.z, phase: Math.random() * 6 });
         this.listVersion++;
         this.nextRocketS = x + rand(ROCKET_GAP[0], ROCKET_GAP[1]);
+        // jangan taruh obstacle tepat setelah item langka: roketnya harus bisa diambil
+        this.nextObstacleS = Math.max(this.nextObstacleS, x + 14);
+        return;
       }
     }
     if (x >= this.nextRoadworkS && !this.crossings.some((c) => Math.abs(c.s - x) < 40)) {
@@ -3612,6 +3874,8 @@ class Engine {
       changed = true;
     }
     if (this.reserved.length && this.reserved[0].until < d) this.reserved = this.reserved.filter((r) => r.until > d);
+    // kaveling yang sudah jauh di belakang tidak perlu diingat lagi
+    if (this.builtLots.length && this.builtLots[0].to < d - 80) this.builtLots = this.builtLots.filter((l) => l.to > d - 80);
     if (this.crossings.length && this.crossings[0].s < d - 30) {
       const gone = this.crossings.shift()!;
       const n = this.trains.length;
