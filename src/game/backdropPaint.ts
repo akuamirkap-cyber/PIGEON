@@ -527,3 +527,148 @@ export function paintHills(W = 4096, H = 512): HTMLCanvasElement {
   g.fillRect(0, m1, W, H - m1);
   return c;
 }
+
+/* ------------------------------------------------------------------ */
+/* Shibuya Night: 360° glittering neon city skyline panorama            */
+/* ------------------------------------------------------------------ */
+
+/** Distant-haze colour of the Shibuya night world (deep indigo with a violet cast). */
+export const NIGHT_MIST_HEX = "#1b1838";
+
+/**
+ * Paints a wrap-safe 360° night-city skyline: three depth layers of tower silhouettes
+ * packed with lit windows, rooftop beacons, glowing mega-screens and a Tokyo-Tower
+ * style lattice mast. Sky above the roofline stays transparent (alpha cut-out) so the
+ * purple night-sky dome shows through.
+ */
+export function paintCityNight(W = 4096, H = 512): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d")!;
+  const R = rng(20261024);
+  const pxPerUnit = H / (PANO.topY + PANO.botY);
+  const yU = (u: number) => (PANO.topY - u) * pxPerUnit; // world height (units) -> canvas y
+  const horizon = yU(0);
+
+  const NEON = ["#ff2d95", "#00e5ff", "#ffe93b", "#7cff4f", "#ff7a1a", "#b388ff"];
+  const WIN = ["#ffd97a", "#ffe9a3", "#9be8ff", "#ffb3d1", "#fff3c4"];
+
+  interface Layer {
+    body: string;
+    top: string;
+    hMin: number; // tower heights in world units
+    hMax: number;
+    wMin: number; // tower widths in px (at 4096)
+    wMax: number;
+    winP: number; // probability a window cell is lit
+    detail: boolean; // draw beacons/screens/signs
+  }
+  const s = W / 4096;
+  const layers: Layer[] = [
+    { body: "#12152b", top: "#181c36", hMin: 3.5, hMax: 8.5, wMin: 60, wMax: 130, winP: 0.1, detail: false },
+    { body: "#181c36", top: "#20254a", hMin: 3, hMax: 11, wMin: 50, wMax: 110, winP: 0.2, detail: false },
+    { body: "#20254a", top: "#2a3060", hMin: 2.5, hMax: 13, wMin: 44, wMax: 120, winP: 0.42, detail: true },
+  ];
+
+  for (let li = 0; li < layers.length; li++) {
+    const L = layers[li];
+    let x = (li * 137) % 80; // stagger layer start so seams never align
+    let lastH = 0;
+    while (x < W) {
+      const bw = (L.wMin + R() * (L.wMax - L.wMin)) * s;
+      let hU = L.hMin + R() * (L.hMax - L.hMin);
+      if (Math.abs(hU - lastH) < 1) hU += 1.4; // force a jagged skyline
+      lastH = hU;
+      const topY = yU(hU);
+      const bwClamped = Math.min(bw, W - x); // last tower ends exactly at the seam
+      // body
+      g.fillStyle = L.body;
+      g.fillRect(x, topY, bwClamped, H - topY);
+      // subtle lighter cap so rooflines read against the sky
+      g.fillStyle = L.top;
+      g.fillRect(x, topY, bwClamped, 3 * s);
+
+      // windows: sparse grid of lit dots (far layers glow dimmer, so depth reads)
+      const cw = 7 * s;
+      const ch = 9 * s;
+      const cols = Math.max(1, Math.floor((bwClamped - 8 * s) / cw));
+      const rows = Math.max(1, Math.floor((H - topY - 10 * s) / ch));
+      g.globalAlpha = li === 0 ? 0.4 : li === 1 ? 0.65 : 1;
+      for (let r = 0; r < Math.min(rows, 46); r++) {
+        for (let cc = 0; cc < cols; cc++) {
+          if (R() < L.winP) {
+            g.fillStyle = WIN[Math.floor(R() * WIN.length)];
+            g.fillRect(x + 4 * s + cc * cw, topY + 6 * s + r * ch, 3.2 * s, 4.2 * s);
+          }
+        }
+      }
+      g.globalAlpha = 1;
+
+      if (L.detail) {
+        // red aircraft beacon on the tallest towers
+        if (hU > 9 && R() < 0.75) {
+          g.fillStyle = "#39404f";
+          g.fillRect(x + bwClamped / 2 - 1.5 * s, topY - 14 * s, 3 * s, 14 * s);
+          g.fillStyle = "#ff1f3d";
+          g.fillRect(x + bwClamped / 2 - 3 * s, topY - 19 * s, 6 * s, 6 * s);
+        }
+        // glowing mega-screen on some facades
+        if (bwClamped > 60 * s && R() < 0.45) {
+          const neon = NEON[Math.floor(R() * NEON.length)];
+          const sw = bwClamped * (0.4 + R() * 0.3);
+          const sh = (12 + R() * 16) * s;
+          const sx = x + (bwClamped - sw) / 2;
+          const sy = topY + (10 + R() * 30) * s;
+          g.fillStyle = neon;
+          g.fillRect(sx, sy, sw, sh);
+          g.fillStyle = "rgba(255,255,255,0.85)";
+          g.fillRect(sx + sw * 0.12, sy + sh * 0.3, sw * 0.5, sh * 0.22);
+        }
+        // vertical neon sign strip
+        if (R() < 0.5) {
+          const neon = NEON[Math.floor(R() * NEON.length)];
+          const sx = x + bwClamped - 9 * s;
+          const sy = topY + 12 * s;
+          const sl = Math.min(H - horizon, (40 + R() * 50) * s);
+          g.fillStyle = "#0d1020";
+          g.fillRect(sx - 1.5 * s, sy - 2 * s, 8 * s, sl + 4 * s);
+          g.fillStyle = neon;
+          for (let k = 0; k < sl / (9 * s); k++) g.fillRect(sx, sy + k * 9 * s, 5 * s, 5.5 * s);
+        }
+      }
+      x += bwClamped;
+    }
+  }
+
+  // one Tokyo-Tower style lattice mast glowing orange above the skyline
+  {
+    const tx = W * 0.62;
+    const baseY = horizon;
+    const topY = yU(13.5);
+    const hPx = baseY - topY;
+    g.fillStyle = "#ff6d2a";
+    for (let i = 0; i < 14; i++) {
+      const t = i / 14;
+      const y = topY + t * hPx;
+      const half = (2 + t * 16) * s;
+      g.fillRect(tx - half, y, half * 2, hPx / 16);
+    }
+    g.fillStyle = "#ffd8b8";
+    g.fillRect(tx - 10 * s, topY + hPx * 0.32, 20 * s, 5 * s); // observation deck
+    g.fillStyle = "#ff1f3d";
+    g.fillRect(tx - 2.5 * s, topY - 7 * s, 5 * s, 7 * s); // beacon
+  }
+
+  // street-glow: the bottom melts into the night haze colour
+  const m0 = yU(-14);
+  const m1 = yU(-30);
+  const mist = g.createLinearGradient(0, m0, 0, m1);
+  mist.addColorStop(0, "rgba(27,24,56,0)");
+  mist.addColorStop(1, "rgba(27,24,56,1)");
+  g.fillStyle = mist;
+  g.fillRect(0, m0, W, m1 - m0);
+  g.fillStyle = NIGHT_MIST_HEX;
+  g.fillRect(0, m1, W, H - m1);
+  return c;
+}

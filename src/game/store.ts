@@ -4,7 +4,7 @@ import { TRICKS, type TrickKind } from "./tricks";
 
 export type Phase = "menu" | "playing" | "crashed" | "gameover";
 export type TurnMode = "old" | "new";
-export type TrackMode = "tokyo" | "haruna";
+export type TrackMode = "tokyo" | "haruna" | "shibuya";
 export type MenuView = "main" | "skins" | "tricks" | "exit" | "bye";
 /** Warna ban skateboard: default HITAM, bisa diganti merah/hijau/kuning/biru (atau ikut warna skin). */
 export type WheelColor = "auto" | "black" | "red" | "green" | "yellow" | "blue";
@@ -56,7 +56,7 @@ interface UIState {
   /** "old" = smooth slide between lanes with cosmetic lean; "new" = real wheel steering (heading drives the lateral motion) */
   turnMode: TurnMode;
   setTurnMode: (m: TurnMode) => void;
-  /** "tokyo" = city streets & parks; "haruna" = Mount Haruna (Gunma Touge) continuous downhill & hairpins */
+  /** "tokyo" = city streets & parks; "haruna" = Mount Haruna (Gunma Touge) downhill & hairpins; "shibuya" = neon night city (Shibuya scramble) */
   trackMode: TrackMode;
   setTrackMode: (m: TrackMode) => void;
   deckOverride: "default" | "baguette";
@@ -165,7 +165,7 @@ export const useUI = create<UIState>((set, get) => ({
   },
   trackMode: (() => {
     const m = load<string>("pigeon-sk8-trackmode", "haruna");
-    return (m === "tokyo" ? "tokyo" : "haruna") as TrackMode;
+    return (m === "tokyo" || m === "shibuya" ? m : "haruna") as TrackMode;
   })(),
   setTrackMode: (trackMode) => {
     save("pigeon-sk8-trackmode", trackMode);

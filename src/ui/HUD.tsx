@@ -77,7 +77,7 @@ export function HUD() {
       {/* track mode badge */}
       {inRun && (
         <div className="absolute left-[4%] top-[10.5%] rounded-full bg-black/35 px-2.5 py-1 font-display text-[2.8cqw] leading-none text-white/90 backdrop-blur-[2px]">
-          {trackMode === "haruna" ? "⛰️ MT. HARUNA TOUGE" : "🏙️ TOKYO CITY"}
+          {trackMode === "haruna" ? "⛰️ MT. HARUNA TOUGE" : trackMode === "shibuya" ? "🌃 SHIBUYA NIGHT" : "🏙️ TOKYO CITY"}
         </div>
       )}
 

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { engine } from "./engine";
+import { useUI } from "./store";
 import { BACK, FUJI, FUJI_CY, buildClouds } from "./backdrop";
-import { PANO, paintFuji, paintHills } from "./backdropPaint";
+import { PANO, paintFuji, paintHills, paintCityNight } from "./backdropPaint";
 
 /**
  * Distant scenery that travels with the camera (so it sits at "infinity"): a painted Mount Fuji billboard,
@@ -13,6 +14,7 @@ import { PANO, paintFuji, paintHills } from "./backdropPaint";
  */
 export function Backdrop() {
   const gl = useThree((s) => s.gl);
+  const night = useUI((s) => s.trackMode) === "shibuya";
   const root = useRef<THREE.Group>(null);
   const fuji = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Group>(null);
@@ -33,7 +35,8 @@ export function Backdrop() {
       return t;
     };
     const fujiTex = mk(paintFuji(), false);
-    const hillsTex = mk(paintHills(hillsW, hillsW / 8), true);
+    // Shibuya Night swaps the pastoral hills for a glittering neon skyline
+    const hillsTex = mk(night ? paintCityNight(hillsW, hillsW / 8) : paintHills(hillsW, hillsW / 8), true);
     const mat = (map: THREE.Texture, side: THREE.Side) =>
       new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, alphaToCoverage: true, fog: false, depthWrite: false, depthTest: false, side, toneMapped: false });
     const hillsH = PANO.topY + PANO.botY;
@@ -45,10 +48,11 @@ export function Backdrop() {
       fujiGeo: new THREE.PlaneGeometry(FUJI.w, FUJI.h),
       hillsGeo: new THREE.CylinderGeometry(BACK.hills, BACK.hills, hillsH, 192, 1, true),
       hillsY: (PANO.topY - PANO.botY) / 2,
-      cloudMat: new THREE.MeshBasicMaterial({ vertexColors: true, fog: false, depthWrite: false, depthTest: false, toneMapped: false }),
+      // night clouds turn into dim indigo silhouettes lit faintly from the city below
+      cloudMat: new THREE.MeshBasicMaterial({ vertexColors: true, color: night ? "#575d8a" : "#ffffff", fog: false, depthWrite: false, depthTest: false, toneMapped: false }),
       clouds: buildClouds(),
     };
-  }, [gl]);
+  }, [gl, night]);
   useEffect(
     () => () => {
       built.fujiTex.dispose();
@@ -84,7 +88,7 @@ export function Backdrop() {
   const noCurve = { noCurve: true };
   return (
     <group ref={root}>
-      <mesh ref={fuji} geometry={built.fujiGeo} material={built.fujiMat} userData={noCurve} frustumCulled={false} renderOrder={-94} />
+      {!night && <mesh ref={fuji} geometry={built.fujiGeo} material={built.fujiMat} userData={noCurve} frustumCulled={false} renderOrder={-94} />}
       <group ref={cloudsRef}>
         {built.clouds.map((c, i) => (
           <mesh

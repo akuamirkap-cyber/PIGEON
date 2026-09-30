@@ -47,7 +47,7 @@ const _s: TrackSample = { x: 0, y: 0, z: 0, th: 0, g: 0, kappa: 0 };
  */
 export class Track {
   end = 0;
-  mode: "tokyo" | "haruna" = "haruna";
+  mode: "tokyo" | "haruna" | "shibuya" = "haruna";
   private turns: Turn[] = [];
   private ramps: Ramp[] = [];
   private planEnd = 0;
@@ -63,12 +63,12 @@ export class Track {
   private iz = 0;
   private ith = 0;
 
-  constructor(mode: "tokyo" | "haruna" = "haruna") {
+  constructor(mode: "tokyo" | "haruna" | "shibuya" = "haruna") {
     this.mode = mode;
     this.reset(mode);
   }
 
-  reset(mode?: "tokyo" | "haruna") {
+  reset(mode?: "tokyo" | "haruna" | "shibuya") {
     if (mode) this.mode = mode;
     this.featureCount = 0;
     this.turns = [];
@@ -174,7 +174,26 @@ export class Track {
       return;
     }
 
-    // Tokyo City mode
+    // Tokyo City mode — Shibuya Night shares the city plan but stays flatter with long neon
+    // boulevards and gentle sweepers so the glowing building canyon reads well at speed.
+    if (this.mode === "shibuya") {
+      const dthS = dir * rand(7, 13) * DEG;
+      const LS = rand(34, 48);
+      const rS = Math.random();
+      if (rS < 0.3) {
+        this.planEnd = s + rand(16, 30); // long straight under the billboards
+      } else if (rS < 0.66) {
+        this.turns.push({ s0: s, s1: s + LS, dth: dthS }, { s0: s + LS, s1: s + 2 * LS, dth: -dthS });
+        this.planEnd = s + 2 * LS;
+      } else if (rS < 0.82) {
+        this.turns.push({ s0: s, s1: s + LS, dth: dthS }, { s0: s + LS, s1: s + 3 * LS, dth: -2 * dthS }, { s0: s + 3 * LS, s1: s + 4 * LS, dth: dthS });
+        this.planEnd = s + 4 * LS;
+      } else {
+        // gentle downhill boulevard (Dogenzaka slope vibes)
+        this.planEnd = s + this.addDescent(s, rand(0.1, 0.18), rand(35, 55), 14);
+      }
+      return;
+    }
     const dth = dir * rand(9, 16) * DEG;
     const L = rand(30, 42);
     const r = Math.random();

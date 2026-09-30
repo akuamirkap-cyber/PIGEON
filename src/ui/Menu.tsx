@@ -85,7 +85,7 @@ function TrackModeRow() {
   const setTrackMode = useUI((s) => s.setTrackMode);
   const addPopup = useUI((s) => s.addPopup);
 
-  const selectTrack = (mode: "haruna" | "tokyo") => {
+  const selectTrack = (mode: "haruna" | "tokyo" | "shibuya") => {
     if (mode === trackMode) return;
     unlockAudio();
     setTrackMode(mode);
@@ -93,13 +93,16 @@ function TrackModeRow() {
     if (mode === "haruna") {
       sfx.unlock();
       addPopup("TRACK: MT. HARUNA", "#ff9f1c", "Gunma Touge Downhill & Hairpins");
+    } else if (mode === "shibuya") {
+      sfx.click();
+      addPopup("TRACK: SHIBUYA NIGHT", "#c77dff", "Neon Scramble City Lights");
     } else {
       sfx.click();
-      addPopup("TRACK: TOKYO CITY", "#2ec4b6", "Shibuya Streets & Crossings");
+      addPopup("TRACK: TOKYO CITY", "#2ec4b6", "City Streets & Crossings");
     }
   };
 
-  const cell = (mode: "haruna" | "tokyo", title: string, badge: string, activeBg: string, activeShadow: string) => {
+  const cell = (mode: "haruna" | "tokyo" | "shibuya", title: string, badge: string, activeBg: string, activeShadow: string) => {
     const active = trackMode === mode;
     return (
       <button
@@ -117,8 +120,9 @@ function TrackModeRow() {
 
   return (
     <div className="flex w-full items-center gap-1 rounded-2xl bg-[#1f2430]/25 p-1 backdrop-blur-[3px]">
-      {cell("haruna", "MT. HARUNA", "GUNMA", "bg-[#ffc46b]", "#c9700a")}
-      {cell("tokyo", "TOKYO CITY", "SHIBUYA", "bg-[#7ce0d4]", "#1f9a8f")}
+      {cell("haruna", "HARUNA", "GUNMA", "bg-[#ffc46b]", "#c9700a")}
+      {cell("tokyo", "TOKYO", "CITY", "bg-[#7ce0d4]", "#1f9a8f")}
+      {cell("shibuya", "SHIBUYA", "NIGHT", "bg-[#d5a8ff]", "#8b3fd6")}
     </div>
   );
 }

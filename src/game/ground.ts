@@ -16,7 +16,22 @@ const PLAZA = "#a9a49b";
 const G1 = "#8ed04e";
 const G2 = "#84c645";
 
-function stripsFor(kind: "street" | "park" | "haruna"): Strip[] {
+function stripsFor(kind: "street" | "park" | "haruna" | "shibuya"): Strip[] {
+  if (kind === "shibuya") {
+    return [
+      // Night asphalt with a faint neon sheen
+      { lat0: -3.75, lat1: 3.75, top: 0, colors: ["#343a4c"], skirt: false },
+      // pale granite curbs catching the shop light
+      { lat0: -4.0, lat1: -3.7, top: 0.14, colors: ["#9aa2b5"], skirt: true },
+      { lat0: 3.7, lat1: 4.0, top: 0.14, colors: ["#9aa2b5"], skirt: true },
+      // dark granite sidewalks (Hachiko plaza tiles)
+      { lat0: -7.0, lat1: -4.0, top: 0.12, colors: ["#5b6178", "#525871"], skirt: true },
+      { lat0: 4.0, lat1: 5.7, top: 0.12, colors: ["#5b6178", "#525871"], skirt: true },
+      // outer plaza blocks under the towers
+      { lat0: -24, lat1: -7.0, top: 0.1, colors: ["#3d4257", "#444a61"], skirt: true },
+      { lat0: 5.7, lat1: 22, top: 0.1, colors: ["#3d4257", "#444a61"], skirt: true },
+    ];
+  }
   if (kind === "haruna") {
     return [
       // Mountain Touge dark asphalt
@@ -60,7 +75,7 @@ const tmp: TrackSample = { x: 0, y: 0, z: 0, th: 0, g: 0, kappa: 0 };
 const color = new THREE.Color();
 
 /** Builds one chunk of road + sidewalks + grass as a ribbon swept along the track. */
-export function buildGroundGeometry(track: Track, s0: number, len: number, kind: "street" | "park" | "haruna"): THREE.BufferGeometry {
+export function buildGroundGeometry(track: Track, s0: number, len: number, kind: "street" | "park" | "haruna" | "shibuya"): THREE.BufferGeometry {
   const pos: number[] = [];
   const nrm: number[] = [];
   const col: number[] = [];
@@ -235,8 +250,8 @@ export function buildGroundGeometry(track: Track, s0: number, len: number, kind:
       quad(a, b, -1.27, -1.13, 0.008, n, white);
       quad(a, b, 1.13, 1.27, 0.008, n, white);
     }
-    // sidewalk seams
-    const seam = shade("#cbc6ba", 1);
+    // sidewalk seams (dark grout lines on Shibuya's night granite, warm concrete by day)
+    const seam = shade(kind === "shibuya" ? "#454b62" : "#cbc6ba", 1);
     for (let s = s0; s < s0 + len; s += 2) {
       const a = sampleAt(s - 0.03);
       const b = sampleAt(s + 0.03);

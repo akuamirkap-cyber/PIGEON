@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ARM_LEN, CHUNK_LEN, GATE_LAT, TRAIN_CAR_LEN, TRAIN_GAP, TRAIN_W, HOOD_JUMP_CLEAR_H, makeBuildingSpec, type BuildingSpec } from "./models";
+import { ARM_LEN, CHUNK_LEN, GATE_LAT, TRAIN_CAR_LEN, TRAIN_GAP, TRAIN_W, HOOD_JUMP_CLEAR_H, makeBuildingSpec, makeShibuyaTowerSpec, type BuildingSpec } from "./models";
 import { TRICK_MAP, TRICKS, type TrickKind } from "./tricks";
 import { useUI, type Phase } from "./store";
 import { sfx } from "./audio";
@@ -228,7 +228,8 @@ export type DecorKind =
   | "konbini"
   | "neon_sign"
   | "touge_sign"
-  | "touge_lamp";
+  | "touge_lamp"
+  | "billboard";
 export interface Decor {
   kind: DecorKind;
   pos: Vec3;
@@ -241,7 +242,7 @@ export interface Decor {
 export interface Chunk {
   id: number;
   s0: number;
-  kind: "street" | "park" | "haruna";
+  kind: "street" | "park" | "haruna" | "shibuya";
   decor: Decor[];
 }
 export type MoverKind = "car" | "motorcycle" | "chicken" | "pedestrian" | "cat";
@@ -842,7 +843,7 @@ class Engine {
     this.menuT = 0;
   }
 
-  setTrackMode(mode: "tokyo" | "haruna") {
+  setTrackMode(mode: "tokyo" | "haruna" | "shibuya") {
     track.reset(mode);
     this.reset();
     this.listVersion++;
@@ -2772,6 +2773,7 @@ class Engine {
 
   private spawnChunk() {
     const isHaruna = track.mode === "haruna";
+    const isShibuya = track.mode === "shibuya";
     const s0 = this.nextChunkS;
     this.nextChunkS += CHUNK_LEN;
     const id = this.nextId++;
@@ -2783,7 +2785,8 @@ class Engine {
       const cc = track.sample(cs, tmpS);
       if (cs <= s0 + CHUNK_LEN - 2 && Math.abs(cc.kappa) < 0.004 && Math.abs(cc.g) < 0.03) {
         crossing = this.addCrossing(cs);
-        this.nextCrossingS = cs + rand(CROSSING_GAP[0], CROSSING_GAP[1]);
+        // Shibuya nights are busier: railway crossings come around more often
+        this.nextCrossingS = cs + (isShibuya ? rand(110, 190) : rand(CROSSING_GAP[0], CROSSING_GAP[1]));
       } else {
         this.nextCrossingS = s0 + CHUNK_LEN + 2; // road is bending/sloping here: try the next chunk
       }
@@ -2793,12 +2796,13 @@ class Engine {
       const ic = track.sample(is_s, tmpS);
       if (is_s <= s0 + CHUNK_LEN - 3 && Math.abs(ic.kappa) < 0.005 && Math.abs(ic.g) < 0.035) {
         this.addIntersection(is_s);
-        this.nextIntersectionS = is_s + rand(130, 200);
+        // Shibuya = city of scramble crossings: intersections arrive noticeably more often
+        this.nextIntersectionS = is_s + (isShibuya ? rand(95, 150) : rand(130, 200));
       } else {
         this.nextIntersectionS = s0 + CHUNK_LEN + 3;
       }
     }
-    const kind: Chunk["kind"] = isHaruna ? "haruna" : crossing ? "park" : Math.random() < 0.28 ? "park" : "street";
+    const kind: Chunk["kind"] = isHaruna ? "haruna" : isShibuya ? "shibuya" : crossing ? "park" : Math.random() < 0.28 ? "park" : "street";
     const decor: Decor[] = [];
     const add = (k: DecorKind, lx: number, lat: number, dy: number, variant = 0, spec?: BuildingSpec) => {
       // Keep cross-road clear of sidewalk decor, buildings, and trees (minimum 8.2m clearance)
@@ -2869,6 +2873,47 @@ class Engine {
       }
 
       this.chunks.push({ id, s0, kind: "haruna", decor });
+      this.listVersion++;
+      return;
+    }
+
+    if (isShibuya) {
+      // ---- SHIBUYA NIGHT: neon canyon of glowing towers, video billboards & buzzing sidewalks ----
+      // 1. Front row of tall neon towers lining BOTH sides of the street (dense, almost no gaps)
+      const towerLot = (lx: number, lat: number, dy: number) => {
+        const r = Math.random();
+        if (r < 0.72) add("building", lx, lat, dy, 0, makeShibuyaTowerSpec(rand(5.2, 6.8)));
+        else if (r < 0.86) add("konbini", lx, lat, dy, 0); // glowing 24h konbini between towers
+        else add("ramen", lx, lat, dy, 0); // late-night ramen bar
+      };
+      towerLot(3, -6.75, 0.1);
+      towerLot(9, -6.75, 0.1);
+      if (Math.random() < 0.8) towerLot(rand(2.5, 9.5), 9.4, -0.1);
+
+      // 2. Second skyline row: taller towers looming behind the first (reads above the rooflines)
+      add("building", rand(2, 6), -13.5, -0.15, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
+      if (Math.random() < 0.7) add("building", rand(6, 10), 14.5, -0.2, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
+
+      // 3. Giant glowing video billboards on scaffolds (the Shibuya trademark)
+      if (id % 3 === 0) add("billboard", rand(3, 9), -7.6, 0.05, randInt(0, 2));
+      if (id % 4 === 2) add("billboard", rand(3, 9), 10.2, -0.08, randInt(0, 2));
+
+      // 4. Buzzing sidewalk life: neon signboards, vending machines, parked mamachari
+      if (Math.random() < 0.75) add("neon_sign", rand(1.5, 10.5), -4.4, 0.12, randInt(0, 2));
+      if (Math.random() < 0.5) add("neon_sign", rand(1.5, 10.5), 4.4, 0.12, randInt(0, 2));
+      if (Math.random() < 0.7) add("vending", rand(2, 10), -4.8, 0.12, randInt(0, 3));
+      if (Math.random() < 0.45) add("vending", rand(2, 10), 4.8, 0.12, randInt(0, 3));
+      if (Math.random() < 0.45) add("mamachari", rand(2, 10), -4.55, 0.12, randInt(0, 3));
+      if (Math.random() < 0.3) add("mamachari", rand(2, 10), 4.55, 0.12, randInt(0, 3));
+
+      // 5. Street lamps every chunk on alternating sides — the road itself stays bright
+      if (id % 2 === 0) add("lamp", 6, -4.3, 0.06);
+      else add("lamp", 6, 4.35, 0.06);
+
+      // 6. The odd lone street tree catching the neon glow
+      if (Math.random() < 0.22) add("tree", rand(1.5, 10.5), rand(-5.1, -5.4), 0.12, randInt(0, 2));
+
+      this.chunks.push({ id, s0, kind: "shibuya", decor });
       this.listVersion++;
       return;
     }

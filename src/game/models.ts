@@ -306,6 +306,32 @@ export interface BuildingSpec {
   awningColor: string;
   lit: number;
   cols: number;
+  /** Shibuya Night styling: dark glass facade, almost every window lit in neon hues, rooftop neon trim. */
+  night?: boolean;
+  /** accent neon hue used for trims / vertical sign when night */
+  neon?: string;
+}
+
+/** Neon hues used across the Shibuya night city (signs, windows, billboards). */
+export const NEON_COLORS = ["#ff2d95", "#00e5ff", "#ffe93b", "#7cff4f", "#ff7a1a", "#b388ff", "#ff4d6d", "#4dffdf"];
+
+/** Dark facades for night towers (dark glass / concrete under neon light). */
+const NIGHT_FACADES = ["#232839", "#1d2230", "#2a2f45", "#20263a", "#262b3f", "#1a1f2e"];
+
+export function makeShibuyaTowerSpec(w: number): BuildingSpec {
+  const neon = NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)];
+  return {
+    w,
+    floors: 5 + Math.floor(Math.random() * 5), // 5..9 floors: a proper neon canyon
+    color: NIGHT_FACADES[Math.floor(Math.random() * NIGHT_FACADES.length)],
+    roof: "#171b28",
+    awning: false,
+    awningColor: neon,
+    lit: 0.75 + Math.random() * 0.25,
+    cols: Math.max(2, Math.floor(w / 1.5)),
+    night: true,
+    neon,
+  };
 }
 
 export function makeBuildingSpec(w: number): BuildingSpec {
@@ -335,17 +361,50 @@ export function buildingParts(s: BuildingSpec): Part[] {
   ];
   const winW = 0.6;
   const spacing = s.w / s.cols;
-  for (let f = 0; f < s.floors; f++) {
-    for (let c = 0; c < s.cols; c++) {
-      const x = -s.w / 2 + spacing * (c + 0.5);
-      if (f === 0 && c === Math.floor(s.cols / 2)) {
-        parts.push({ x, y: 0.95, z: 0.04, w: 0.9, h: 1.3, d: 0.1, color: "#5a3e2b" });
-        parts.push({ x: x + 0.25, y: 0.95, z: 0.1, w: 0.1, h: 0.1, d: 0.06, color: "#ffd166" });
-        continue;
+  if (s.night) {
+    // Shibuya Night tower: dark glass, nearly every window glowing in warm/neon hues
+    const winColors = ["#ffe9a3", "#ffd166", s.neon ?? "#00e5ff", "#9be8ff", "#ffe9a3", "#fff3c4"];
+    for (let f = 0; f < s.floors; f++) {
+      for (let c = 0; c < s.cols; c++) {
+        const x = -s.w / 2 + spacing * (c + 0.5);
+        if (f === 0 && c === Math.floor(s.cols / 2)) {
+          // glowing lobby entrance
+          parts.push({ x, y: 0.95, z: 0.04, w: 1.0, h: 1.35, d: 0.1, color: "#ffe9a3" });
+          parts.push({ x, y: 1.72, z: 0.08, w: 1.2, h: 0.14, d: 0.14, color: s.neon ?? "#ff2d95" });
+          continue;
+        }
+        const seed = (f * 7 + c * 3) % 10;
+        const lit = seed / 10 < s.lit;
+        const wc = winColors[(f * 5 + c * 2) % winColors.length];
+        parts.push({ x, y: 0.5 + f * floorH + 0.75, z: 0.04, w: winW, h: 0.72, d: 0.1, color: lit ? wc : "#141824" });
       }
-      const lit = ((f * 7 + c * 3) % 10) / 10 < s.lit * 0.5;
-      parts.push({ x, y: 0.5 + f * floorH + 0.75, z: 0.04, w: winW, h: 0.72, d: 0.1, color: lit ? "#ffe9a3" : "#bfe8ff" });
-      parts.push({ x, y: 0.5 + f * floorH + 0.36, z: 0.08, w: winW + 0.1, h: 0.08, d: 0.16, color: "#f5f5f5" });
+    }
+    // rooftop neon trim + red aircraft warning beacon on tall towers
+    parts.push({ x: 0, y: h + 0.3, z: 0.02, w: s.w + 0.1, h: 0.1, d: 0.1, color: s.neon ?? "#ff2d95" });
+    if (s.floors >= 6) {
+      parts.push({ x: 0, y: h + 1.1, z: -depth / 2, w: 0.12, h: 1.4, d: 0.12, color: "#39404f" });
+      parts.push({ x: 0, y: h + 1.9, z: -depth / 2, w: 0.22, h: 0.22, d: 0.22, color: "#ff1f3d" });
+    }
+    // vertical kanji neon sign strip down the facade
+    const sx = s.w / 2 - 0.35;
+    parts.push({ x: sx, y: h * 0.55, z: 0.22, w: 0.5, h: h * 0.62, d: 0.14, color: "#10131e" });
+    const glyphN = Math.max(3, Math.floor((h * 0.62) / 0.8));
+    for (let i = 0; i < glyphN; i++) {
+      parts.push({ x: sx, y: h * 0.55 + h * 0.27 - i * 0.8, z: 0.31, w: 0.34, h: 0.4, d: 0.03, color: i % 2 ? "#ffffff" : (s.neon ?? "#00e5ff") });
+    }
+  } else {
+    for (let f = 0; f < s.floors; f++) {
+      for (let c = 0; c < s.cols; c++) {
+        const x = -s.w / 2 + spacing * (c + 0.5);
+        if (f === 0 && c === Math.floor(s.cols / 2)) {
+          parts.push({ x, y: 0.95, z: 0.04, w: 0.9, h: 1.3, d: 0.1, color: "#5a3e2b" });
+          parts.push({ x: x + 0.25, y: 0.95, z: 0.1, w: 0.1, h: 0.1, d: 0.06, color: "#ffd166" });
+          continue;
+        }
+        const lit = ((f * 7 + c * 3) % 10) / 10 < s.lit * 0.5;
+        parts.push({ x, y: 0.5 + f * floorH + 0.75, z: 0.04, w: winW, h: 0.72, d: 0.1, color: lit ? "#ffe9a3" : "#bfe8ff" });
+        parts.push({ x, y: 0.5 + f * floorH + 0.36, z: 0.08, w: winW + 0.1, h: 0.08, d: 0.16, color: "#f5f5f5" });
+      }
     }
   }
   if (s.awning) {
@@ -2343,6 +2402,51 @@ export function neonSignboardParts(variant: number): Part[] {
     { x: 0, y: 0.9, z: 0.13, w: 0.24, h: 0.24, d: 0.02, color: "#f97316" }, // orange accent logo
     { x: 0, y: 0.6, z: 0.13, w: 0.22, h: 0.08, d: 0.02, color: "#10b981" }, // green OPEN text
   ];
+}
+
+/** Giant Shibuya glowing advertising billboard / video wall on a steel scaffold (faces +z toward the road). */
+export function billboardParts(variant: number): Part[] {
+  const v = ((variant % 3) + 3) % 3;
+  const steel = "#2b3040";
+  const parts: Part[] = [
+    // scaffold legs + cross beam
+    { x: -1.5, y: 1.4, z: -0.3, w: 0.16, h: 2.8, d: 0.16, color: steel },
+    { x: 1.5, y: 1.4, z: -0.3, w: 0.16, h: 2.8, d: 0.16, color: steel },
+    { x: 0, y: 2.55, z: -0.3, w: 3.3, h: 0.14, d: 0.14, color: steel },
+  ];
+  const y0 = 2.8; // bottom of the screen
+  const W = 4.2;
+  const H = 2.4;
+  // dark frame + glowing back-panel
+  parts.push({ x: 0, y: y0 + H / 2, z: -0.18, w: W + 0.3, h: H + 0.3, d: 0.3, color: "#10131e" });
+  if (v === 0) {
+    // hot-pink idol ad: pink glow field, white headline bars, yellow star chip
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ff2d95" });
+    parts.push({ x: -0.6, y: y0 + H * 0.68, z: 0.09, w: W * 0.55, h: 0.3, d: 0.03, color: "#ffffff" });
+    parts.push({ x: -0.9, y: y0 + H * 0.42, z: 0.09, w: W * 0.4, h: 0.22, d: 0.03, color: "#ffe0ef" });
+    parts.push({ x: 1.35, y: y0 + H * 0.5, z: 0.09, w: 0.85, h: 0.85, d: 0.03, color: "#ffe93b" });
+    parts.push({ x: -1.2, y: y0 + H * 0.18, z: 0.09, w: 0.9, h: 0.2, d: 0.03, color: "#00e5ff" });
+  } else if (v === 1) {
+    // cyan video wall: teal field, sky block, white ticker, magenta logo
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#00e5ff" });
+    parts.push({ x: 0.7, y: y0 + H * 0.62, z: 0.09, w: W * 0.5, h: H * 0.5, d: 0.03, color: "#2079ff" });
+    parts.push({ x: -1.1, y: y0 + H * 0.7, z: 0.09, w: W * 0.34, h: 0.5, d: 0.03, color: "#ffffff" });
+    parts.push({ x: 0, y: y0 + 0.24, z: 0.09, w: W * 0.86, h: 0.24, d: 0.03, color: "#0b1026" });
+    parts.push({ x: -1.5, y: y0 + 0.24, z: 0.12, w: 0.5, h: 0.14, d: 0.03, color: "#ffe93b" });
+    parts.push({ x: 1.45, y: y0 + H * 0.32, z: 0.09, w: 0.6, h: 0.6, d: 0.03, color: "#ff2d95" });
+  } else {
+    // mega SALE stack: warm yellow field, red banner, white price bars
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ffe93b" });
+    parts.push({ x: 0, y: y0 + H * 0.74, z: 0.09, w: W * 0.9, h: 0.52, d: 0.03, color: "#ff1f3d" });
+    parts.push({ x: -0.8, y: y0 + H * 0.74, z: 0.12, w: W * 0.42, h: 0.26, d: 0.03, color: "#ffffff" });
+    parts.push({ x: -0.5, y: y0 + H * 0.34, z: 0.09, w: W * 0.5, h: 0.3, d: 0.03, color: "#1f2430" });
+    parts.push({ x: 1.3, y: y0 + H * 0.3, z: 0.09, w: 0.9, h: 0.7, d: 0.03, color: "#7cff4f" });
+  }
+  // little maintenance catwalk + spotlights pointing at the board
+  parts.push({ x: 0, y: y0 - 0.12, z: 0.28, w: W * 0.9, h: 0.08, d: 0.35, color: steel });
+  parts.push({ x: -W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4" });
+  parts.push({ x: W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4" });
+  return parts;
 }
 
 /** Mount Haruna Touge Route 33 Sign (Gunma Prefecture Road / 県道33号). */

@@ -75,6 +75,7 @@ import {
   mamachariParts,
   konbiniShopParts,
   neonSignboardParts,
+  billboardParts,
   tougeRouteSignParts,
   tougeStreetlampParts,
   momijiLeafParts,
@@ -160,6 +161,8 @@ const DecorView = memo(function DecorView({ d }: { d: Decor }) {
         return getGeometry("touge-sign", tougeRouteSignParts);
       case "touge_lamp":
         return getGeometry("touge-lamp", tougeStreetlampParts);
+      case "billboard":
+        return getGeometry(`billboard-${d.variant % 3}`, () => billboardParts(d.variant));
     }
   }, [d]);
   useEffect(() => {
@@ -175,7 +178,8 @@ const DecorView = memo(function DecorView({ d }: { d: Decor }) {
     d.kind === "vending" ||
     d.kind === "neon_sign" ||
     d.kind === "touge_sign" ||
-    d.kind === "touge_lamp";
+    d.kind === "touge_lamp" ||
+    d.kind === "billboard";
   // buildings face +z (toward the road); those placed on the camera side (front) are turned around
   const flip = facing && d.frontSide ? Math.PI : 0;
   return <mesh geometry={geo} material={voxelMaterial} position={d.pos} rotation-y={d.rotY + flip} castShadow={d.kind !== "flowers"} receiveShadow />;

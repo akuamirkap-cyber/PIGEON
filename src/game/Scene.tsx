@@ -144,7 +144,8 @@ function CameraRig() {
 
     // Dynamic world curvature (gentle, smooth horizon without extreme warping)
     const isSubway = useUI.getState().worldCurve === "subway";
-    const isHaruna = useUI.getState().trackMode === "haruna";
+    const trackModeNow = useUI.getState().trackMode;
+    const isHaruna = trackModeNow === "haruna";
     const dist = engine.distance;
     // Gentle horizon drift in Tokyo mode; on Haruna mountain touge, actual 3D hairpin curves lead naturally
     const wave = isHaruna ? 0 : Math.sin(dist * 0.006) * 0.0004;
@@ -167,6 +168,8 @@ function CameraRig() {
       curveUniforms.uCurveSide.value = isSubway ? c.curveSide : 0;
       curveUniforms.uCurveStart.value = 8.0; // keeps the first 8m ahead completely flat and clear
       curveUniforms.uHazeRange.value.set(c.hazeNear, c.hazeFar);
+      // distance haze matches the world: pale daylight mist vs deep indigo Shibuya night
+      curveUniforms.uHazeColor.value.set(trackModeNow === "shibuya" ? "#1b1838" : "#dbeeff");
     }
 
     // newly created materials (buildings, thumbnails, etc.) get patched lazily
@@ -185,6 +188,7 @@ function CameraRig() {
 
 function Lights() {
   const light = useRef<THREE.DirectionalLight>(null);
+  const night = useUI((s) => s.trackMode) === "shibuya";
   const target = useMemo(() => new THREE.Object3D(), []);
   useEffect(() => {
     const l = light.current;
@@ -218,9 +222,10 @@ function Lights() {
   });
   return (
     <>
-      <hemisphereLight args={["#ffffff", "#b0c4d8", 1.7]} />
-      <ambientLight intensity={0.2} />
-      <directionalLight ref={light} position={[-2, 25, 4.5]} intensity={2.1} castShadow />
+      {/* Shibuya Night: cool moonlight + violet city bounce so the neon pops without going pitch black */}
+      <hemisphereLight args={night ? ["#aab6ff", "#2c3052", 1.0] : ["#ffffff", "#b0c4d8", 1.7]} />
+      <ambientLight intensity={night ? 0.55 : 0.2} color={night ? "#8a93ff" : "#ffffff"} />
+      <directionalLight ref={light} position={[-2, 25, 4.5]} intensity={night ? 1.15 : 2.1} color={night ? "#c3ccff" : "#ffffff"} castShadow />
       <primitive object={target} />
     </>
   );
@@ -232,7 +237,11 @@ function Loop() {
 }
 
 /** Sky dome + distant haze so the curved horizon fades nicely. */
+const SKY_DAY = { top: "#2f86dc", mid: "#cbe6f8", bot: "#e2f1fb" };
+// Shibuya Night: deep indigo zenith melting into a violet-magenta city glow at the horizon
+const SKY_NIGHT = { top: "#070a20", mid: "#4a2d78", bot: "#221c44" };
 function Sky() {
+  const night = useUI((s) => s.trackMode) === "shibuya";
   const mat = useMemo(() => {
     const m = new THREE.ShaderMaterial({
       side: THREE.BackSide,
@@ -248,6 +257,12 @@ function Sky() {
     });
     return m;
   }, []);
+  useEffect(() => {
+    const pal = night ? SKY_NIGHT : SKY_DAY;
+    (mat.uniforms.top.value as THREE.Color).set(pal.top);
+    (mat.uniforms.mid.value as THREE.Color).set(pal.mid);
+    (mat.uniforms.bot.value as THREE.Color).set(pal.bot);
+  }, [night, mat]);
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ camera }) => {
     if (ref.current) ref.current.position.copy(camera.position);
