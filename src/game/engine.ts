@@ -36,13 +36,13 @@ export const CAR_ROOF_H = 1.52;
 /** Tinggi model pada skala 1 (unit `models.ts`: catWalkParts(), chickenParts()). */
 export const CAT_MODEL_H = 0.775;
 export const CHICKEN_MODEL_H = 1.25;
-export const CAT_MODEL_SCALE = 0.7; // ukuran dasar kucing
-export const CHICKEN_MODEL_SCALE = 0.58; // ukuran dasar ayam
+export const CAT_MODEL_SCALE = 0.63; // ukuran dasar kucing (dikecilkan 10%)
+export const CHICKEN_MODEL_SCALE = 0.522; // ukuran dasar ayam (dikecilkan 10%)
 export const CAT_SIZE_BOOST = 1.7; // BESARIN kucing 1.7x
 export const CHICKEN_SIZE_BOOST = 1.2; // BESARIN ayam 1.2x
 /** Skala akhir yang dipakai World.tsx untuk menggambar hewannya. */
-export const CAT_SCALE = CAT_MODEL_SCALE * CAT_SIZE_BOOST; // = 1.19 (dulu 0.70)
-export const CHICKEN_SCALE = CHICKEN_MODEL_SCALE * CHICKEN_SIZE_BOOST; // = 0.696 (dulu 0.58)
+export const CAT_SCALE = CAT_MODEL_SCALE * CAT_SIZE_BOOST; // = 1.071
+export const CHICKEN_SCALE = CHICKEN_MODEL_SCALE * CHICKEN_SIZE_BOOST; // = 0.626
 /** Tinggi akhir model (m), dipakai untuk clearance lompatan & radius ragdoll. */
 export const CAT_HEIGHT = CAT_MODEL_H * CAT_SCALE; // ~0.92 m
 export const CHICKEN_HEIGHT = CHICKEN_MODEL_H * CHICKEN_SCALE; // ~0.87 m
@@ -1954,9 +1954,9 @@ class Engine {
         return;
       }
       if (m.kind === "pedestrian") {
-        if (Math.abs(m.s - d) > 0.45 + PLAYER_HALF) continue;
-        if (Math.abs(m.lat - p.lat) > 0.75) continue;
-        if (p.h >= 2.4) continue; // orangnya 30% lebih kecil sekarang; tetap terlalu tinggi buat di-ollie, hindari saja
+        if (Math.abs(m.s - d) > 0.32 + PLAYER_HALF) continue;
+        if (Math.abs(m.lat - p.lat) > 0.55) continue;
+        if (p.h >= 1.75) continue; // orang kini jauh lebih kecil (~1.68 m visual); ollie tinggi bisa lolos tipis
         this.hitPedestrian(m);
         this.crash("pedestrian", { hardness: 0.75, side: m.lat >= p.lat ? -1 : 1 });
         return;
@@ -2069,8 +2069,8 @@ class Engine {
     const r = makeRagdoll(
       m.s,
       m.lat,
-      m.h + (m.kind === "pedestrian" ? 0.7 : 0.25 * animalBoost),
-      m.kind === "pedestrian" ? 0.42 : 0.22 * animalBoost
+      m.h + (m.kind === "pedestrian" ? 0.49 : 0.25 * animalBoost),
+      m.kind === "pedestrian" ? 0.3 : 0.22 * animalBoost
     );
     if (isAnimal) {
       // MENTAL ala kartun: hewan dilontarkan tinggi, jauh, dan muter-muter kocak.
@@ -2371,9 +2371,22 @@ class Engine {
           m.delay -= dt;
           if (m.delay <= 0) m.phase = "hop"; // walking
         } else if (m.phase === "hop") {
-          m.lat += m.dir * m.speed * dt;
-          m.hopT += dt;
-          m.h = Math.abs(Math.sin(m.hopT * 9)) * 0.06;
+          // PENYEBERANG HATI-HATI: kalau merpati melaju mendekat, tunggu dulu di tepi
+          // jalan (tengok kanan-kiri); kalau terlanjur di jalur main, buru-buru menepi.
+          let v = m.speed;
+          const gap = m.s - d;
+          if (this.phase === "playing" && gap > 0.5 && gap < 6.5) {
+            const inLanes = Math.abs(m.lat) < 2.4;
+            if (inLanes) v = m.speed * 1.55; // lari kecil biar cepat keluar jalur
+            else if (Math.abs(m.lat) < 4.8) v = 0; // berhenti dulu di tepi / median
+          }
+          m.lat += m.dir * v * dt;
+          if (v > 0.01) {
+            m.hopT += dt * (v / m.speed);
+            m.h = Math.abs(Math.sin(m.hopT * 9)) * 0.06;
+          } else {
+            m.h = Math.max(0, m.h - dt * 0.3); // berdiri tenang menunggu
+          }
           if (Math.abs(m.lat) > 7.2) remove = true;
         }
         if (m.s < d - 16) remove = true;
@@ -2923,8 +2936,8 @@ class Engine {
         else add("ramen", lx, lat, dy, 0); // late-night ramen bar
       };
       // 1. Near frontage: dense tower wall right on the playable sidewalk
-      towerLot(3, -6.75, 0.1);
-      towerLot(9, -6.75, 0.1);
+      towerLot(3, -8.05, 0.1);
+      towerLot(9, -8.05, 0.1);
       // far frontage across all 6 lanes (bigger footprint reads well from a distance)
       if (Math.random() < 0.85) towerLot(rand(2.5, 9.5), 18.6, -0.14);
 
@@ -2965,8 +2978,8 @@ class Engine {
       if (Math.random() < 0.45) add("mamachari", rand(2, 10), -4.55, 0.12, randInt(0, 3));
       if (Math.random() < 0.35) add("mamachari", rand(2, 10), 12.85, 0.12, randInt(0, 3));
       // sidewalk street trees (Japanese avenues are green even under the neon)
-      if (Math.random() < 0.55) add("tree", rand(1.5, 10.5), rand(-5.3, -5.7), 0.12, randInt(0, 2));
-      if (Math.random() < 0.5) add("tree", rand(1.5, 10.5), rand(13.9, 14.6), 0.12, randInt(0, 2));
+      if (Math.random() < 0.55) add("tree", rand(1.5, 10.5), rand(-6.7, -7.3), 0.12, randInt(0, 2));
+      if (Math.random() < 0.5) add("tree", rand(1.5, 10.5), rand(14.9, 15.5), 0.12, randInt(0, 2));
 
       // 8. Lampu jalan rapat: tiap chunk di KEDUA trotoar + lampu avenue dua kepala di median
       add("lamp", id % 2 === 0 ? 3 : 9, -4.3, 0.06);

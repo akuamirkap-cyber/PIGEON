@@ -12,7 +12,7 @@ export const RIG = {
   pigeonY: 0.25,
   /** distance from the pigeon origin (deck top) down to the street */
   deckToRoad: 0.25,
-  pigeonScale: 1.2,
+  pigeonScale: 1.08, // merpati dikecilkan 10% (1.2 -> 1.08)
   headPos: [0.32, 1.04, 0] as [number, number, number],
   /** head default yaw: 0 = menghadap lurus ke depan (dulu -0.32 menoleh ke kanan) */
   headRotY: 0,

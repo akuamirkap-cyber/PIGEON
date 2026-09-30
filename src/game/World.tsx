@@ -293,7 +293,7 @@ const ObstacleView = memo(function ObstacleView({ o }: { o: Obstacle }) {
 });
 
 /* ---------- Movers: oncoming cars, crossing chickens & pedestrians ---------- */
-const PED_SCALE = 1.26; // semua orang dikecilkan 30% (dulu 1.8)
+const PED_SCALE = 0.882; // semua orang dikecilkan 30% LAGI (1.8 -> 1.26 -> 0.882)
 /* Telapak kaki model ada di y = -0.98 pada ruang lokal (grup kaki -0.34 + ujung sepatu -0.64).
    Setelah diskalakan, model harus diangkat 0.98 * skala supaya kaki MENAPAK di permukaan,
    bukan menembus jalan. */
@@ -418,13 +418,13 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
           inner.position.y = PED_LIFT - 0.014 - Math.abs(step) * 0.008;
         } else {
           const swing = Math.sin(m.hopT * 10);
-          legL.rotation.set(swing * 0.55, 0, 0);
-          legR.rotation.set(-swing * 0.55, 0, 0);
-          armL.rotation.set(-swing * 0.45, 0, 0);
-          armR.rotation.set(swing * 0.45, 0, 0);
-          headG.rotation.set(0, 0, Math.sin(m.hopT * 20) * 0.04);
-          torso.rotation.x = 0;
-          inner.position.y = PED_LIFT + Math.abs(Math.sin(m.hopT * 10)) * 0.035;
+          legL.rotation.set(swing * 0.42, 0, 0);
+          legR.rotation.set(-swing * 0.42, 0, 0);
+          armL.rotation.set(-swing * 0.32, 0, 0);
+          armR.rotation.set(swing * 0.32, 0, 0);
+          headG.rotation.set(0, 0, Math.sin(m.hopT * 20) * 0.03);
+          torso.rotation.x = 0.04; // sedikit condong seperti orang jalan sungguhan
+          inner.position.y = PED_LIFT + Math.abs(Math.sin(m.hopT * 10)) * 0.022;
         }
       } else {
         legL.rotation.set(0, 0, 0);
@@ -859,17 +859,18 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
   const armRGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-R`, () => pedestrianArmParts(variant, -1, false, false)), [pedKey, variant]);
   const legLGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-L`, () => pedestrianLegParts(variant, 1, false)), [pedKey, variant]);
   const legRGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-R`, () => pedestrianLegParts(variant, -1, false)), [pedKey, variant]);
-  const seed = useMemo(
-    () => ({
-      x: -4.6 + Math.random() * 9.2, // posisi menyeberang di dalam junction
-      diag: -2.6 + Math.random() * 5.2, // drift diagonal ala scramble
+  const seed = useMemo(() => {
+    const slot = -4.6 + (idx + 0.5) * (9.2 / 9); // tiap penyeberang punya "jalur" x sendiri
+    return {
+      slot,
+      x: slot + (Math.random() - 0.5) * 0.5,
+      diag: (Math.random() - 0.5) * 2.2, // drift diagonal kecil (tidak melintasi slot tetangga)
       u: Math.random(),
       dirU: (Math.random() < 0.5 ? 1 : -1) as 1 | -1,
       rate: 0.11 + Math.random() * 0.07, // kecepatan menyeberang (u/detik)
       t0: Math.random() * 20,
-    }),
-    [],
-  );
+    };
+  }, [idx]);
   useFrame((_, dtRaw) => {
     const root = rootRef.current;
     const inner = innerRef.current;
@@ -879,13 +880,13 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
     if (seed.u > 1) {
       seed.u = 1;
       seed.dirU = -1;
-      seed.x = -4.6 + Math.random() * 9.2;
-      seed.diag = -2.6 + Math.random() * 5.2;
+      seed.x = seed.slot + (Math.random() - 0.5) * 0.5;
+      seed.diag = (Math.random() - 0.5) * 2.2;
     } else if (seed.u < 0) {
       seed.u = 0;
       seed.dirU = 1;
-      seed.x = -4.6 + Math.random() * 9.2;
-      seed.diag = -2.6 + Math.random() * 5.2;
+      seed.x = seed.slot + (Math.random() - 0.5) * 0.5;
+      seed.diag = (Math.random() - 0.5) * 2.2;
     }
     const lat = 4.2 + seed.u * 11.0; // median (4.2) -> trotoar seberang (15.2)
     const sPos = inter.s + seed.x + seed.diag * seed.u;
@@ -895,13 +896,15 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
     track.quat(sPos, root.quaternion);
     inner.rotation.y = seed.dirU > 0 ? -Math.PI / 2 : Math.PI / 2;
     inner.scale.setScalar(PED_SCALE);
-    const t = engine.time * 7.2 + seed.t0;
-    const swing = Math.sin(t) * 0.5;
+    const walkSpeed = seed.rate * 11.0; // ~m/s dari laju u
+    seed.t0 += dt * (walkSpeed / (0.62 * PED_SCALE)) * Math.PI;
+    const t = seed.t0;
+    const swing = Math.sin(t) * 0.4;
     if (legLRef.current) legLRef.current.rotation.x = swing;
     if (legRRef.current) legRRef.current.rotation.x = -swing;
-    if (armLRef.current) armLRef.current.rotation.x = -swing * 0.8;
-    if (armRRef.current) armRRef.current.rotation.x = swing * 0.8;
-    inner.position.y = PED_LIFT + Math.abs(Math.sin(t)) * 0.028;
+    if (armLRef.current) armLRef.current.rotation.x = -swing * 0.55;
+    if (armRRef.current) armRRef.current.rotation.x = swing * 0.55;
+    inner.position.y = PED_LIFT + Math.abs(Math.sin(t)) * 0.018;
   });
   return (
     <group ref={rootRef}>
@@ -1522,12 +1525,19 @@ interface Walker {
 
 const CROWD_N = 24;
 
-/** Pilih posisi trotoar: mayoritas di sisi dekat gedung (dekat kamera), sisanya di seberang avenue. */
-function crowdLat(): number {
-  return Math.random() < 0.62 ? -(4.5 + Math.random() * 1.8) : 12.8 + Math.random() * 2.1;
+/** Pilih posisi trotoar. Arus dipisah per arah (kebiasaan Jepang: jalur kiri),
+ *  jadi orang berpapasan di band berbeda dan tidak saling menembus. */
+function crowdLat(dir: 1 | -1): number {
+  if (Math.random() < 0.62) {
+    // trotoar dekat (lebar 4.2 m): koridor bebas dekorasi ada di antara
+    // vending/curb (−4.8) dan barisan pohon (−6.7..−7.3)
+    return dir > 0 ? -(5.5 + Math.random() * 0.9) : -(4.55 + Math.random() * 0.7);
+  }
+  // trotoar seberang: koridor antara neon/vending (13.0–13.4) dan pohon (14.9–15.5)
+  return dir > 0 ? 13.55 + Math.random() * 0.55 : 14.2 + Math.random() * 0.6;
 }
 
-const AmbientWalker = memo(function AmbientWalker({ w, variant, elderly }: { w: Walker; variant: number; elderly: boolean }) {
+const AmbientWalker = memo(function AmbientWalker({ w, all, variant, elderly }: { w: Walker; all: Walker[]; variant: number; elderly: boolean }) {
   const rootRef = useRef<THREE.Group>(null);
   const innerRef = useRef<THREE.Group>(null);
   const armLRef = useRef<THREE.Group>(null);
@@ -1557,14 +1567,25 @@ const AmbientWalker = memo(function AmbientWalker({ w, variant, elderly }: { w: 
     if (!w.seeded) {
       w.seeded = true;
       w.s = dist + 4 + Math.random() * 88;
-      w.lat = crowdLat();
+      w.lat = crowdLat(w.dir);
     }
-    w.s += w.dir * w.speed * dt;
+    // JAGA JARAK: jangan menembus orang di depan yang searah & satu band
+    let v = w.speed;
+    for (const o of all) {
+      if (o === w || !o.seeded || o.dir !== w.dir) continue;
+      if (Math.sign(o.lat) !== Math.sign(w.lat) || Math.abs(o.lat - w.lat) > 0.55) continue;
+      const gap = (o.s - w.s) * w.dir;
+      if (gap > 0 && gap < 0.85) {
+        v = Math.min(v, o.speed * 0.92);
+        if (gap < 0.5) v = 0; // berhenti sejenak, orang di depan terlalu dekat
+      }
+    }
+    w.s += w.dir * v * dt;
     const rel = w.s - dist;
     if (rel < -18 || rel > 96) {
       w.s = dist + 8 + Math.random() * 82;
-      w.lat = crowdLat();
       w.dir = Math.random() < 0.5 ? 1 : -1;
+      w.lat = crowdLat(w.dir);
       w.speed = (elderly ? 0.55 : 0.9) + Math.random() * (elderly ? 0.35 : 1.0);
       w.t0 = Math.random() * 20;
     }
@@ -1574,15 +1595,19 @@ const AmbientWalker = memo(function AmbientWalker({ w, variant, elderly }: { w: 
     inner.rotation.y = w.dir > 0 ? 0 : Math.PI;
     inner.scale.setScalar(PED_SCALE);
 
-    // animasi jalan natural (langkah, ayunan tangan, bob halus)
-    const t = engine.time * (elderly ? 4.6 : 7.5) * (0.6 + w.speed * 0.45) + w.t0;
-    const swing = Math.sin(t) * (elderly ? 0.3 : 0.5);
+    // CARA JALAN DIBENERIN: irama langkah mengikuti kecepatan nyata (tidak "moonwalk"),
+    // ayunan lebih kalem, berhenti = kaki diam
+    const strideHz = v / (0.62 * PED_SCALE); // langkah/detik dari panjang langkah nyata
+    w.t0 += dt * strideHz * Math.PI;
+    const t = w.t0;
+    const amp = v < 0.02 ? 0 : elderly ? 0.26 : 0.4;
+    const swing = Math.sin(t) * amp;
     if (legLRef.current) legLRef.current.rotation.x = swing;
     if (legRRef.current) legRRef.current.rotation.x = -swing;
-    if (armLRef.current) armLRef.current.rotation.x = -swing * 0.8;
-    if (armRRef.current) armRRef.current.rotation.x = elderly ? 0.16 : swing * 0.8;
-    if (headRef.current) headRef.current.rotation.y = Math.sin(t * 0.23) * 0.22;
-    inner.position.y = PED_LIFT + Math.abs(Math.sin(t)) * 0.028;
+    if (armLRef.current) armLRef.current.rotation.x = -swing * 0.55;
+    if (armRRef.current) armRRef.current.rotation.x = elderly ? 0.16 : swing * 0.55;
+    if (headRef.current) headRef.current.rotation.y = Math.sin(engine.time * 0.9 + w.s) * 0.18;
+    inner.position.y = PED_LIFT + (amp > 0 ? Math.abs(Math.sin(t)) * 0.018 : 0);
   });
 
   return (
@@ -1634,7 +1659,7 @@ function ShibuyaCrowd() {
   return (
     <>
       {walkers.map((w, i) => (
-        <AmbientWalker key={i} w={w} variant={i % 5} elderly={i % 9 === 4} />
+        <AmbientWalker key={i} w={w} all={walkers} variant={i % 5} elderly={i % 9 === 4} />
       ))}
     </>
   );

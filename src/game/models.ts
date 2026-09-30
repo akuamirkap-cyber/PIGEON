@@ -321,10 +321,12 @@ export interface BuildingSpec {
 }
 
 /** Neon hues used across the Shibuya night city (signs, windows, billboards). */
-export const NEON_COLORS = ["#ff2d95", "#00e5ff", "#ffe93b", "#7cff4f", "#ff7a1a", "#b388ff", "#ff4d6d", "#4dffdf"];
+/** Warna sign malam yang realistis ala Jepang: putih hangat, kuning, merah,
+ *  oranye, hijau sign, biru sign — TANPA magenta/cyan/ungu cyberpunk. */
+export const NEON_COLORS = ["#ffd23f", "#ff4438", "#ff8a3d", "#fff3c4", "#ffe93b", "#58c96b", "#4d9fff", "#ffb84d"];
 
 /** Lightbox colours of real Japanese company signboards (izakaya, karaoke, clinics, pachinko…). */
-export const SIGN_COLORS = ["#ffffff", "#ffd23f", "#ff5a5f", "#37c86b", "#2f9bff", "#ff8a3d", "#ff5fa2", "#19d3c5", "#fff3c4"];
+export const SIGN_COLORS = ["#ffffff", "#ffd23f", "#ff5a5f", "#37c86b", "#2f9bff", "#ff8a3d", "#e8485a", "#3bbfae", "#fff3c4"];
 
 /** Night facades: real Shibuya mix — white/cream tile, warm beige, light concrete grey,
  *  tan brick — plus only a few dark glass towers so the street never reads "cyberpunk". */
@@ -392,7 +394,7 @@ export function buildingParts(s: BuildingSpec): Part[] {
   if (s.night) {
     // Shibuya Night zakkyo-biru: dark glass / tile facade, windows glowing warm,
     // company signboards stacked all the way up (the classic Japanese high-street look)
-    const winColors = ["#ffe9a3", "#ffd166", s.neon ?? "#00e5ff", "#9be8ff", "#ffe9a3", "#fff3c4"];
+    const winColors = ["#ffe9a3", "#ffd166", s.neon ?? "#ffd23f", "#f6efdc", "#ffe9a3", "#fff3c4"];
     for (let f = 0; f < s.floors; f++) {
       for (let c = 0; c < s.cols; c++) {
         const x = -s.w / 2 + spacing * (c + 0.5);
@@ -433,7 +435,7 @@ export function buildingParts(s: BuildingSpec): Part[] {
       const scH = floorH * 2.1;
       const scY = 0.5 + 2.4 * floorH + scH / 2;
       parts.push({ x: s.w * 0.08, y: scY, z: 0.12, w: scW + 0.24, h: scH + 0.24, d: 0.12, color: "#10131e" });
-      parts.push({ x: s.w * 0.08, y: scY, z: 0.2, w: scW, h: scH, d: 0.06, color: s.neon ?? "#00e5ff", glow: true });
+      parts.push({ x: s.w * 0.08, y: scY, z: 0.2, w: scW, h: scH, d: 0.06, color: s.neon ?? "#ffd23f", glow: true });
       parts.push({ x: s.w * 0.08 - scW * 0.18, y: scY + scH * 0.22, z: 0.25, w: scW * 0.5, h: 0.26, d: 0.03, color: "#ffffff", glow: true });
       parts.push({ x: s.w * 0.08 + scW * 0.2, y: scY - scH * 0.24, z: 0.25, w: scW * 0.34, h: 0.2, d: 0.03, color: "#1f2430" });
     }
@@ -443,7 +445,7 @@ export function buildingParts(s: BuildingSpec): Part[] {
     parts.push({ x: sx, y: h * 0.55, z: 0.22, w: 0.5, h: h * 0.62, d: 0.14, color: "#10131e" });
     const glyphN = Math.max(3, Math.floor((h * 0.62) / 0.8));
     for (let i = 0; i < glyphN; i++) {
-      parts.push({ x: sx, y: h * 0.55 + h * 0.27 - i * 0.8, z: 0.31, w: 0.34, h: 0.4, d: 0.03, color: i % 2 ? "#ffffff" : (s.neon ?? "#00e5ff"), glow: true });
+      parts.push({ x: sx, y: h * 0.55 + h * 0.27 - i * 0.8, z: 0.31, w: 0.34, h: 0.4, d: 0.03, color: i % 2 ? "#ffffff" : (s.neon ?? "#ffd23f"), glow: true });
     }
 
     // TIERED SETBACK TOP: stepped penthouse floors give each tower its own silhouette
@@ -471,7 +473,7 @@ export function buildingParts(s: BuildingSpec): Part[] {
       parts.push({ x: bw * 0.28, y: by + 0.3, z: -depth / 2 + 0.14, w: bw * 0.22, h: 0.22, d: 0.03, color: "#1f2430" });
     } else {
       // rooftop neon trim + red aircraft warning beacon on tall towers
-      parts.push({ x: 0, y: h + 0.3, z: 0.02, w: s.w + 0.1, h: 0.1, d: 0.1, color: s.neon ?? "#ff2d95", glow: true });
+      parts.push({ x: 0, y: h + 0.3, z: 0.02, w: s.w + 0.1, h: 0.1, d: 0.1, color: s.neon ?? "#ff8a3d", glow: true });
       if (s.floors >= 6) {
         parts.push({ x: 0, y: h + 1.1, z: -depth / 2, w: 0.12, h: 1.4, d: 0.12, color: "#39404f" });
         parts.push({ x: 0, y: h + 1.9, z: -depth / 2, w: 0.22, h: 0.22, d: 0.22, color: "#ff1f3d", glow: true });
@@ -2510,26 +2512,26 @@ export function billboardParts(variant: number): Part[] {
   parts.push({ x: 0, y: y0 + H / 2, z: -0.18, w: W + 0.3, h: H + 0.3, d: 0.3, color: "#10131e" });
   if (v === 0) {
     // hot-pink idol ad: pink glow field, white headline bars, yellow star chip
-    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ff2d95", glow: true });
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ff4438", glow: true });
     parts.push({ x: -0.6, y: y0 + H * 0.68, z: 0.09, w: W * 0.55, h: 0.3, d: 0.03, color: "#ffffff", glow: true });
     parts.push({ x: -0.9, y: y0 + H * 0.42, z: 0.09, w: W * 0.4, h: 0.22, d: 0.03, color: "#ffe0ef", glow: true });
     parts.push({ x: 1.35, y: y0 + H * 0.5, z: 0.09, w: 0.85, h: 0.85, d: 0.03, color: "#ffe93b", glow: true });
-    parts.push({ x: -1.2, y: y0 + H * 0.18, z: 0.09, w: 0.9, h: 0.2, d: 0.03, color: "#00e5ff", glow: true });
+    parts.push({ x: -1.2, y: y0 + H * 0.18, z: 0.09, w: 0.9, h: 0.2, d: 0.03, color: "#fff3c4", glow: true });
   } else if (v === 1) {
     // cyan video wall: teal field, sky block, white ticker, magenta logo
-    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#00e5ff", glow: true });
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ffd23f", glow: true });
     parts.push({ x: 0.7, y: y0 + H * 0.62, z: 0.09, w: W * 0.5, h: H * 0.5, d: 0.03, color: "#2079ff", glow: true });
     parts.push({ x: -1.1, y: y0 + H * 0.7, z: 0.09, w: W * 0.34, h: 0.5, d: 0.03, color: "#ffffff", glow: true });
     parts.push({ x: 0, y: y0 + 0.24, z: 0.09, w: W * 0.86, h: 0.24, d: 0.03, color: "#0b1026" });
     parts.push({ x: -1.5, y: y0 + 0.24, z: 0.12, w: 0.5, h: 0.14, d: 0.03, color: "#ffe93b", glow: true });
-    parts.push({ x: 1.45, y: y0 + H * 0.32, z: 0.09, w: 0.6, h: 0.6, d: 0.03, color: "#ff2d95", glow: true });
+    parts.push({ x: 1.45, y: y0 + H * 0.32, z: 0.09, w: 0.6, h: 0.6, d: 0.03, color: "#ff4438", glow: true });
   } else {
     // mega SALE stack: warm yellow field, red banner, white price bars
     parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ffe93b", glow: true });
     parts.push({ x: 0, y: y0 + H * 0.74, z: 0.09, w: W * 0.9, h: 0.52, d: 0.03, color: "#ff1f3d", glow: true });
     parts.push({ x: -0.8, y: y0 + H * 0.74, z: 0.12, w: W * 0.42, h: 0.26, d: 0.03, color: "#ffffff", glow: true });
     parts.push({ x: -0.5, y: y0 + H * 0.34, z: 0.09, w: W * 0.5, h: 0.3, d: 0.03, color: "#1f2430" });
-    parts.push({ x: 1.3, y: y0 + H * 0.3, z: 0.09, w: 0.9, h: 0.7, d: 0.03, color: "#7cff4f", glow: true });
+    parts.push({ x: 1.3, y: y0 + H * 0.3, z: 0.09, w: 0.9, h: 0.7, d: 0.03, color: "#58c96b", glow: true });
   }
   // little maintenance catwalk + spotlights pointing at the board
   parts.push({ x: 0, y: y0 - 0.12, z: 0.28, w: W * 0.9, h: 0.08, d: 0.35, color: steel });

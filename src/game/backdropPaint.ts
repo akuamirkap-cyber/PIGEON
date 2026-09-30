@@ -551,7 +551,7 @@ export function paintCityNight(W = 4096, H = 512): HTMLCanvasElement {
   const yU = (u: number) => (PANO.topY - u) * pxPerUnit; // world height (units) -> canvas y
   const horizon = yU(0);
 
-  const NEON = ["#ff2d95", "#00e5ff", "#ffe93b", "#7cff4f", "#ff7a1a", "#b388ff"];
+  const NEON = ["#ffd23f", "#ff4438", "#ffe93b", "#58c96b", "#ff8a3d", "#fff3c4"];
   const WIN = ["#ffd97a", "#ffe9a3", "#9be8ff", "#ffb3d1", "#fff3c4"];
 
   interface Layer {
