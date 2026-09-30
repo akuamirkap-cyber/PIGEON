@@ -584,8 +584,9 @@ class Engine {
   trains: Train[] = [];
   intersections: Intersection[] = [];
   crossCars: CrossTrafficCar[] = [];
-  /** Efek roti terbang ke badan merpati saat diambil (juicy hypercasual). */
-  breadFx: { x: number; y: number; z: number; age: number }[] = [];
+  /** Efek roti tersedot ke badan merpati saat diambil — disimpan di ruang track
+   *  (rel terhadap pemain) supaya ikut maju bersama pemain dan tidak "nembus bablas". */
+  breadFx: { rel: number; lat: number; h: number; age: number }[] = [];
   puddles: Puddle[] = [];
   overpassCars: OverpassCar[] = [];
   roadSigns: Decor[] = [];
@@ -2056,7 +2057,7 @@ class Engine {
       b.taken = true;
       this.breadCount++;
       this.addNos(NOS_PER_BREAD);
-      this.breadFx.push({ x: b.wx, y: b.wy, z: b.wz, age: 0 });
+      this.breadFx.push({ rel: b.s - d, lat: LANE_LAT[b.lane], h: b.h, age: 0 });
       if (this.breadFx.length > 8) this.breadFx.shift();
       this.emitWorld("crumb", b.wx, b.wy, b.wz, b.wy - b.h, 5, 0, 0);
       sfx.bread();
@@ -2336,7 +2337,7 @@ class Engine {
   private updateMovers(dt: number) {
     if (this.breadFx.length) {
       for (const fx of this.breadFx) fx.age += dt;
-      this.breadFx = this.breadFx.filter((fx) => fx.age < 0.42);
+      this.breadFx = this.breadFx.filter((fx) => fx.age < 0.34);
     }
     const d = this.distance;
     let changed = false;

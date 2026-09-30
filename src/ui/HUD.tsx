@@ -37,6 +37,7 @@ export function HUD() {
   const tricksOn = useUI((s) => s.tricksOn);
   const speedMode = useUI((s) => s.speedMode);
   const trackMode = useUI((s) => s.trackMode);
+  const shibuyaTime = useUI((s) => s.shibuyaTime);
   const inRun = phase === "playing" || phase === "crashed";
   const enabled = TRICKS.filter((t) => tricksOn[t.kind]);
   const nextTrick = enabled.length ? enabled[cycleIndex % enabled.length] : null;
@@ -77,7 +78,17 @@ export function HUD() {
       {/* track mode badge */}
       {inRun && (
         <div className="absolute left-[4%] top-[10.5%] rounded-full bg-black/35 px-2.5 py-1 font-display text-[2.8cqw] leading-none text-white/90 backdrop-blur-[2px]">
-          {trackMode === "haruna" ? "⛰️ MT. HARUNA TOUGE" : trackMode === "shibuya" ? "🌃 SHIBUYA NIGHT" : "🏙️ TOKYO CITY"}
+          {trackMode === "haruna"
+            ? "⛰️ MT. HARUNA TOUGE"
+            : trackMode === "shibuya"
+              ? shibuyaTime === "pagi"
+                ? "🌅 SHIBUYA PAGI"
+                : shibuyaTime === "siang"
+                  ? "🏙️ SHIBUYA SIANG"
+                  : shibuyaTime === "sore"
+                    ? "🌇 SHIBUYA SORE"
+                    : "🌃 SHIBUYA NIGHT"
+              : "🏙️ TOKYO CITY"}
         </div>
       )}
 

@@ -262,26 +262,30 @@ export function railParts(length = 7, variant = 0): Part[] {
 
 /** Cute toast slice: rounded crust, a knob of butter, and a happy face. Faces +z. */
 export function breadParts(): Part[] {
+  // Roti tawar bersih tanpa z-fighting:
+  // - potongan crust boleh saling tumpang tindih (warna sama = aman)
+  // - crumb dibuat SATU lapisan tembus depan-belakang yang menonjol 0.015 dari crust,
+  //   jadi tidak ada dua permukaan beda warna yang koplanar (sumber "permukaan rusak")
   const crust = "#c98a4b";
   const crumb = "#f6dfae";
   const crumb2 = "#f9e8c3";
-  const d = 0.22;
   return [
-    // crust outline (rounded corners via stepped boxes)
-    { x: 0, y: 0.34, z: 0, w: 0.62, h: 0.56, d, color: crust },
-    { x: 0, y: 0.7, z: 0, w: 0.5, h: 0.16, d, color: crust },
-    { x: -0.2, y: 0.66, z: 0, w: 0.22, h: 0.2, d, color: crust },
-    { x: 0.2, y: 0.66, z: 0, w: 0.22, h: 0.2, d, color: crust },
-    { x: 0, y: 0.07, z: 0, w: 0.5, h: 0.08, d, color: crust },
-    // crumb face
-    { x: 0, y: 0.35, z: 0.01, w: 0.5, h: 0.46, d: d + 0.02, color: crumb },
-    { x: 0, y: 0.64, z: 0.01, w: 0.38, h: 0.14, d: d + 0.02, color: crumb },
-    { x: -0.17, y: 0.6, z: 0.01, w: 0.14, h: 0.14, d: d + 0.02, color: crumb },
-    { x: 0.17, y: 0.6, z: 0.01, w: 0.14, h: 0.14, d: d + 0.02, color: crumb },
-    { x: 0, y: 0.14, z: 0.01, w: 0.4, h: 0.06, d: d + 0.02, color: crumb2 },
-    // butter
-    { x: 0.03, y: 0.62, z: 0.13, w: 0.2, h: 0.12, d: 0.08, color: "#ffe066" },
-    { x: 0.05, y: 0.66, z: 0.15, w: 0.1, h: 0.06, d: 0.06, color: "#fff3b0" },
+    // crust (satu warna, aman saling menimpa)
+    { x: 0, y: 0.34, z: 0, w: 0.62, h: 0.56, d: 0.22, color: crust },
+    { x: 0, y: 0.68, z: 0, w: 0.5, h: 0.14, d: 0.22, color: crust },
+    { x: -0.2, y: 0.64, z: 0, w: 0.22, h: 0.18, d: 0.22, color: crust },
+    { x: 0.2, y: 0.64, z: 0, w: 0.22, h: 0.18, d: 0.22, color: crust },
+    { x: 0, y: 0.07, z: 0, w: 0.5, h: 0.08, d: 0.22, color: crust },
+    // crumb: menonjol jelas di depan & belakang (d 0.25 > crust 0.22)
+    { x: 0, y: 0.36, z: 0, w: 0.48, h: 0.44, d: 0.25, color: crumb },
+    { x: 0, y: 0.62, z: 0, w: 0.36, h: 0.12, d: 0.25, color: crumb },
+    { x: -0.16, y: 0.58, z: 0, w: 0.14, h: 0.12, d: 0.25, color: crumb },
+    { x: 0.16, y: 0.58, z: 0, w: 0.14, h: 0.12, d: 0.25, color: crumb },
+    // garis crumb terang, menonjol lagi 0.01 dari crumb utama
+    { x: 0, y: 0.15, z: 0, w: 0.38, h: 0.06, d: 0.26, color: crumb2 },
+    // mentega menempel di muka depan
+    { x: 0.03, y: 0.55, z: 0.14, w: 0.2, h: 0.12, d: 0.07, color: "#ffe066" },
+    { x: 0.05, y: 0.585, z: 0.165, w: 0.1, h: 0.06, d: 0.05, color: "#fff3b0" },
   ];
 }
 

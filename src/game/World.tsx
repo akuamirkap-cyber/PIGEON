@@ -537,7 +537,7 @@ const MoverView = memo(function MoverView({
   }, [m.kind, m.variant, m.phase]);
   const diamond = useMemo(() => getGeometry("sign-diamond", signDiamondParts), []);
   const exclaim = useMemo(() => getGeometry("sign-ex", signExclaimParts), []);
-  const night = useUI((s) => s.trackMode) === "shibuya";
+  const night = useUI((s) => s.trackMode === "shibuya" && s.shibuyaTime === "malam");
   const lightsGeo = useMemo(() => {
     if (!night) return null;
     if (m.kind === "car") return getGeometry("car-lights", carLightParts);
@@ -1054,7 +1054,7 @@ const CrossCarView = memo(function CrossCarView({ cc }: { cc: CrossTrafficCar })
     inner.rotation.y = cc.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
   });
 
-  const night = useUI((s) => s.trackMode) === "shibuya";
+  const night = useUI((s) => s.trackMode === "shibuya" && s.shibuyaTime === "malam");
   const lightsGeo = useMemo(() => (night ? getGeometry("cross-car-lights", crossCarLightParts) : null), [night]);
   return (
     <group ref={rootRef}>
@@ -1425,7 +1425,6 @@ function Breads() {
 
 /* ---------- Efek ambil roti: terbang & mengecil ke badan merpati (juicy hypercasual) ---------- */
 const BREAD_FX_N = 8;
-const _fxTarget = new THREE.Vector3();
 
 function BreadFx() {
   const ref = useRef<THREE.InstancedMesh>(null);
@@ -1433,22 +1432,23 @@ function BreadFx() {
   useFrame(() => {
     const m = ref.current;
     if (!m) return;
-    // target = dada merpati (posisi player saat ini)
     const p = engine.player;
-    track.frame(engine.distance + 0.25, p.lat, p.h + 0.5, _fxTarget);
+    const d = engine.distance;
     let i = 0;
     for (const fx of engine.breadFx) {
       if (i >= BREAD_FX_N) break;
-      const u = Math.min(1, fx.age / 0.38);
-      const e = u * u * (3 - 2 * u); // smoothstep: awalnya ngambang, lalu tersedot cepat
-      const arc = Math.sin(u * Math.PI) * 0.55; // melengkung naik dulu, khas hypercasual
-      tmpObj.position.set(
-        fx.x + (_fxTarget.x - fx.x) * e,
-        fx.y + (_fxTarget.y - fx.y) * e + arc,
-        fx.z + (_fxTarget.z - fx.z) * e,
-      );
-      tmpObj.rotation.set(0, fx.age * 14, fx.age * 6);
-      tmpObj.scale.setScalar(Math.max(0.06, 1 - e * 0.94)); // mengecil sampai "masuk" ke badan
+      const u = Math.min(1, fx.age / 0.3);
+      const e = u * u * (3 - 2 * u); // smoothstep
+      // Ruang TRACK relatif pemain: roti ikut maju bersama pemain (tidak pernah
+      // tertinggal / nembus bablas), lalu tersedot mulus ke dada merpati.
+      const s = d + fx.rel * (1 - e) + 0.3 * e;
+      const lat = fx.lat + (p.lat - fx.lat) * e;
+      const h = fx.h + (p.h + 0.55 - fx.h) * e + Math.sin(u * Math.PI) * 0.3;
+      track.frame(s, lat, h, tmpObj.position);
+      track.quat(s, tmpObj.quaternion);
+      // tetap TEGAK — tanpa tilt/miring, hanya yaw pelan biar hidup
+      tmpObj.rotateY(fx.age * 4);
+      tmpObj.scale.setScalar(Math.max(0.08, 1 - e * 0.92)); // mengecil sampai "masuk" ke badan
       tmpObj.updateMatrix();
       m.setMatrixAt(i++, tmpObj.matrix);
     }

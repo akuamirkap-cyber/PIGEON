@@ -147,6 +147,8 @@ function SettingsRow() {
   const toggleWeather = useUI((s) => s.toggleWeather);
   const nightBright = useUI((s) => s.nightBright);
   const cycleNightBright = useUI((s) => s.cycleNightBright);
+  const shibuyaTime = useUI((s) => s.shibuyaTime);
+  const cycleShibuyaTime = useUI((s) => s.cycleShibuyaTime);
   const addPopup = useUI((s) => s.addPopup);
   const [tips, setTips] = useState(false);
 
@@ -211,6 +213,15 @@ function SettingsRow() {
           accent={nightBright === 2 ? "#c9a13d" : undefined}
           onTap={() => {
             cycleNightBright();
+            sfx.click();
+          }}
+        />
+        <CyclePill
+          label="WAKTU"
+          value={shibuyaTime.toUpperCase()}
+          accent={shibuyaTime !== "malam" ? "#d98b3d" : undefined}
+          onTap={() => {
+            cycleShibuyaTime();
             sfx.click();
           }}
         />

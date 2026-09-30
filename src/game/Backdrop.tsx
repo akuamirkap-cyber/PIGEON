@@ -14,7 +14,7 @@ import { PANO, paintFuji, paintHills, paintCityNight } from "./backdropPaint";
  */
 export function Backdrop() {
   const gl = useThree((s) => s.gl);
-  const night = useUI((s) => s.trackMode) === "shibuya";
+  const night = useUI((s) => s.trackMode === "shibuya" && s.shibuyaTime === "malam");
   const cloudy = useUI((s) => s.weather === "cloudy") && !night;
   const root = useRef<THREE.Group>(null);
   const fuji = useRef<THREE.Mesh>(null);
