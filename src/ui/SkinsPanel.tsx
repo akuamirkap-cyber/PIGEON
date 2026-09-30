@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useUI } from "../game/store";
+import { useUI, WHEEL_COLORS, type WheelColor } from "../game/store";
 import { getSkin, SKINS, DECKS, type Skin, type DeckOption } from "../game/skins";
 import { sfx } from "../game/audio";
 import { engine } from "../game/engine";
@@ -196,12 +196,23 @@ export function SkinsPanel() {
     }
   };
 
+  const wheelColor = useUI((st) => st.wheelColor);
+  const setWheelColor = useUI((st) => st.setWheelColor);
+  const selectWheel = (c: WheelColor) => {
+    if (c === wheelColor) return;
+    sfx.click();
+    setWheelColor(c);
+    engine.skinPop();
+    const label = WHEEL_COLORS.find((w) => w.id === c)?.label ?? "AUTO";
+    addPopup(c === "auto" ? "BAN IKUT SKIN" : `BAN ${label}`, "#2ec4b6", "Warna roda skateboard");
+  };
+
   const selectDeck = (d: "default" | "baguette") => {
     setDeckOverride(d);
     engine.skinPop();
     if (d === "baguette") {
       sfx.unlock();
-      addPopup("PAPAN ROTI BAGUETTE! 🥖", "#ff9f1c", "Free Baguette Skateboard");
+      addPopup("PAPAN ROTI BAGUETTE!", "#ff9f1c", "Free Baguette Skateboard");
     } else {
       sfx.click();
       addPopup("PAPAN STANDAR! 🛹", "#2ec4b6", "Classic Pro Deck");
@@ -235,7 +246,7 @@ export function SkinsPanel() {
                 : "bg-white/70 text-[#1f2430]/70 hover:bg-white"
             }`}
           >
-            <span>🕊️</span> MERPATI ({unlocked.length}/{SKINS.length})
+            <span>🕊️</span> KARAKTER ({unlocked.length}/{SKINS.length})
           </button>
           <button
             type="button"
@@ -249,7 +260,7 @@ export function SkinsPanel() {
                 : "bg-white/70 text-[#1f2430]/70 hover:bg-white"
             }`}
           >
-            <span>🥖</span> PAPAN SKATE
+            PAPAN SKATE
             {deckOverride === "baguette" && (
               <span className="rounded-full bg-white px-1.5 py-0.5 text-[2.2cqw] font-extrabold text-[#c9700a]">ROTI</span>
             )}
@@ -324,6 +335,37 @@ export function SkinsPanel() {
                   onSelect={() => selectDeck(d.id)}
                 />
               ))}
+            </div>
+
+            {/* warna ban: default hitam, bisa merah / hijau / kuning / biru */}
+            <div className="mt-3 rounded-2xl bg-white px-3 py-3 shadow-[0_3px_0_rgba(0,0,0,0.08)]">
+              <div className="flex items-baseline justify-between">
+                <div className="font-display text-[3.6cqw] leading-none text-[#1f2430]">WARNA BAN</div>
+                <div className="font-body text-[2.5cqw] font-extrabold tracking-[0.15em] text-[#9aa1ad]">DEFAULT HITAM</div>
+              </div>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {WHEEL_COLORS.map((c) => {
+                  const active = c.id === wheelColor;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => selectWheel(c.id)}
+                      className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 font-display text-[2.9cqw] leading-none transition-all ${
+                        active
+                          ? "bg-[#1f2430] text-white shadow-[0_3px_0_rgba(0,0,0,0.25)]"
+                          : "bg-[#eef0f3] text-[#1f2430]/80 active:translate-y-[1px]"
+                      }`}
+                    >
+                      <span
+                        className="h-[3.4cqw] w-[3.4cqw] shrink-0 rounded-full border border-black/20"
+                        style={{ background: c.hex }}
+                      />
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}

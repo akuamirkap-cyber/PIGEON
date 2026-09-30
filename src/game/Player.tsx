@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { buildVoxelGeometry, clamp, voxelMaterial } from "./voxel";
-import { engine } from "./engine";
+import { engine, LANE_LAT } from "./engine";
 import { useUI } from "./store";
-import { deckParts, getSkin, pigeonBodyParts, pigeonHeadParts, pigeonTailParts, truckParts, wheelParts, wingParts, HIP_Y, LEG_Z, TAIL_ROOT } from "./skins";
+import { charBodyParts, charHeadParts, charTailParts, charWingParts, deckParts, getSkin, truckParts, wheelParts, HIP_Y, LEG_Z, TAIL_ROOT } from "./skins";
 import { RIG, LegRig } from "./pigeonRig";
 import { nosTankParts } from "./models";
 
@@ -60,23 +60,26 @@ export function Player() {
   const tail = useRef<THREE.Mesh>(null);
   const tailSway = useRef(0);
   const restBlend = useRef(0);
+  /** sudut kepala yang dihaluskan (low-pass): fokus ke depan + memantau situasi, santai */
+  const headLook = useRef({ yaw: 0, pitch: 0 });
   const contactK = useRef(0); // 0 airborne .. 1 rolling on the ground/rail (smoothed so takeoff/landing do not pop)
   const truckFront = useRef<THREE.Group>(null);
   const truckRear = useRef<THREE.Group>(null);
 
+  const wheelColor = useUI((s) => s.wheelColor);
   const geos = useMemo(
     () => ({
-      body: buildVoxelGeometry(pigeonBodyParts(skin)),
-      head: buildVoxelGeometry(pigeonHeadParts(skin)),
-      wingR: buildVoxelGeometry(wingParts(skin, 1)),
-      wingL: buildVoxelGeometry(wingParts(skin, -1)),
+      body: buildVoxelGeometry(charBodyParts(skin)),
+      head: buildVoxelGeometry(charHeadParts(skin)),
+      wingR: buildVoxelGeometry(charWingParts(skin, 1)),
+      wingL: buildVoxelGeometry(charWingParts(skin, -1)),
       deck: buildVoxelGeometry(deckParts(skin, deckOverride)),
-      wheel: buildVoxelGeometry(wheelParts(skin, deckOverride)),
+      wheel: buildVoxelGeometry(wheelParts(skin, deckOverride, wheelColor)),
       truck: buildVoxelGeometry(truckParts()),
-      tail: buildVoxelGeometry(pigeonTailParts(skin)),
+      tail: buildVoxelGeometry(charTailParts(skin)),
       tanks: buildVoxelGeometry(nosTankParts()),
     }),
-    [skin, deckOverride],
+    [skin, deckOverride, wheelColor],
   );
   const flameMats = useMemo(
     () => ({
@@ -237,6 +240,43 @@ export function Player() {
       const carve = p.carve; // + = leaning toward -z (left on screen)
       const shift = p.airShift;
       const bob = grounded ? Math.sin(t * (engine.phase === "menu" ? 7 : 12)) : 1;
+      // ---- KEPALA: fokus ke depan, aktif memantau situasi, tapi tetap smooth & santai ----
+      const hl = headLook.current;
+      // 1) pemindaian santai: dua gelombang lambat (kepala terlihat hidup, bukan robot)
+      const scan = Math.sin(t * 0.5) * 0.13 + Math.sin(t * 0.21 + 1.7) * 0.06;
+      // 2) aktif melihat situasi: menoleh halus ke arah bahaya terdekat di depan
+      let watchYaw = 0;
+      let watchW = 0;
+      {
+        const dd = engine.distance;
+        let best = 18;
+        let bestLat = 0;
+        for (const mv of engine.movers) {
+          const rel = mv.s - dd;
+          if (rel < -0.5 || rel > best) continue;
+          best = rel;
+          bestLat = mv.lat;
+        }
+        for (const ob of engine.obstacles) {
+          if (ob.kind === "ramp" || ob.kind === "rail") continue;
+          const rel = ob.s - dd;
+          if (rel < 1 || rel > best) continue;
+          best = rel;
+          bestLat = LANE_LAT[ob.lane];
+        }
+        if (best < 18) {
+          watchYaw = clamp(Math.atan2(bestLat - p.lat, Math.max(best, 2.5)), -0.3, 0.3);
+          watchW = clamp(1 - best / 18, 0, 1);
+        }
+      }
+      // 3) ikut melihat ke arah jalur tujuan saat menyalip (lebih halus dari sebelumnya)
+      const turnLook = clamp(p.latVel * 0.07, -0.24, 0.24);
+      const yawTarget = scan * 0.55 + watchYaw * watchW * 0.85 + turnLook;
+      const pitchTarget = -0.05 + Math.sin(t * 0.37 + 0.6) * 0.04 + watchW * 0.05 - engine.center.g * 0.1;
+      const ease = 1 - Math.exp(-dt * 3.4); // low-pass: gerakan santai, tidak nyentak
+      hl.yaw += (yawTarget - hl.yaw) * ease;
+      hl.pitch += (pitchTarget - hl.pitch) * ease;
+
       if (nm) {
         // NEW body language (counter-balance, not glued to the board):
         //  - torso rolls LESS than the board (counter-roll -lean*0.14) so the head stays over the deck
@@ -244,16 +284,15 @@ export function Player() {
         //  - head counter-rolls (-lean*0.22) to keep the horizon level and looks into the turn (yaw - lean*0.35)
         leanTorso(-0.12 * out - lv * 0.14, -0.2 * drive - 0.04 * out - 0.14 * spr, 0.04 * drive + 0.03 * spr, -0.02 * drive, -0.05 * out + lv * 0.06, 0);
         hd.position.set(0.32 + bob * 0.05 + (grounded ? 0 : 0.06) + 0.04 * drive, 1.04 + Math.abs(bob) * 0.02 + (grounded ? 0 : 0.04), 0);
-        hd.rotation.set(-lv * 0.22, -0.32 - lv * 0.35, grounded ? -0.08 * drive : -0.15);
+        hd.rotation.set(hl.pitch - lv * 0.1, hl.yaw, grounded ? -0.06 * drive : -0.12);
       } else {
         // extra torso roll INTO the turn (rotation.x > 0 tips the top toward +z, so it is -carve)
         const torsoCarve = -carve * (airborne ? 0.55 : 0.35);
         const hipShift = Math.sign(p.latVel) * Math.min(1, Math.abs(p.latVel) / 6) * (airborne ? 0.1 : 0.06);
         leanTorso(-0.12 * out + torsoCarve, -0.2 * drive - 0.04 * out - 0.14 * spr + 0.12 * shift, 0.04 * drive + 0.03 * spr, -0.02 * drive - 0.03 * shift, -0.05 * out + hipShift, -p.steer * 0.35);
         // head bob (pigeons!) + look into the turn
-        const look = clamp(p.latVel * 0.12, -0.5, 0.5); // yaw toward the target lane
         hd.position.set(0.32 + bob * 0.05 + (grounded ? 0 : 0.06) + 0.04 * drive, 1.04 + Math.abs(bob) * 0.02 + (grounded ? 0 : 0.04), 0);
-        hd.rotation.set(-carve * 0.3, -0.32 + look, grounded ? -0.08 * drive : -0.15);
+        hd.rotation.set(hl.pitch - carve * 0.18, hl.yaw, grounded ? -0.06 * drive : -0.12);
       }
     } else {
       // ---- ragdoll dummy physics ----
@@ -524,7 +563,7 @@ export function Player() {
               <group ref={torso} name="pigeon-torso">
                 <mesh geometry={geos.body} material={voxelMaterial} castShadow receiveShadow />
                 <mesh ref={tail} geometry={geos.tail} material={voxelMaterial} position={TAIL_ROOT} castShadow />
-                <mesh ref={head} name="pigeon-head" geometry={geos.head} material={voxelMaterial} position={[0.32, 1.04, 0]} rotation={[0, -0.32, 0]} castShadow />
+                <mesh ref={head} name="pigeon-head" geometry={geos.head} material={voxelMaterial} position={[0.32, 1.04, 0]} rotation={[0, 0, 0]} castShadow />
                 <mesh ref={wingR} geometry={geos.wingR} material={voxelMaterial} position={[-0.05, 0.72, 0.3]} castShadow />
                 <mesh ref={wingL} geometry={geos.wingL} material={voxelMaterial} position={[-0.05, 0.72, -0.3]} castShadow />
                 {/* Cartoon dizzy stars halo when crashed */}

@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useReducer, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { buildVoxelGeometry, getGeometry, voxelMaterial } from "./voxel";
+import { applyCurve } from "./curve";
 import {
   CHUNK_LEN,
   barrierParts,
@@ -12,6 +13,9 @@ import {
   bushParts,
   carParts,
   chickenParts,
+  motorcycleParts,
+  CANE_GRIP_Y,
+  caneParts,
   coneParts,
   flowersParts,
   hydrantParts,
@@ -47,6 +51,9 @@ import {
   puddleParts,
   OVERPASS_H,
   nosCanParts,
+  rocketParts,
+  diamondParts,
+  crownParts,
   sakuraParts,
   stoneLanternParts,
   petalParts,
@@ -76,14 +83,20 @@ import {
   catRagdollFlyingParts,
 } from "./models";
 import { useUI } from "./store";
+import { getRayTexture } from "./rays";
 import {
   engine,
   track,
   SIGN_AHEAD,
   ARM_S,
+  CAT_SCALE,
+  CHICKEN_SCALE,
+  CHICKEN_SIZE_BOOST,
   OBSTACLE_DEFS,
   type Chunk,
   type Crossing,
+  crossCarH,
+  RARE_FLASH_T,
   type Intersection,
   type CrossTrafficCar,
   type Decor,
@@ -255,8 +268,8 @@ const ObstacleView = memo(function ObstacleView({ o }: { o: Obstacle }) {
 
 /* ---------- Movers: oncoming cars, crossing chickens & pedestrians ---------- */
 const PED_SCALE = 1.8;
-export const CHICKEN_SCALE = 0.58;
-export const CAT_SCALE = 0.70;
+/* CAT_SCALE / CHICKEN_SCALE (ukuran hewan, sudah termasuk boost 1.7x & 1.2x)
+   diimpor dari engine.ts supaya hitbox di sana selalu sinkron dengan model di sini. */
 
 const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
   const rootRef = useRef<THREE.Group>(null);
@@ -271,15 +284,21 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
   const legRRef = useRef<THREE.Group>(null);
   const accRef = useRef<THREE.Group>(null);
 
-  const headNormalGeo = useMemo(() => getGeometry(`ped-head-${m.variant % 5}-normal`, () => pedestrianHeadParts(m.variant, false)), [m.variant]);
-  const headHitGeo = useMemo(() => getGeometry(`ped-head-${m.variant % 5}-hit`, () => pedestrianHeadParts(m.variant, true)), [m.variant]);
-  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${m.variant % 5}`, () => pedestrianTorsoParts(m.variant)), [m.variant]);
-  const armLGeo = useMemo(() => getGeometry(`ped-arm-${m.variant % 5}-L`, () => pedestrianArmParts(m.variant, 1)), [m.variant]);
-  const armRGeo = useMemo(() => getGeometry(`ped-arm-${m.variant % 5}-R`, () => pedestrianArmParts(m.variant, -1)), [m.variant]);
-  const legLGeo = useMemo(() => getGeometry(`ped-leg-${m.variant % 5}-L`, () => pedestrianLegParts(m.variant, 1)), [m.variant]);
-  const legRGeo = useMemo(() => getGeometry(`ped-leg-${m.variant % 5}-R`, () => pedestrianLegParts(m.variant, -1)), [m.variant]);
+  // kakek/nenek (elderly) punya geometri sendiri: rambut putih, kacamata, cardigan, tongkat
+  const isElder = !!m.elderly;
+  const pedKey = `${m.variant % 5}${isElder ? "-old" : ""}`;
+  const headNormalGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-normal`, () => pedestrianHeadParts(m.variant, false, isElder)), [pedKey, m.variant, isElder]);
+  const headHitGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-hit`, () => pedestrianHeadParts(m.variant, true, isElder)), [pedKey, m.variant, isElder]);
+  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${pedKey}`, () => pedestrianTorsoParts(m.variant, isElder)), [pedKey, m.variant, isElder]);
+  const armLGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-L`, () => pedestrianArmParts(m.variant, 1, isElder, false)), [pedKey, m.variant, isElder]);
+  const armRGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-R`, () => pedestrianArmParts(m.variant, -1, isElder, isElder)), [pedKey, m.variant, isElder]);
+  const legLGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-L`, () => pedestrianLegParts(m.variant, 1, isElder)), [pedKey, m.variant, isElder]);
+  const legRGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-R`, () => pedestrianLegParts(m.variant, -1, isElder)), [pedKey, m.variant, isElder]);
+  // tongkat kayu (cuma untuk lansia), dipegang tangan kanan dan ikut mengayun
+  const caneGeo = useMemo(() => (isElder ? getGeometry("ped-cane", caneParts) : null), [isElder]);
 
   const accGeo = useMemo(() => {
+    if (isElder) return null; // lansia bawa tongkat, bukan tas/payung
     if (m.variant % 3 === 1) {
       return getGeometry("ped-bag", () => [
         { x: 0.05, y: -0.28, z: 0.1, w: 0.28, h: 0.34, d: 0.1, color: "#f4e1b5" },
@@ -295,7 +314,7 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
       ]);
     }
     return null;
-  }, [m.variant]);
+  }, [m.variant, isElder]);
 
   useFrame(() => {
     const root = rootRef.current;
@@ -357,19 +376,33 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
       torso.position.set(0, 0, 0);
 
       if (m.phase === "hop") {
-        const swing = Math.sin(m.hopT * 10);
-        legL.rotation.set(swing * 0.55, 0, 0);
-        legR.rotation.set(-swing * 0.55, 0, 0);
-        armL.rotation.set(-swing * 0.45, 0, 0);
-        armR.rotation.set(swing * 0.45, 0, 0);
-        headG.rotation.set(0, 0, Math.sin(m.hopT * 20) * 0.04);
-        inner.position.y = 0.98 + Math.abs(Math.sin(m.hopT * 10)) * 0.05;
+        if (isElder) {
+          // jalan pelan & hati-hati: langkah kecil, badan agak bungkuk, tongkat menap
+          const step = Math.sin(m.hopT * 6.4);
+          legL.rotation.set(step * 0.36, 0, 0);
+          legR.rotation.set(-step * 0.3, 0, 0);
+          armL.rotation.set(-step * 0.22, 0, 0);
+          armR.rotation.set(0.16 + Math.abs(step) * 0.12, 0, 0);
+          headG.rotation.set(0.1, Math.sin(m.hopT * 3.2) * 0.12, Math.sin(m.hopT * 12.8) * 0.02);
+          torso.rotation.x = 0.17; // bungkuk ke depan
+          inner.position.y = 0.96 - Math.abs(step) * 0.012;
+        } else {
+          const swing = Math.sin(m.hopT * 10);
+          legL.rotation.set(swing * 0.55, 0, 0);
+          legR.rotation.set(-swing * 0.55, 0, 0);
+          armL.rotation.set(-swing * 0.45, 0, 0);
+          armR.rotation.set(swing * 0.45, 0, 0);
+          headG.rotation.set(0, 0, Math.sin(m.hopT * 20) * 0.04);
+          torso.rotation.x = 0;
+          inner.position.y = 0.98 + Math.abs(Math.sin(m.hopT * 10)) * 0.05;
+        }
       } else {
         legL.rotation.set(0, 0, 0);
         legR.rotation.set(0, 0, 0);
         armL.rotation.set(0, 0, 0);
-        armR.rotation.set(0, 0, 0);
-        headG.rotation.set(0, 0, 0);
+        armR.rotation.set(isElder ? 0.16 : 0, 0, 0);
+        headG.rotation.set(isElder ? 0.1 : 0, 0, 0);
+        torso.rotation.x = isElder ? 0.17 : 0;
       }
       if (accRef.current) {
         accRef.current.rotation.set(0, 0, 0);
@@ -399,9 +432,10 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
             )}
           </group>
 
-          {/* Right Arm */}
+          {/* Right Arm (lansia menggenggam tongkat) */}
           <group ref={armRRef} position={[0, 0.27, -0.34]}>
             <mesh geometry={armRGeo} material={voxelMaterial} castShadow />
+            {caneGeo && <mesh geometry={caneGeo} material={voxelMaterial} position={[0.02, CANE_GRIP_Y, 0]} castShadow />}
           </group>
 
           {/* Left Leg */}
@@ -428,9 +462,36 @@ const MoverView = memo(function MoverView({
   register: (id: number, g: THREE.Group | null) => void;
   registerSign: (id: number, g: THREE.Group | null) => void;
 }) {
+  const isAnimal = m.kind === "cat" || m.kind === "chicken";
+  /**
+   * Kilatan putih ("denyut") pada tubuh hewan tepat setelah di-YEET: material
+   * klon dari voxelMaterial dengan emissive, dipakai hanya oleh hewan.
+   */
+  const flashMat = useMemo(() => {
+    if (!isAnimal) return null;
+    const mat = applyCurve(voxelMaterial.clone());
+    mat.emissive = new THREE.Color("#fff8e1");
+    mat.emissiveIntensity = 0;
+    return mat;
+  }, [isAnimal]);
+  useEffect(() => () => flashMat?.dispose(), [flashMat]);
+
+  useFrame(() => {
+    if (!flashMat) return;
+    // kilatan badan yang tipis: nyala sebentar lalu cepat meredup (tanpa kedip lebay)
+    if (m.phase === "hit") {
+      flashMat.emissiveIntensity = 0.85 * Math.max(0, 1 - m.hitT / 0.22);
+    } else {
+      flashMat.emissiveIntensity = 0;
+    }
+  });
+
   const geo = useMemo(() => {
     if (m.kind === "car") {
       return getGeometry(`car-${m.variant % 7}`, () => carParts(m.variant));
+    }
+    if (m.kind === "motorcycle") {
+      return getGeometry(`moto-${m.variant % 6}`, () => motorcycleParts(m.variant));
     }
     if (m.kind === "cat") {
       if (m.phase === "hit") {
@@ -442,15 +503,15 @@ const MoverView = memo(function MoverView({
   }, [m.kind, m.variant, m.phase]);
   const diamond = useMemo(() => getGeometry("sign-diamond", signDiamondParts), []);
   const exclaim = useMemo(() => getGeometry("sign-ex", signExclaimParts), []);
-  const innerRot = m.kind === "car" ? Math.PI : m.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+  const innerRot = m.kind === "car" || m.kind === "motorcycle" ? Math.PI : m.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
   return (
     <>
       <group ref={(g) => register(m.id, g)}>
         <group rotation-y={innerRot}>
-          <mesh geometry={geo} material={voxelMaterial} castShadow receiveShadow />
+          <mesh geometry={geo} material={flashMat ?? voxelMaterial} castShadow receiveShadow />
         </group>
       </group>
-      {m.kind === "car" && (
+      {(m.kind === "car" || m.kind === "motorcycle") && (
         <group ref={(g) => registerSign(m.id, g)} visible={false}>
           <group rotation-z={Math.PI / 4}>
             <mesh geometry={diamond} material={voxelMaterial} />
@@ -510,7 +571,11 @@ function Movers() {
             inner.scale.setScalar(1);
           }
           const child = inner.children[0];
-          if (child) child.position.set(0, m.kind === "cat" ? 0 : m.kind === "chicken" ? -0.32 : -0.55, 0);
+          // Body offset from the ragdoll pivot also follows the size boost, so the
+          // bigger chicken/cat still lies flat on the asphalt during the ragdoll tumble.
+          if (child) {
+            child.position.set(0, m.kind === "cat" ? 0 : m.kind === "chicken" ? -0.32 * CHICKEN_SIZE_BOOST : -0.55, 0);
+          }
         } else if (m.kind === "cat") {
           const inner = g.children[0];
           inner.position.set(0, 0, 0);
@@ -535,14 +600,24 @@ function Movers() {
             inner.scale.set(CHICKEN_SCALE * (1 + sq), CHICKEN_SCALE * (1 - sq - peck), CHICKEN_SCALE * (1 + sq));
             inner.rotation.x = 0;
           }
-        } else if (m.kind === "car") {
+        } else if (m.kind === "car" || m.kind === "motorcycle") {
           const inner = g.children[0];
           inner.position.set(0, 0, 0);
           if (inner.children[0]) inner.children[0].position.set(0, 0, 0);
-          inner.rotation.set(0, 0, 0);
+          // PENTING: kendaraan dari arah depan harus menghadap KITA (yaw = pi).
+          // Dulu baris ini menimpa yaw-nya jadi 0, sehingga mobil & motor melaju mundur
+          // (moncong + pengendaranya membelakangi pemain).
+          inner.rotation.set(0, Math.PI, 0);
           const sq = (m.squash || 0) * 0.14;
           inner.scale.set(1 + sq * 0.35, 1 - sq, 1 + sq * 0.35);
           inner.position.y = Math.sin(t * 18 + m.variant) * 0.015 - sq * 0.25;
+          if (m.kind === "motorcycle") {
+            // motor: goyang halus + sedikit rebahan (lebih lincah dari mobil)
+            inner.scale.set(1 + sq * 0.3, 1 - sq, 1 + sq * 0.3);
+            inner.rotation.z = Math.sin(t * 3.1 + m.id) * 0.045;
+            inner.rotation.x = Math.sin(t * 9 + m.id * 0.7) * 0.02;
+            inner.position.y += Math.abs(Math.sin(t * 26 + m.id)) * 0.012 - sq * 0.2;
+          }
         }
       }
       const sg = signs.current.get(m.id);
@@ -804,7 +879,7 @@ const CrossCarView = memo(function CrossCarView({ cc }: { cc: CrossTrafficCar })
     const root = rootRef.current;
     const inner = innerRef.current;
     if (!root || !inner) return;
-    const h = Math.abs(cc.lat) > 4.2 ? 0.145 : Math.max(0, (Math.abs(cc.lat) - 3.4) / 0.8) * 0.145;
+    const h = crossCarH(cc.lat);
     track.frame(cc.s, cc.lat, h, root.position);
     track.quat(cc.s, root.quaternion);
     // Face lateral travel direction:
@@ -981,6 +1056,178 @@ function NosCans() {
   );
 }
 
+/* ---------- Item LANGKA: ROKET NOS + kilatan sinar (raylight) ---------- */
+const RARE_TINT: Record<string, string> = {
+  rocket: "#ffc93c",
+  diamond: "#4fd8ff",
+  crown: "#ffc93c",
+};
+
+function Rockets() {
+  const { camera } = useThree();
+  const seen = useRef(-1);
+  const [, force] = useReducer((x: number) => x + 1, 0);
+  const geos = useMemo(
+    () => ({
+      rocket: getGeometry("rocket", rocketParts),
+      diamond: getGeometry("diamond", diamondParts),
+      crown: getGeometry("crown", crownParts),
+    }),
+    [],
+  );
+  const ringMats = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(RARE_TINT).map(([kind, color]) => [
+          kind,
+          new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
+        ]),
+      ) as Record<string, THREE.MeshBasicMaterial>,
+    [],
+  );
+  const rayTex = useMemo(() => getRayTexture(), []);
+  const rayMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: rayTex,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }),
+    [rayTex],
+  );
+  useEffect(
+    () => () => {
+      rayMat.dispose();
+      for (const m of Object.values(ringMats)) m.dispose();
+    },
+    [rayMat, ringMats],
+  );
+
+  const refs = useRef(new Map<number, THREE.Group>());
+  const rays = useRef(new Map<number, THREE.Mesh>());
+  useFrame(() => {
+    if (engine.listVersion !== seen.current) {
+      seen.current = engine.listVersion;
+      force();
+    }
+    const t = engine.time;
+    for (const r of engine.rockets) {
+      const g = refs.current.get(r.id);
+      if (!g) continue;
+      g.visible = !r.taken;
+      g.position.set(r.wx, r.wy + 0.42 + Math.sin(t * 2.2 + r.phase) * 0.12, r.wz);
+      // mengambang & berputar pelan, seperti barang berharga
+      g.rotation.y = t * 1.4 + r.phase;
+      const ray = rays.current.get(r.id);
+      if (ray) {
+        ray.quaternion.copy(camera.quaternion); // billboard: selalu menghadap kamera
+        ray.rotateZ(t * 0.35 + r.phase);
+        const pulse = 1 + 0.16 * Math.sin(t * 5.5 + r.phase);
+        ray.scale.setScalar(pulse);
+        (ray.material as THREE.MeshBasicMaterial).opacity = 0.72 + 0.22 * Math.sin(t * 6.3 + r.phase);
+      }
+    }
+  });
+
+  return (
+    <>
+      {engine.rockets.map((r) => (
+        <group
+          key={r.id}
+          ref={(g) => {
+            if (g) refs.current.set(r.id, g);
+            else refs.current.delete(r.id);
+          }}
+        >
+          {/* sinar di belakang roket (dulu -> sekarang: roket terlihat "bersinar") */}
+          <mesh
+            ref={(m) => {
+              if (m) rays.current.set(r.id, m);
+              else rays.current.delete(r.id);
+            }}
+            material={rayMat}
+            renderOrder={-1}
+          >
+            <planeGeometry args={[3.1, 3.1]} />
+          </mesh>
+          {/* piringan cahaya di jalan (warna ikut jenis item) */}
+          <mesh material={ringMats[r.kind] ?? ringMats.rocket} rotation-x={-Math.PI / 2} position={[0, -0.4, 0]}>
+            <ringGeometry args={[0.42, 0.62, 24]} />
+          </mesh>
+          <mesh geometry={geos[r.kind] ?? geos.rocket} material={voxelMaterial} castShadow />
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** Kilatan sinar besar tepat saat roket diambil (mengembang lalu memudar). */
+function RareFlash() {
+  const { camera } = useThree();
+  const group = useRef<THREE.Group>(null);
+  const rays = useRef<THREE.Mesh>(null);
+  const pillar = useRef<THREE.Mesh>(null);
+  const rayTex = useMemo(() => getRayTexture(), []);
+  const rayMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ map: rayTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
+    [rayTex],
+  );
+  const pillarMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: "#fff3c4",
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }),
+    [],
+  );
+  useEffect(() => () => {
+    rayMat.dispose();
+    pillarMat.dispose();
+  }, [rayMat, pillarMat]);
+
+  useFrame(() => {
+    const g = group.current;
+    if (!g) return;
+    const f = engine.rareFlash;
+    g.visible = f > 0;
+    if (f <= 0) return;
+    const k = 1 - f / RARE_FLASH_T; // 0 -> 1 seiring waktu
+    const [x, y, z] = engine.rareFlashPos;
+    g.position.set(x, y + 0.55, z);
+    const rgb = engine.rareFlashRGB;
+    rayMat.color.setRGB(rgb[0], rgb[1], rgb[2]);
+    pillarMat.color.setRGB(Math.min(1, rgb[0] + 0.25), Math.min(1, rgb[1] + 0.25), Math.min(1, rgb[2] + 0.25));
+    if (rays.current) {
+      rays.current.quaternion.copy(camera.quaternion);
+      rays.current.rotateZ(k * 1.6);
+      rays.current.scale.setScalar(2.2 + 5.5 * k);
+      rayMat.opacity = Math.max(0, 1 - k) * 0.95;
+    }
+    if (pillar.current) {
+      pillar.current.quaternion.copy(camera.quaternion);
+      pillar.current.scale.set(1 - 0.25 * k, 2.4 + 3.4 * k, 1);
+      pillarMat.opacity = Math.max(0, 1 - k) * 0.42;
+    }
+  });
+
+  return (
+    <group ref={group} visible={false}>
+      <mesh ref={rays} material={rayMat} />
+      <mesh ref={pillar} material={pillarMat}>
+        <planeGeometry args={[0.55, 1.6]} />
+      </mesh>
+    </group>
+  );
+}
+
 /* ---------- Bread (instanced) ---------- */
 const MAX_BREAD = 140;
 const tmpObj = new THREE.Object3D();
@@ -1007,6 +1254,76 @@ function Breads() {
   return <instancedMesh ref={ref} args={[geo, voxelMaterial, MAX_BREAD]} frustumCulled={false} castShadow />;
 }
 
+/* ---------- Denyut: satu cincin tipis saat hewan mental ---------- */
+const PULSE_POOL = 4;
+
+function Pulses() {
+  const { camera } = useThree();
+  // band tipis (0.94..1) -> efeknya halus, seperti ripple knockback
+  const ringGeo = useMemo(() => new THREE.RingGeometry(0.94, 1, 40), []);
+  const ringRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const mats = useMemo(
+    () =>
+      Array.from(
+        { length: PULSE_POOL },
+        () =>
+          new THREE.MeshBasicMaterial({
+            color: "#ffffff",
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+          }),
+      ),
+    [],
+  );
+  useEffect(
+    () => () => {
+      ringGeo.dispose();
+      mats.forEach((m) => m.dispose());
+    },
+    [ringGeo, mats],
+  );
+
+  useFrame(() => {
+    let i = 0;
+    for (const q of engine.pulses) {
+      if (i >= PULSE_POOL) break;
+      const mesh = ringRefs.current[i];
+      const mat = mats[i];
+      i++;
+      if (!mesh) continue;
+      const k = Math.min(1, q.t / q.max);
+      const grow = 1 - Math.pow(1 - k, 3); // mengembang cepat lalu melambat
+      mesh.visible = true;
+      mesh.position.set(q.x, q.y, q.z);
+      mesh.quaternion.copy(camera.quaternion); // billboard: selalu menghadap pemain
+      mesh.scale.setScalar(q.r0 + (q.r1 - q.r0) * grow);
+      mat.color.setRGB(q.cr, q.cg, q.cb);
+      mat.opacity = 0.6 * Math.pow(1 - k, 1.6); // tipis & cepat hilang
+    }
+    for (let j = i; j < PULSE_POOL; j++) if (ringRefs.current[j]) ringRefs.current[j]!.visible = false;
+  });
+
+  return (
+    <group>
+      {Array.from({ length: PULSE_POOL }, (_, i) => (
+        <mesh
+          key={i}
+          ref={(m) => {
+            ringRefs.current[i] = m;
+          }}
+          geometry={ringGeo}
+          material={mats[i]}
+          visible={false}
+          frustumCulled={false}
+        />
+      ))}
+    </group>
+  );
+}
+
 /* ---------- Particles (instanced) ---------- */
 const MAX_PARTICLES = 150;
 const tmpColor = new THREE.Color();
@@ -1022,7 +1339,8 @@ function Particles() {
     for (const pt of engine.particles) {
       if (i >= MAX_PARTICLES) break;
       const k = 1 - pt.life / pt.max;
-      const s = pt.size * (0.4 + 0.6 * k);
+      // asap knalpot membesar seiring umur (grow), partikel lain mengecil
+      const s = pt.size * (pt.grow ? 0.45 + pt.grow * (1 - k) : 0.4 + 0.6 * k);
       tmpObj.position.set(pt.x, pt.y, pt.z);
       tmpObj.rotation.set(pt.rx, pt.ry, 0);
       tmpObj.scale.set(s, s * (pt.size > 0.15 && pt.gravity < 5 ? 0.35 : 1), s);
@@ -1066,11 +1384,14 @@ export function World() {
       <Puddles />
       <Petals />
       <NosCans />
+      <Rockets />
+      <RareFlash />
       <RoadSigns />
       <OverpassCars />
       <Movers />
       <Breads />
       <Particles />
+      <Pulses />
     </group>
   );
 }

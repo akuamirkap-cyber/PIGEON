@@ -101,6 +101,96 @@ export function carParts(variant: number): Part[] {
   ];
 }
 
+/**
+ * Motor gede + pengendaranya, hadap +x, roda menyentuh y = 0.
+ * Dipakai sebagai `MoverKind = "motorcycle"` (lalu lintas dari arah depan).
+ */
+export function motorcycleParts(variant: number): Part[] {
+  const paint = MOTOR_PAINTS[variant % MOTOR_PAINTS.length];
+  const tire = "#22242a";
+  const chrome = "#c3c9d2";
+  const riderJacket = RIDER_JACKETS[variant % RIDER_JACKETS.length];
+  const pants = RIDER_PANTS[variant % RIDER_PANTS.length];
+  const boots = "#1f2430";
+  const helmet = HELMET_COLORS[variant % HELMET_COLORS.length];
+  // -0.04: tinggi roda diturunkan sedikit supaya ban benar-benar menapak aspal (y = 0)
+  const DROP = -0.04;
+  const parts: Part[] = [
+    // ---- roda ----
+    { x: 0.62, y: 0.26, z: 0, w: 0.4, h: 0.4, d: 0.14, color: tire },
+    { x: 0.62, y: 0.26, z: 0, w: 0.16, h: 0.16, d: 0.17, color: chrome },
+    { x: -0.56, y: 0.26, z: 0, w: 0.44, h: 0.44, d: 0.17, color: tire },
+    { x: -0.56, y: 0.26, z: 0, w: 0.16, h: 0.16, d: 0.2, color: chrome },
+    // ---- rangka & mesin ----
+    { x: 0.04, y: 0.5, z: 0, w: 0.86, h: 0.24, d: 0.3, color: paint },
+    { x: 0.06, y: 0.34, z: 0, w: 0.5, h: 0.2, d: 0.36, color: "#3a3d45" },
+    { x: 0.3, y: 0.62, z: 0, w: 0.42, h: 0.2, d: 0.34, color: paint }, // tangki
+    { x: -0.32, y: 0.66, z: 0, w: 0.44, h: 0.14, d: 0.3, color: "#1f2126" }, // jok
+    { x: -0.56, y: 0.62, z: 0, w: 0.26, h: 0.16, d: 0.26, color: paint }, // buritan
+    { x: -0.7, y: 0.62, z: 0, w: 0.06, h: 0.1, d: 0.16, color: "#ff3b3b" }, // lampu belakang
+    // knalpot (asap keluar dari sini)
+    { x: -0.42, y: 0.3, z: 0.22, w: 0.6, h: 0.1, d: 0.1, color: chrome },
+    { x: -0.42, y: 0.3, z: -0.22, w: 0.6, h: 0.1, d: 0.1, color: chrome },
+    // ---- garpu depan, setang, lampu ----
+    { x: 0.6, y: 0.55, z: 0.11, w: 0.08, h: 0.62, d: 0.08, color: chrome },
+    { x: 0.6, y: 0.55, z: -0.11, w: 0.08, h: 0.62, d: 0.08, color: chrome },
+    { x: 0.56, y: 0.88, z: 0, w: 0.1, h: 0.09, d: 0.6, color: "#2c2f36" }, // setang
+    { x: 0.66, y: 0.86, z: 0, w: 0.14, h: 0.16, d: 0.24, color: "#fff7c2" }, // lampu depan
+    { x: 0.62, y: 1.06, z: 0.3, w: 0.06, h: 0.12, d: 0.12, color: "#2c2f36" }, // spion
+    { x: 0.62, y: 1.06, z: -0.3, w: 0.06, h: 0.12, d: 0.12, color: "#2c2f36" },
+    // pijakan kaki (footpeg) di sisi mesin
+    { x: 0.14, y: 0.44, z: 0.25, w: 0.11, h: 0.05, d: 0.16, color: chrome },
+    { x: 0.14, y: 0.44, z: -0.25, w: 0.11, h: 0.05, d: 0.16, color: chrome },
+    // ================= PENGENDARA =================
+    // Duduk straddle di jok: pinggul di jok (atas 0.73), paha maju, betis turun ke footpeg,
+    // badan sedikit membungkuk ke depan, kedua tangan benar-benar menggenggam grip setang.
+    { x: -0.28, y: 0.83, z: 0, w: 0.26, h: 0.2, d: 0.4, color: pants }, // pinggul
+    { x: -0.06, y: 0.78, z: 0.2, w: 0.38, h: 0.16, d: 0.16, color: pants }, // paha kiri
+    { x: -0.06, y: 0.78, z: -0.2, w: 0.38, h: 0.16, d: 0.16, color: pants }, // paha kanan
+    { x: 0.12, y: 0.62, z: 0.21, w: 0.16, h: 0.26, d: 0.15, color: pants }, // betis kiri
+    { x: 0.12, y: 0.62, z: -0.21, w: 0.16, h: 0.26, d: 0.15, color: pants }, // betis kanan
+    { x: 0.16, y: 0.5, z: 0.23, w: 0.24, h: 0.11, d: 0.16, color: boots }, // sepatu kiri di footpeg
+    { x: 0.16, y: 0.5, z: -0.23, w: 0.24, h: 0.11, d: 0.16, color: boots }, // sepatu kanan
+    // badan (jaket) dengan punggung condong ke depan
+    { x: -0.3, y: 0.97, z: 0, w: 0.3, h: 0.24, d: 0.42, color: riderJacket }, // perut
+    { x: -0.22, y: 1.17, z: 0, w: 0.32, h: 0.22, d: 0.44, color: riderJacket }, // dada
+    { x: -0.18, y: 1.29, z: 0, w: 0.3, h: 0.1, d: 0.46, color: riderJacket }, // bahu
+    { x: -0.22, y: 1.06, z: 0, w: 0.13, h: 0.36, d: 0.47, color: paint }, // strip resleting senada motor
+    { x: -0.22, y: 1.28, z: 0, w: 0.14, h: 0.07, d: 0.44, color: "#f1f3f6" }, // kerah putih
+    // lengan dua segmen dari bahu ke grip setang (siku membengkok, tangan pas di grip)
+    { x: 0.0, y: 1.2, z: 0.21, w: 0.38, h: 0.14, d: 0.14, rz: -0.36, color: riderJacket }, // lengan atas
+    { x: 0.0, y: 1.2, z: -0.21, w: 0.38, h: 0.14, d: 0.14, rz: -0.36, color: riderJacket },
+    { x: 0.33, y: 1.0, z: 0.26, w: 0.42, h: 0.13, d: 0.13, rz: -0.58, color: riderJacket }, // lengan bawah
+    { x: 0.33, y: 1.0, z: -0.26, w: 0.42, h: 0.13, d: 0.13, rz: -0.58, color: riderJacket },
+    { x: 0.52, y: 0.87, z: 0.29, w: 0.18, h: 0.17, d: 0.15, color: "#2b2f38" }, // sarung tangan menggenggam grip (+z)
+    { x: 0.52, y: 0.87, z: -0.29, w: 0.18, h: 0.17, d: 0.15, color: "#2b2f38" }, // sarung tangan menggenggam grip (-z)
+    // tas punggung kecil
+    { x: -0.46, y: 1.06, z: 0, w: 0.2, h: 0.34, d: 0.34, color: "#3f434c" },
+    { x: -0.55, y: 1.1, z: 0, w: 0.06, h: 0.16, d: 0.24, color: "#2b2f38" },
+    // ---- helm bulat dengan kaca depan (visor) ----
+    { x: -0.12, y: 1.34, z: 0, w: 0.15, h: 0.12, d: 0.15, color: "#e0b48f" }, // leher
+    { x: -0.1, y: 1.44, z: 0, w: 0.3, h: 0.17, d: 0.32, color: helmet }, // tempurung bawah
+    { x: -0.1, y: 1.555, z: 0, w: 0.25, h: 0.09, d: 0.28, color: helmet }, // tempurung atas (membulat)
+    { x: -0.1, y: 1.62, z: 0, w: 0.17, h: 0.045, d: 0.2, color: helmet }, // puncak helm
+    { x: -0.1, y: 1.36, z: 0, w: 0.32, h: 0.08, d: 0.34, color: helmet }, // dasar helm menutup tengkuk
+    { x: -0.1, y: 1.52, z: 0.175, w: 0.24, h: 0.16, d: 0.05, color: helmet }, // pelipis kiri
+    { x: -0.1, y: 1.52, z: -0.175, w: 0.24, h: 0.16, d: 0.05, color: helmet },
+    { x: 0.06, y: 1.47, z: 0, w: 0.1, h: 0.13, d: 0.29, color: "#20242c" }, // kaca helm (gelap)
+    { x: 0.05, y: 1.55, z: 0, w: 0.13, h: 0.05, d: 0.32, color: helmet }, // bibir atas kaca
+    { x: 0.04, y: 1.375, z: 0, w: 0.2, h: 0.09, d: 0.28, color: helmet }, // dagu (chin bar)
+    { x: -0.1, y: 1.6, z: 0, w: 0.22, h: 0.06, d: 0.33, color: paint }, // strip senada motor
+    { x: -0.27, y: 1.46, z: 0, w: 0.1, h: 0.12, d: 0.22, color: paint }, // spoiler belakang
+  ];
+  return parts.map((p) => ({ ...p, y: p.y + DROP }));
+}
+
+/** Warna bodi motor, jaket pengendara, dan helm (satu set per varian). */
+export const MOTOR_PAINTS = ["#e63946", "#2ec4b6", "#3d5a80", "#ffd60a", "#c77dff", "#f77f00"];
+const RIDER_JACKETS = ["#1f2430", "#3a3d45", "#5c4b3a", "#2b2f38", "#6b3f3f", "#2f4f4f"];
+/** Warna celana pengendara (denim gelap .. krem) supaya tiap varian kelihatan beda. */
+const RIDER_PANTS = ["#2f3440", "#4a4238", "#33415c", "#3d3a44", "#514a3d", "#2a3b3b"];
+const HELMET_COLORS = ["#f1faee", "#ffd60a", "#e63946", "#2ec4b6", "#dfe4ea", "#ff9f1c"];
+
 export function rampParts(): Part[] {
   const parts: Part[] = [];
   const steps = 8;
@@ -728,9 +818,32 @@ const PED_OUTFITS = [
   { top: "#f4a261", pants: "#264653", hair: "#8d5524", skin: "#f1c9a5" },
 ];
 
+/** Kakek/nenek yang menyeberang: cardigan hangat, rambut putih, kacamata, dan tongkat. */
+const ELDER_OUTFITS = [
+  { top: "#b8a389", pants: "#4a4e57", hair: "#e9e9ea", skin: "#e8c9a8" },
+  { top: "#c9a0dc", pants: "#5b5560", hair: "#f2f2f4", skin: "#f0d3b6" },
+  { top: "#8fbf9f", pants: "#454b52", hair: "#e4e4e6", skin: "#dfbb95" },
+];
+
+/** Di mana tongkat digenggam: jarak telapak tangan dari sendi bahu (pakai `pedestrianArmParts`). */
+export const CANE_GRIP_Y = -0.56;
+
+/**
+ * Tongkat kayu (pegangan + batang + ujung karet). Origin di telapak tangan, batang turun ke -y.
+ * Panjangnya pas: ujung karet menyentuh aspal saat lengan menjuntai santai
+ * (bahu 0.27 + tinggi badan 0.96 - 0.56 genggaman = 0.67 di atas jalan).
+ */
+export function caneParts(): Part[] {
+  return [
+    { x: 0.01, y: -0.04, z: 0, w: 0.075, h: 0.11, d: 0.075, color: "#8a5a2b" },
+    { x: 0.02, y: -0.36, z: 0, w: 0.05, h: 0.62, d: 0.05, color: "#a9713a" },
+    { x: 0.02, y: -0.66, z: 0, w: 0.06, h: 0.06, d: 0.06, color: "#2f3033" },
+  ];
+}
+
 /** Pedestrian head with facial features: normal eyes vs X X eyes and gaping open mouth (mangap) when hit. Origin at neck level (y = 0). */
-export function pedestrianHeadParts(variant: number, isHit = false): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
+export function pedestrianHeadParts(variant: number, isHit = false, elderly = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
   const parts: Part[] = [
     // head base
     { x: 0, y: 0.18, z: 0, w: 0.38, h: 0.4, d: 0.4, color: o.skin },
@@ -780,32 +893,54 @@ export function pedestrianHeadParts(variant: number, isHit = false): Part[] {
     // Cheeks blush
     parts.push({ x: 0.192, y: 0.12, z: 0.12, w: 0.015, h: 0.04, d: 0.05, color: "#f7a092" });
     parts.push({ x: 0.192, y: 0.12, z: -0.12, w: 0.015, h: 0.04, d: 0.05, color: "#f7a092" });
+
+    if (elderly) {
+      // kakek/nenek: kacamata bulat, kerutan halus, dan kumis/topi rambut putih
+      parts.push({ x: 0.202, y: 0.24, z: 0.09, w: 0.02, h: 0.03, d: 0.14, color: "#3b3f4a" }); // jembatan kacamata
+      parts.push({ x: 0.202, y: 0.2, z: 0.09, w: 0.02, h: 0.11, d: 0.11, color: "#5b6371" }); // lensa kanan
+      parts.push({ x: 0.202, y: 0.2, z: -0.09, w: 0.02, h: 0.11, d: 0.11, color: "#5b6371" }); // lensa kiri
+      parts.push({ x: 0.209, y: 0.2, z: 0.09, w: 0.012, h: 0.05, d: 0.05, color: "#1f2430" }); // pupil kiri
+      parts.push({ x: 0.209, y: 0.2, z: -0.09, w: 0.012, h: 0.05, d: 0.05, color: "#1f2430" }); // pupil kanan
+      parts.push({ x: 0.196, y: 0.12, z: 0.16, w: 0.014, h: 0.02, d: 0.06, color: "#d8b39c" }); // kerutan pipi
+      parts.push({ x: 0.196, y: 0.12, z: -0.16, w: 0.014, h: 0.02, d: 0.06, color: "#d8b39c" });
+    }
   }
 
   return parts;
 }
 
 /** Pedestrian torso. Origin at torso center (y = 0). */
-export function pedestrianTorsoParts(variant: number): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
-  return [
+export function pedestrianTorsoParts(variant: number, elderly = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
+  const parts: Part[] = [
     { x: 0, y: 0, z: 0, w: 0.42, h: 0.68, d: 0.52, color: o.top },
     { x: 0.12, y: 0.31, z: 0, w: 0.18, h: 0.08, d: 0.22, color: o.skin },
   ];
+  if (elderly) {
+    // punggung agak bungkuk (punuk di belakang bahu) + kerah cardigan
+    parts.push({ x: -0.16, y: 0.2, z: 0, w: 0.16, h: 0.3, d: 0.44, color: o.top });
+    parts.push({ x: 0.0, y: 0.31, z: 0, w: 0.44, h: 0.06, d: 0.5, color: "#ffffff" });
+  }
+  return parts;
 }
 
 /** Pedestrian arm. Origin at shoulder joint (y = 0), extends downward along -y. */
-export function pedestrianArmParts(variant: number, _side: 1 | -1 = 1): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
-  return [
+export function pedestrianArmParts(variant: number, _side: 1 | -1 = 1, elderly = false, holdsCane = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
+  const arm: Part[] = [
     { x: 0, y: -0.12, z: 0, w: 0.15, h: 0.24, d: 0.15, color: o.top },
     { x: 0, y: -0.38, z: 0, w: 0.13, h: 0.32, d: 0.13, color: o.skin },
   ];
+  if (holdsCane) {
+    // tangan menggenggam tongkat: kepalan sedikit lebih besar di ujung lengan
+    arm.push({ x: 0.01, y: -0.56, z: 0.02, w: 0.16, h: 0.14, d: 0.16, color: o.skin });
+  }
+  return arm;
 }
 
 /** Pedestrian leg. Origin at hip joint (y = 0), extends downward along -y. */
-export function pedestrianLegParts(variant: number, _side: 1 | -1 = 1): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
+export function pedestrianLegParts(variant: number, _side: 1 | -1 = 1, elderly = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
   return [
     { x: 0, y: -0.26, z: 0, w: 0.18, h: 0.52, d: 0.16, color: o.pants },
     { x: 0.03, y: -0.58, z: 0, w: 0.24, h: 0.12, d: 0.16, color: "#1f2430" },
@@ -813,8 +948,8 @@ export function pedestrianLegParts(variant: number, _side: 1 | -1 = 1): Part[] {
 }
 
 /** Pedestrian with tote bag / umbrella variants, facing +x. */
-export function pedestrianParts(variant: number, isHit = false): Part[] {
-  const o = PED_OUTFITS[variant % PED_OUTFITS.length];
+export function pedestrianParts(variant: number, isHit = false, elderly = false): Part[] {
+  const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
   const parts: Part[] = [
     { x: 0, y: 0.32, z: 0.11, w: 0.18, h: 0.64, d: 0.16, color: o.pants },
     { x: 0, y: 0.32, z: -0.11, w: 0.18, h: 0.64, d: 0.16, color: o.pants },
@@ -822,7 +957,7 @@ export function pedestrianParts(variant: number, isHit = false): Part[] {
     { x: 0, y: 0.95, z: 0.34, w: 0.15, h: 0.56, d: 0.15, color: o.top },
     { x: 0, y: 0.95, z: -0.34, w: 0.15, h: 0.56, d: 0.15, color: o.top },
     // head shifted to y = 1.32
-    ...pedestrianHeadParts(variant, isHit).map((p) => ({ ...p, y: p.y + 1.32 })),
+    ...pedestrianHeadParts(variant, isHit, elderly).map((p) => ({ ...p, y: p.y + 1.32 })),
   ];
   if (variant % 3 === 1) {
     // tote bag
@@ -913,6 +1048,10 @@ export function puddleParts(variant: number): Part[] {
 /* ---------- Perempatan (4-Way Crossroads / Intersection) ---------- */
 
 export const INTERSECTION_W = 8.4;
+/** Panjang jalan lintas di tiap sisi perempatan (dari dek |lat| 4 sampai ujungnya). */
+export const CROSS_STREET_LEN = 38;
+/** Titik tengah jalan lintas tiap sisi (|lat| 4 → 42). */
+const CROSS_STREET_MID = 4 + CROSS_STREET_LEN / 2;
 export const HOOD_JUMP_CLEAR_H = 0.88;
 
 /** Complete 4-way asphalt cross-street with raised lateral roadbeds, sidewalks, corner curb cuts, tactile blocks, and 4-way zebra crossings. */
@@ -940,11 +1079,11 @@ export function intersectionRoadParts(): Part[] {
 
   // 2. Lateral Cross-Streets (Left: z = -4.0 to -30, Right: z = +4.0 to +30)
   // Raised to y = 0.145 (surface top at y = 0.175) so it cleanly overlays ground sidewalk (0.12) & curbs (0.14)
-  for (const sz of [-17, 17]) {
-    // Roadbed asphalt (26m long each side, 8.4m wide)
-    parts.push({ x: 0, y: 0.145, z: sz, w: W, h: 0.06, d: 26, color: asphalt });
+  for (const sz of [-CROSS_STREET_MID, CROSS_STREET_MID]) {
+    // Roadbed asphalt (38m long each side, 8.4m wide)
+    parts.push({ x: 0, y: 0.145, z: sz, w: W, h: 0.06, d: CROSS_STREET_LEN, color: asphalt });
     // Underneath skirt foundation down to y = -0.3 to prevent any floating seams
-    parts.push({ x: 0, y: -0.05, z: sz, w: W + 0.1, h: 0.35, d: 26, color: "#2d3139" });
+    parts.push({ x: 0, y: -0.05, z: sz, w: W + 0.1, h: 0.35, d: CROSS_STREET_LEN, color: "#2d3139" });
   }
 
   // Smooth curb-cut ramp connecting main street (y = 0) to cross street (y = 0.145)
@@ -957,11 +1096,11 @@ export function intersectionRoadParts(): Part[] {
     const curbX = side * (halfW + 0.18);
     const walkX = side * (halfW + 0.95);
     for (const dir of [-1, 1]) {
-      const walkZ = dir * 17;
+      const walkZ = dir * CROSS_STREET_MID;
       // Curb stone along the side street
-      parts.push({ x: curbX, y: 0.18, z: walkZ, w: 0.36, h: 0.14, d: 25.5, color: curb });
+      parts.push({ x: curbX, y: 0.18, z: walkZ, w: 0.36, h: 0.14, d: CROSS_STREET_LEN - 0.5, color: curb });
       // Sidewalk paving tiles along the side street
-      parts.push({ x: walkX, y: 0.165, z: walkZ, w: 1.25, h: 0.11, d: 25.5, color: sidewalk });
+      parts.push({ x: walkX, y: 0.165, z: walkZ, w: 1.25, h: 0.11, d: CROSS_STREET_LEN - 0.5, color: sidewalk });
     }
   }
 
@@ -983,14 +1122,14 @@ export function intersectionRoadParts(): Part[] {
 
   // 6. Double Solid Yellow Center Dividing Lines on the Cross-Street
   for (const dir of [-1, 1]) {
-    for (let z = 5.2; z <= 28; z += 1.8) {
+    for (let z = 5.2; z <= CROSS_STREET_MID + CROSS_STREET_LEN / 2 - 1; z += 1.8) {
       const cz = dir * z;
       parts.push({ x: -0.15, y: 0.18, z: cz, w: 0.14, h: 0.022, d: 1.3, color: yellow });
       parts.push({ x: 0.15, y: 0.18, z: cz, w: 0.14, h: 0.022, d: 1.3, color: yellow });
     }
     // Solid white shoulder edge lines on the cross street
     for (const sx of [-halfW + 0.5, halfW - 0.5]) {
-      parts.push({ x: sx, y: 0.178, z: dir * 17, w: 0.16, h: 0.022, d: 24, color: white });
+      parts.push({ x: sx, y: 0.178, z: dir * CROSS_STREET_MID, w: 0.16, h: 0.022, d: CROSS_STREET_LEN - 3, color: white });
     }
     // Painted directional arrows on the cross-street lanes
     const arrowZ = dir * 11;
@@ -1148,19 +1287,116 @@ export function crossingCarParts(variant: number): Part[] {
 
     // --- 5. WHEELS & HUBS ---
     // Front wheels (x = +1.0)
-    { x: 1.0, y: 0.27, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
-    { x: 1.0, y: 0.27, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
-    { x: 1.0, y: 0.27, z: 0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
-    { x: 1.0, y: 0.27, z: -0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
+    // y roda 0.29 = jari-jari 0.29, jadi tapak ban tepat di y = 0 (menapak permukaan, tidak terbenam)
+    { x: 1.0, y: 0.29, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
+    { x: 1.0, y: 0.29, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
+    { x: 1.0, y: 0.29, z: 0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
+    { x: 1.0, y: 0.29, z: -0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
     // Rear wheels (x = -1.0)
-    { x: -1.0, y: 0.27, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
-    { x: -1.0, y: 0.27, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
-    { x: -1.0, y: 0.27, z: 0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
-    { x: -1.0, y: 0.27, z: -0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
+    { x: -1.0, y: 0.29, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
+    { x: -1.0, y: 0.29, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
+    { x: -1.0, y: 0.29, z: 0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
+    { x: -1.0, y: 0.29, z: -0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
   ];
 }
 
 /* ---------- NOS ---------- */
+
+/**
+ * ROCKET — item LANGKA (jarang muncul). Bentuknya roket emas-ungu-putih dengan jendela
+ * biru, sirip emas, dan moncong merah; nyalanya menyala di bagian bawah.
+ * Dipakai pick-up `engine.rockets`: sekali ambil langsung NOS penuh + skor besar.
+ */
+export function rocketParts(): Part[] {
+  const white = "#f4f6fa";
+  const gold = "#ffc93c";
+  const goldDark = "#d69a12";
+  const purple = "#7b3ff2";
+  const red = "#e63946";
+  const dark = "#2b2f38";
+  return [
+    // ---- nozzle + nyala ----
+    { x: 0, y: 0.06, z: 0, w: 0.2, h: 0.12, d: 0.2, color: dark },
+    { x: 0, y: 0.16, z: 0, w: 0.14, h: 0.12, d: 0.14, color: "#ff8c1a" },
+    { x: 0, y: 0.25, z: 0, w: 0.09, h: 0.12, d: 0.09, color: "#ffe066" },
+    // ---- sirip emas (4 arah) ----
+    { x: 0, y: 0.34, z: 0.19, w: 0.06, h: 0.3, d: 0.22, color: gold },
+    { x: 0, y: 0.34, z: -0.19, w: 0.06, h: 0.3, d: 0.22, color: gold },
+    { x: 0.19, y: 0.34, z: 0, w: 0.22, h: 0.3, d: 0.06, color: gold },
+    { x: -0.19, y: 0.34, z: 0, w: 0.22, h: 0.3, d: 0.06, color: gold },
+    // ---- badan roket ----
+    { x: 0, y: 0.62, z: 0, w: 0.3, h: 0.46, d: 0.3, color: white },
+    { x: 0, y: 0.46, z: 0, w: 0.33, h: 0.08, d: 0.33, color: goldDark }, // ring bawah
+    { x: 0, y: 0.62, z: 0, w: 0.31, h: 0.1, d: 0.31, color: purple }, // pita ungu
+    { x: 0, y: 0.78, z: 0, w: 0.31, h: 0.04, d: 0.31, color: gold }, // garis emas
+    // jendela kokpit
+    { x: 0.16, y: 0.66, z: 0, w: 0.04, h: 0.14, d: 0.14, color: "#65d6ff" },
+    { x: 0.17, y: 0.66, z: 0.02, w: 0.02, h: 0.06, d: 0.05, color: "#eaf9ff" },
+    // ---- moncong meruncing ke atas (merah + emas) ----
+    { x: 0, y: 0.9, z: 0, w: 0.3, h: 0.1, d: 0.3, color: red },
+    { x: 0, y: 0.99, z: 0, w: 0.22, h: 0.09, d: 0.22, color: red },
+    { x: 0, y: 1.06, z: 0, w: 0.14, h: 0.08, d: 0.14, color: red },
+    { x: 0, y: 1.126, z: 0, w: 0.07, h: 0.07, d: 0.07, color: gold },
+    // bintang emas kecil di badan (tanda item berharga)
+    { x: 0, y: 0.7, z: -0.16, w: 0.14, h: 0.14, d: 0.03, color: gold },
+    { x: 0, y: 0.7, z: -0.17, w: 0.05, h: 0.05, d: 0.02, color: "#fff3c4" },
+  ];
+}
+
+/** Item LANGKA #2: berlian raksasa (biru-cyan) — hadiah skor paling gede. */
+export function diamondParts(): Part[] {
+  const cyan = "#4fd8ff";
+  const cyanDark = "#1899c9";
+  const white = "#eaf9ff";
+  const gold = "#ffc93c";
+  return [
+    // alas emas kecil
+    { x: 0, y: 0.03, z: 0, w: 0.34, h: 0.06, d: 0.34, color: gold },
+    { x: 0, y: 0.08, z: 0, w: 0.24, h: 0.05, d: 0.24, color: "#d69a12" },
+    // badan berlian: piramida bertingkat (atas -> bawah)
+    { x: 0, y: 0.86, z: 0, w: 0.08, h: 0.1, d: 0.08, color: white },
+    { x: 0, y: 0.74, z: 0, w: 0.16, h: 0.14, d: 0.16, color: cyan },
+    { x: 0, y: 0.58, z: 0, w: 0.26, h: 0.18, d: 0.26, color: cyan },
+    { x: 0, y: 0.38, z: 0, w: 0.34, h: 0.22, d: 0.34, color: cyan },
+    { x: 0, y: 0.22, z: 0, w: 0.28, h: 0.14, d: 0.28, color: cyanDark },
+    // kilap / facet terang
+    { x: 0.09, y: 0.6, z: 0.13, w: 0.08, h: 0.24, d: 0.04, color: white },
+    { x: -0.13, y: 0.42, z: -0.09, w: 0.05, h: 0.18, d: 0.05, color: white },
+    { x: 0, y: 0.44, z: -0.18, w: 0.1, h: 0.1, d: 0.02, color: "#bdf1ff" },
+  ];
+}
+
+/** Item LANGKA #3 (paling jarang): mahkota emas — jackpot NOS + skor. */
+export function crownParts(): Part[] {
+  const white = "#eaf9ff";
+  const gold = "#ffc93c";
+  const goldDark = "#d69a12";
+  const red = "#e63946";
+  const purple = "#7b3ff2";
+  const gem = "#ff5ea8";
+  return [
+    // bantalan mahkota
+    { x: 0, y: 0.1, z: 0, w: 0.46, h: 0.2, d: 0.46, color: gold },
+    { x: 0, y: 0.22, z: 0, w: 0.42, h: 0.06, d: 0.42, color: goldDark },
+    { x: 0, y: 0.05, z: 0, w: 0.42, h: 0.08, d: 0.42, color: purple }, // kain ungu
+    // 4 gigi mahkota
+    { x: 0, y: 0.42, z: 0, w: 0.1, h: 0.32, d: 0.1, color: gold },
+    { x: 0.19, y: 0.36, z: 0, w: 0.1, h: 0.24, d: 0.1, color: goldDark },
+    { x: -0.19, y: 0.36, z: 0, w: 0.1, h: 0.24, d: 0.1, color: goldDark },
+    { x: 0, y: 0.36, z: 0.19, w: 0.1, h: 0.24, d: 0.1, color: goldDark },
+    { x: 0, y: 0.36, z: -0.19, w: 0.1, h: 0.24, d: 0.1, color: goldDark },
+    // bola-bola di ujung gigi
+    { x: 0, y: 0.62, z: 0, w: 0.09, h: 0.09, d: 0.09, color: "#fff3c4" },
+    { x: 0.19, y: 0.52, z: 0, w: 0.08, h: 0.08, d: 0.08, color: white },
+    { x: -0.19, y: 0.52, z: 0, w: 0.08, h: 0.08, d: 0.08, color: white },
+    { x: 0, y: 0.52, z: 0.19, w: 0.08, h: 0.08, d: 0.08, color: red },
+    { x: 0, y: 0.52, z: -0.19, w: 0.08, h: 0.08, d: 0.08, color: red },
+    // permata di ikat pinggang mahkota
+    { x: 0, y: 0.11, z: 0.24, w: 0.14, h: 0.14, d: 0.03, color: gem },
+    { x: 0.24, y: 0.11, z: 0, w: 0.03, h: 0.14, d: 0.14, color: gem },
+    { x: -0.24, y: 0.11, z: 0, w: 0.03, h: 0.14, d: 0.14, color: gem },
+  ];
+}
 
 /** Nitro canister pickup: blue bottle with a yellow "N" band and a red valve. */
 export function nosCanParts(): Part[] {

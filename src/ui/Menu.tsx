@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useUI } from "../game/store";
+import { useUI, WHEEL_COLORS } from "../game/store";
 import { engine } from "../game/engine";
 import { getSkin, SKINS } from "../game/skins";
 import { sfx, unlockAudio } from "../game/audio";
@@ -43,8 +43,21 @@ function Dots({ current }: { current: string }) {
 }
 
 /** Compact setting pill: shows the current value and cycles to the next one on tap. */
-function CyclePill({ label, value, onTap, tone }: { label: string; value: string; onTap: () => void; tone: "orange" | "teal" }) {
-  const bg = tone === "orange" ? "bg-[#ff9f1c] shadow-[0_3px_0_#c9700a]" : "bg-[#2ec4b6] shadow-[0_3px_0_#1f9a8f]";
+function CyclePill({
+  label,
+  value,
+  onTap,
+  accent,
+  dot,
+}: {
+  label: string;
+  value: string;
+  onTap: () => void;
+  /** warna aksen saat nilai aktif (non-default) */
+  accent?: string;
+  /** warna bulatan kecil di kiri (untuk indikator warna ban) */
+  dot?: string;
+}) {
   return (
     <button
       type="button"
@@ -53,10 +66,15 @@ function CyclePill({ label, value, onTap, tone }: { label: string; value: string
         sfx.click();
         onTap();
       }}
-      className={`pointer-events-auto flex flex-1 flex-col items-center justify-center rounded-2xl px-1.5 py-1.5 leading-none text-[#1f2430] active:translate-y-[2px] active:shadow-none ${bg}`}
+      className="pointer-events-auto flex min-h-[46px] flex-1 flex-col items-center justify-center rounded-2xl bg-white/95 px-1.5 py-1.5 leading-none shadow-[0_3px_0_rgba(0,0,0,0.12)] transition-transform active:translate-y-[2px] active:shadow-none"
     >
-      <span className="font-body text-[2.1cqw] font-extrabold tracking-[0.12em] text-[#1f2430]/75">{label}</span>
-      <span className="mt-1 font-display text-[3.1cqw] truncate max-w-full px-0.5">{value}</span>
+      <span className="font-body text-[2.1cqw] font-extrabold tracking-[0.14em] text-[#1f2430]/55">{label}</span>
+      <span className="mt-1 flex max-w-full items-center gap-1 font-display text-[3.1cqw] leading-none text-[#1f2430]">
+        {dot && <span className="h-[2.6cqw] w-[2.6cqw] shrink-0 rounded-full border border-black/20" style={{ background: dot }} />}
+        <span className="truncate px-0.5" style={accent ? { color: accent } : undefined}>
+          {value}
+        </span>
+      </span>
     </button>
   );
 }
@@ -74,46 +92,42 @@ function TrackModeRow() {
     engine.setTrackMode(mode);
     if (mode === "haruna") {
       sfx.unlock();
-      addPopup("TRACK: MT. HARUNA ⛰️", "#ff9f1c", "Gunma Touge Downhill & Hairpins");
+      addPopup("TRACK: MT. HARUNA", "#ff9f1c", "Gunma Touge Downhill & Hairpins");
     } else {
       sfx.click();
-      addPopup("TRACK: TOKYO CITY 🏙️", "#2ec4b6", "Shibuya Streets & Crossings");
+      addPopup("TRACK: TOKYO CITY", "#2ec4b6", "Shibuya Streets & Crossings");
     }
   };
 
+  const cell = (mode: "haruna" | "tokyo", title: string, badge: string, activeBg: string, activeShadow: string) => {
+    const active = trackMode === mode;
+    return (
+      <button
+        type="button"
+        onClick={() => selectTrack(mode)}
+        className={`pointer-events-auto flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl font-display text-[3.2cqw] leading-none transition-all active:translate-y-[1px] ${
+          active ? `${activeBg} text-[#1f2430] shadow-[0_3px_0_${activeShadow}]` : "text-[#1f2430]/60"
+        }`}
+      >
+        <span>{title}</span>
+        <span className={`rounded px-1 py-0.5 font-body text-[1.9cqw] font-black ${active ? "bg-black/15" : "bg-black/10"}`}>{badge}</span>
+      </button>
+    );
+  };
+
   return (
-    <div className="flex w-full items-center gap-1 rounded-2xl bg-black/40 p-1 backdrop-blur-[4px] shadow-[0_3px_0_rgba(0,0,0,0.2)]">
-      <button
-        type="button"
-        onClick={() => selectTrack("haruna")}
-        className={`pointer-events-auto flex flex-1 items-center justify-center gap-1.5 rounded-xl py-1.5 font-display text-[3.4cqw] leading-none transition-all active:translate-y-[1px] ${
-          trackMode === "haruna"
-            ? "bg-[#ff9f1c] text-[#1f2430] shadow-[0_3px_0_#c9700a]"
-            : "text-white/70 hover:text-white"
-        }`}
-      >
-        <span>⛰️</span>
-        <span>MT. HARUNA</span>
-        <span className={`rounded px-1 py-0.5 font-body text-[2cqw] font-black ${trackMode === "haruna" ? "bg-black/20 text-[#1f2430]" : "bg-white/10 text-white/60"}`}>GUNMA</span>
-      </button>
-      <button
-        type="button"
-        onClick={() => selectTrack("tokyo")}
-        className={`pointer-events-auto flex flex-1 items-center justify-center gap-1.5 rounded-xl py-1.5 font-display text-[3.4cqw] leading-none transition-all active:translate-y-[1px] ${
-          trackMode === "tokyo"
-            ? "bg-[#2ec4b6] text-white shadow-[0_3px_0_#1f9a8f]"
-            : "text-white/70 hover:text-white"
-        }`}
-      >
-        <span>🏙️</span>
-        <span>TOKYO CITY</span>
-        <span className={`rounded px-1 py-0.5 font-body text-[2cqw] font-black ${trackMode === "tokyo" ? "bg-black/20 text-white" : "bg-white/10 text-white/60"}`}>SHIBUYA</span>
-      </button>
+    <div className="flex w-full items-center gap-1 rounded-2xl bg-[#1f2430]/25 p-1 backdrop-blur-[3px]">
+      {cell("haruna", "MT. HARUNA", "GUNMA", "bg-[#ffc46b]", "#c9700a")}
+      {cell("tokyo", "TOKYO CITY", "SHIBUYA", "bg-[#7ce0d4]", "#1f9a8f")}
     </div>
   );
 }
 
-/** Skate speed (NORMAL / 2× / 3×), world curve (SUBWAY / FLAT), board (CLASSIC / 🥖 BAGUETTE), and turning style. */
+/**
+ * Setelan cepat dalam grid rapi (mobile friendly):
+ * SPEED (normal/2×/3×), CURVE (subway/flat), BOARD (pro/roti),
+ * TURN (steer/slide), BAN (warna roda), plus tombol "?" untuk tips kontrol.
+ */
 function SettingsRow() {
   const speed = useUI((s) => s.speedMode);
   const setSpeed = useUI((s) => s.setSpeedMode);
@@ -123,7 +137,10 @@ function SettingsRow() {
   const setDeck = useUI((s) => s.setDeckOverride);
   const curve = useUI((s) => s.worldCurve);
   const setCurve = useUI((s) => s.setWorldCurve);
+  const wheel = useUI((s) => s.wheelColor);
+  const setWheel = useUI((s) => s.setWheelColor);
   const addPopup = useUI((s) => s.addPopup);
+  const [tips, setTips] = useState(false);
 
   const toggleDeck = () => {
     const next = deck === "baguette" ? "default" : "baguette";
@@ -131,10 +148,10 @@ function SettingsRow() {
     engine.skinPop();
     if (next === "baguette") {
       sfx.unlock();
-      addPopup("PAPAN ROTI BAGUETTE! 🥖", "#ff9f1c", "Free Baguette Skateboard");
+      addPopup("PAPAN ROTI BAGUETTE!", "#ff9f1c", "Free Baguette Skateboard");
     } else {
       sfx.click();
-      addPopup("PAPAN STANDAR 🛹", "#2ec4b6", "Classic Pro Deck");
+      addPopup("PAPAN STANDAR", "#2ec4b6", "Classic Pro Deck");
     }
   };
 
@@ -143,19 +160,54 @@ function SettingsRow() {
     setCurve(next);
     if (next === "subway") {
       sfx.unlock();
-      addPopup("SUBWAY CURVE 🌍", "#4cc9f0", "World Curvature ON");
+      addPopup("SUBWAY CURVE", "#4cc9f0", "World Curvature ON");
     } else {
       sfx.click();
-      addPopup("FLAT WORLD 📏", "#a0aec0", "World Curvature OFF");
+      addPopup("FLAT WORLD", "#a0aec0", "World Curvature OFF");
     }
   };
 
+  const cycleWheel = () => {
+    const idx = WHEEL_COLORS.findIndex((w) => w.id === wheel);
+    const next = WHEEL_COLORS[(idx + 1) % WHEEL_COLORS.length];
+    setWheel(next.id);
+    engine.skinPop();
+    if (next.id === "auto") sfx.click();
+    else sfx.unlock();
+  };
+
+  const wheelDot = WHEEL_COLORS.find((w) => w.id === wheel)?.hex;
+  const wheelLabel = WHEEL_COLORS.find((w) => w.id === wheel)?.label ?? "HITAM";
+
   return (
-    <div className="flex w-full gap-1.5">
-      <CyclePill label="SPEED" value={speed === 1 ? "NORMAL" : `${speed}×`} tone="orange" onTap={() => setSpeed(speed === 1 ? 2 : speed === 2 ? 3 : 1)} />
-      <CyclePill label="CURVE" value={curve === "subway" ? "SUBWAY 🌍" : "FLAT 📏"} tone="teal" onTap={toggleCurve} />
-      <CyclePill label="BOARD" value={deck === "baguette" ? "🥖 ROTI" : "🛹 PRO"} tone={deck === "baguette" ? "orange" : "teal"} onTap={toggleDeck} />
-      <CyclePill label="TURN" value={turn === "new" ? "STEER" : "SLIDE"} tone="orange" onTap={() => setTurn(turn === "new" ? "old" : "new")} />
+    <div className="flex flex-col gap-1.5">
+      <div className="flex w-full gap-1.5">
+        <CyclePill label="SPEED" value={speed === 1 ? "NORMAL" : `${speed}×`} accent={speed > 1 ? "#c9700a" : undefined} onTap={() => setSpeed(speed === 1 ? 2 : speed === 2 ? 3 : 1)} />
+        <CyclePill label="CURVE" value={curve === "subway" ? "SUBWAY" : "FLAT"} onTap={toggleCurve} />
+        <CyclePill label="BOARD" value={deck === "baguette" ? "ROTI" : "PRO"} accent={deck === "baguette" ? "#c9700a" : undefined} onTap={toggleDeck} />
+      </div>
+      <div className="flex w-full gap-1.5">
+        <CyclePill label="TURN" value={turn === "new" ? "STEER" : "SLIDE"} onTap={() => setTurn(turn === "new" ? "old" : "new")} />
+        <CyclePill label="BAN" value={wheelLabel} dot={wheelDot} onTap={cycleWheel} />
+        <button
+          type="button"
+          onClick={() => {
+            sfx.click();
+            setTips((v) => !v);
+          }}
+          aria-label="Cara main"
+          className={`pointer-events-auto flex min-h-[46px] w-[16%] shrink-0 items-center justify-center rounded-2xl font-display text-[4cqw] leading-none shadow-[0_3px_0_rgba(0,0,0,0.12)] transition-transform active:translate-y-[2px] active:shadow-none ${
+            tips ? "bg-[#1f2430] text-white" : "bg-white/95 text-[#1f2430]"
+          }`}
+        >
+          ?
+        </button>
+      </div>
+      {tips && (
+        <div className="rounded-2xl bg-white/90 px-3 py-2 text-center font-body text-[2.7cqw] font-extrabold leading-snug text-[#1f2430]/75 backdrop-blur-[2px]">
+          Swipe ↔ pindah jalur · tap / ↑ lompat · SPRINT = kayuh cepat · NOS kalau penuh
+        </div>
+      )}
     </div>
   );
 }
@@ -207,12 +259,12 @@ function MainMenu() {
   return (
     <div className="pointer-events-none absolute inset-0 z-20 select-none">
       {/* ── top bar: wallet · best · (mute lives in HUD) ── */}
-      <div className="absolute left-[4%] top-[3.5%] flex h-10 items-center gap-1.5 rounded-full bg-black/25 px-3 backdrop-blur-[2px]">
+      <div className="absolute left-[4%] top-[3.5%] flex h-10 items-center gap-1.5 rounded-full bg-[#1f2430]/55 px-3 shadow-[0_3px_0_rgba(0,0,0,0.18)] backdrop-blur-[2px]">
         <BreadIcon size={22} />
         <span className="font-display txt-outline-sm text-[4.6cqw] leading-none text-white">{wallet}</span>
       </div>
       {best > 0 && (
-        <div className="absolute left-1/2 top-[3.5%] flex h-10 -translate-x-1/2 items-center rounded-full bg-black/25 px-3 font-display text-[3.4cqw] leading-none text-[#ffd60a] txt-outline-sm backdrop-blur-[2px]">
+        <div className="absolute left-1/2 top-[3.5%] flex h-10 -translate-x-1/2 items-center rounded-full bg-[#1f2430]/55 px-3 font-display text-[3.4cqw] leading-none text-[#ffd60a] shadow-[0_3px_0_rgba(0,0,0,0.18)] backdrop-blur-[2px]">
           BEST {best}
         </div>
       )}
@@ -235,7 +287,7 @@ function MainMenu() {
       </div>
       <div className="absolute left-0 right-0 top-[63%] flex flex-col items-center gap-[1.2cqw]">
         <div
-          className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 font-display text-[4.4cqw] leading-none shadow-[0_3px_0_rgba(0,0,0,0.15)] ${
+          className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 font-display text-[4.4cqw] leading-none shadow-[0_4px_0_rgba(0,0,0,0.18)] ${
             isUnlocked ? "bg-white text-[#1f2430]" : "bg-[#1f2430] text-white"
           }`}
         >
@@ -247,19 +299,20 @@ function MainMenu() {
       </div>
 
       {/* ── buttons ── */}
-      <div className="absolute bottom-[3.5%] left-[7%] right-[7%] flex flex-col gap-1.5">
-        <TrackModeRow />
-        <SettingsRow />
-        <div className="hidden rounded-xl bg-white/85 px-3 py-1 text-center font-body text-[2.6cqw] font-extrabold leading-snug text-[#1f2430]/80 [@media(min-height:700px)]:block">
-          Swipe ↔ lanes · ↑ / tap = jump · S = next freestyle · SPRINT button (Shift) = kick faster, NOS when full
+      <div className="absolute bottom-[3%] left-[6%] right-[6%] flex flex-col gap-1.5">
+        {/* panel setelan: satu kartu rapi biar tidak berantakan di layar HP */}
+        <div className="flex flex-col gap-1.5 rounded-[24px] bg-black/15 p-1.5 backdrop-blur-[2px]">
+          <TrackModeRow />
+          <SettingsRow />
         </div>
         {isUnlocked ? (
           <button
             type="button"
             onClick={start}
-            className="pointer-events-auto w-full rounded-2xl bg-[#2ec4b6] py-[3.2cqw] font-display text-[7cqw] leading-none text-white shadow-[0_6px_0_#1f9a8f] active:translate-y-[4px] active:shadow-[0_2px_0_#1f9a8f]"
+            className="pointer-events-auto relative w-full overflow-hidden rounded-2xl bg-gradient-to-b from-[#3ddbc9] to-[#22b3a5] py-[3.6cqw] font-display text-[7.6cqw] leading-none text-white shadow-[0_6px_0_#1f9a8f] active:translate-y-[4px] active:shadow-[0_2px_0_#1f9a8f]"
           >
-            START
+            <span className="relative z-10">START</span>
+            <span className="shine pointer-events-none absolute inset-y-0 w-[22%] -rotate-12 bg-white/25 blur-[2px]" />
           </button>
         ) : (
           <div key={shakeKey} className={shakeKey ? "shake" : undefined}>

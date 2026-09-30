@@ -85,6 +85,35 @@ body,
 .card-in {
   animation: card-in 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
+
+/* Kilau lembut menyapu tombol START biar mata langsung tertuju ke sana */
+.shine {
+  animation: shine 2.6s ease-in-out infinite;
+}
+@keyframes shine {
+  0%,
+  62% {
+    left: -30%;
+    opacity: 0;
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    left: 110%;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shine,
+  .pulse,
+  .popup,
+  .card-in,
+  .shake {
+    animation: none;
+  }
+}
 @keyframes card-in {
   from {
     transform: translateY(40px) scale(0.85);

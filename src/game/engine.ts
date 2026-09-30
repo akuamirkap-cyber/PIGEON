@@ -28,12 +28,46 @@ export const START_S = 14;
 export const CAR_HALF = 1.7;
 export const CAR_HIT = 1.6;
 export const CAR_ROOF_H = 1.52;
-export const CHICKEN_HIT = 0.72;
+/* ---------- Ukuran hewan (BESARIN): kucing 1.7x, ayam 1.2x ----------
+ * Semua angka ukuran hewan ada di blok ini supaya skala model di World.tsx,
+ * hitbox tabrakan, dan radius ragdoll tidak pernah beda. Yang diubah kalau mau
+ * retune cukup CAT_SIZE_BOOST / CHICKEN_SIZE_BOOST.
+ */
+/** Tinggi model pada skala 1 (unit `models.ts`: catWalkParts(), chickenParts()). */
+export const CAT_MODEL_H = 0.775;
+export const CHICKEN_MODEL_H = 1.25;
+export const CAT_MODEL_SCALE = 0.7; // ukuran dasar kucing
+export const CHICKEN_MODEL_SCALE = 0.58; // ukuran dasar ayam
+export const CAT_SIZE_BOOST = 1.7; // BESARIN kucing 1.7x
+export const CHICKEN_SIZE_BOOST = 1.2; // BESARIN ayam 1.2x
+/** Skala akhir yang dipakai World.tsx untuk menggambar hewannya. */
+export const CAT_SCALE = CAT_MODEL_SCALE * CAT_SIZE_BOOST; // = 1.19 (dulu 0.70)
+export const CHICKEN_SCALE = CHICKEN_MODEL_SCALE * CHICKEN_SIZE_BOOST; // = 0.696 (dulu 0.58)
+/** Tinggi akhir model (m), dipakai untuk clearance lompatan & radius ragdoll. */
+export const CAT_HEIGHT = CAT_MODEL_H * CAT_SCALE; // ~0.92 m
+export const CHICKEN_HEIGHT = CHICKEN_MODEL_H * CHICKEN_SCALE; // ~0.87 m
+/** Ayam: tingginya naik bareng ukuran, hitbox clearance ikut naik (dulu 0.72). */
+export const CHICKEN_HIT = CHICKEN_HEIGHT;
+/** Kucing: 1.2 masih di atas kucing 1.7x (0.92) dan di bawah puncak lompatan (~1.84). */
+export const CAT_CLEAR_H = 1.2;
 const CHICKEN_HOP_T = 0.32;
 const CHICKEN_STEP = 1.2;
 const CHICKEN_EDGE = 6.6;
 const CHICKEN_HOP_H = 0.45;
 export const SIGN_AHEAD = 7.8;
+/** Tinggi lompatan yang cukup untuk melewati pengendara motor (helm + badan motor). */
+export const MOTOR_CLEAR_H = 1.55;
+/* ---------- Tabrakan hewan ala kartun: MENTAL + denyut tipis ----------
+ * Hewan yang ditabrak dilontarkan tinggi & muter-muter, plus SATU cincin denyut
+ * tipis di titik tabrakan (ala ripple knockback). TANPA screen shake, TANPA
+ * freeze-frame, dan kamera cuma dapat nudge zoom tipis.
+ */
+/** Pantulan ekstra kenyal untuk hewan yang mental. */
+export const ANIMAL_BOUNCE = 1.45;
+/** Gayaberat hewan saat mental (lebih kecil = hang time ala kartun). */
+export const ANIMAL_GRAVITY_SCALE = 0.72;
+/** Denyut kamera: cuma sedikit zoom halus, bukan guncangan layar. */
+export const ANIMAL_PUNCH = 0.35;
 // railway crossing
 export const TRAIN_HIT = 2.3;
 export const TRAIN_SPEED = 8;
@@ -44,7 +78,7 @@ export const CROSSING_RAMP_S = -4.8;
 export const FIRST_CROSSING_M = 50;
 export const CROSSING_GAP: [number, number] = [150, 260];
 export const ARM_INNER = GATE_LAT - 0.3 - ARM_LEN; // lateral reach of a lowered arm (from its gate)
-export type CrashCause = "obstacle" | "car" | "oncoming" | "chicken" | "train" | "gate" | "pedestrian" | "roadwork" | "cross_traffic";
+export type CrashCause = "obstacle" | "car" | "oncoming" | "motorcycle" | "chicken" | "train" | "gate" | "pedestrian" | "roadwork" | "cross_traffic";
 // NOS (nitro boost)
 export const NOS_MAX = 100;
 export const NOS_DURATION = 2.6;
@@ -52,6 +86,47 @@ export const NOS_SPEED_MULT = 1.75;
 export const NOS_PER_BREAD = 6;
 export const NOS_PER_TRICK = 10;
 export const NOS_CAN_S = 50;
+/** Jarak antar-item LANGKA (roket NOS): jarang, rata-rata ~1 tiap 270 m. */
+export const ROCKET_GAP: [number, number] = [200, 340];
+/**
+ * Jenis ITEM LANGKA yang muncul di jalan. Roket = NOS, Berlian = skor paling gede,
+ * Mahkota = jackpot (paling jarang). Semua bercahaya raylight & wajib bisa diambil.
+ */
+export type RareKind = "rocket" | "diamond" | "crown";
+/** Bobot undian jenis item langka (roket paling sering, mahkota paling jarang). */
+export function pickRareKind(): RareKind {
+  const total = RARE_WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
+  let roll = Math.random() * total;
+  for (const [kind, w] of RARE_WEIGHTS) {
+    roll -= w;
+    if (roll <= 0) return kind;
+  }
+  return RARE_WEIGHTS[0][0];
+}
+
+export const RARE_WEIGHTS: [RareKind, number][] = [
+  ["rocket", 55],
+  ["diamond", 30],
+  ["crown", 15],
+];
+/** Hadiah tiap jenis: NOS (0..1 dari NOS_MAX) + skor + teks popup. */
+export const RARE_REWARD: Record<RareKind, { nos: number; score: number; title: string; sub: string }> = {
+  rocket: { nos: 1, score: 500, title: "ROCKET LANGKA!", sub: "NOS LANGSUNG PENUH" },
+  diamond: { nos: 0.5, score: 2000, title: "BERLIAN LANGKA!", sub: "SKOR +2000" },
+  crown: { nos: 1, score: 1500, title: "MAHKOTA LANGKA!", sub: "JACKPOT! NOS PENUH +1500" },
+};
+/** Warna kilatan sinar tiap jenis (dipakai view). */
+export const RARE_FLASH_RGB: Record<RareKind, [number, number, number]> = {
+  rocket: [1, 0.86, 0.42],
+  diamond: [0.45, 0.88, 1],
+  crown: [1, 0.72, 0.32],
+};
+/** Roket langka pertama muncul ~120 m setelah start (biar pemain cepat lihat itemnya). */
+export const ROCKET_FIRST_S = 120;
+/** Skor bonus sekali ambil roket. */
+export const ROCKET_SCORE = 500;
+/** Berapa lama kilatan sinar (raylight) bertahan setelah roket diambil. */
+export const RARE_FLASH_T = 0.9;
 // SPRINT: SHIFT / boost button. Each press advances speed (+40 -> +50 -> +70...), resets a 2s timer.
 // If not pressed within 2s, speed smoothly decays back to normal ("perlahan").
 // The kicking swing animation remains smooth and natural ("ayunanya jangan dicepetin ttp smooth").
@@ -169,7 +244,7 @@ export interface Chunk {
   kind: "street" | "park" | "haruna";
   decor: Decor[];
 }
-export type MoverKind = "car" | "chicken" | "pedestrian" | "cat";
+export type MoverKind = "car" | "motorcycle" | "chicken" | "pedestrian" | "cat";
 export type MoverPhase = "drive" | "wait" | "hop" | "pause" | "hit";
 export interface Mover {
   id: number;
@@ -194,6 +269,12 @@ export interface Mover {
   spin: number;
   hitT: number;
   hitRagdoll?: boolean;
+  /** pejalan kaki lansia (kakek/nenek) — jalannya lambat, bungkuk, bawa tongkat */
+  elderly?: boolean;
+  /** timer asap knalpot untuk kendaraan yang sedang jalan */
+  smokeT?: number;
+  /** ban selip / lean visual motor */
+  leanT?: number;
 }
 
 export type CrossingState = "idle" | "warning" | "clearing" | "done";
@@ -235,6 +316,37 @@ export function trainCovers(tr: Train, lat: number) {
   return lat >= Math.min(tr.head, tail) && lat <= Math.max(tr.head, tail);
 }
 
+/**
+ * Jarak jalur jalan lintas dari titik tengah perempatan (jalur kiri masing-masing arah).
+ * 2.0 = tepat di tengah panah jalur yang dicat di dek jalan lintas (lihat intersectionRoadParts).
+ */
+export const CROSS_LANE_OFFSET = 2.0;
+/** Mobil penyeberang muncul/hilang jauh di ujung jalan lintas (|lat|), jadi tidak nongol di depan pemain. */
+export const CROSS_SPAWN_LAT = 38;
+export const CROSS_DESPAWN_LAT = 41;
+
+/** Tinggi DEK jalan lintas di perempatan (atas aspal: 0.145 + 0.06/2). Roda mobil penyeberang menapak di sini. */
+export const CROSS_DECK_H = 0.175;
+/** Dek jalan lintas mulai di |lat| 4.0 (lihat intersectionRoadParts di models.ts). */
+export const CROSS_DECK_LAT = 4.0;
+/** Ujung ramp curb-cut di model perempatan (box ramp di |lat| 3.6 → 4.0). */
+export const CROSS_RAMP_START = 3.6;
+
+/**
+ * Tinggi mobil penyeberang di perempatan:
+ * rata dengan jalan utama saat melintasi perempatan, lalu naik mulus lewat curb-cut
+ * dan TEPAT setinggi dek jalan lintas mulai dari bibir dek (|lat| 4.0).
+ * Sebelumnya ramp baru penuh di |lat| 4.2, jadi roda sempat terbenam ~9 cm di bibir dek.
+ */
+export function crossCarH(lat: number): number {
+  const a = Math.abs(lat);
+  if (a >= CROSS_DECK_LAT) return CROSS_DECK_H;
+  if (a <= CROSS_RAMP_START) return 0;
+  const u = (a - CROSS_RAMP_START) / (CROSS_DECK_LAT - CROSS_RAMP_START);
+  const smooth = u * u * (3 - 2 * u); // halus di kedua ujung, tanpa lompatan
+  return smooth * CROSS_DECK_H;
+}
+
 export interface Intersection {
   id: number;
   s: number;
@@ -260,6 +372,12 @@ export interface CrossTrafficCar {
   horn: boolean;
   passed: boolean;
   hitRagdoll?: boolean;
+  /** timer asap knalpot */
+  smokeT?: number;
+  /** sedang menunggu di tepi perempatan (ada kendaraan jalan utama lewat) */
+  waiting?: boolean;
+  /** 0 = berhenti, 1 = jalan penuh (diperhalus biar tidak menghentak) */
+  speedK?: number;
 }
 
 export type { TrickKind } from "./tricks";
@@ -287,6 +405,10 @@ export interface Ragdoll {
   bounces: number;
   rest: boolean;
   restT: number;
+  /** pengali gravitasi (hewan kartun = < 1 supaya melayang lebih lama) */
+  gravityScale?: number;
+  /** pengali koefisien pantulan (hewan = > 1 supaya mantul-mantul) */
+  bouncy?: number;
 }
 
 function makeRagdoll(s: number, lat: number, h: number, radius: number): Ragdoll {
@@ -304,7 +426,7 @@ function stepRagdoll(r: Ragdoll, dt: number, floor: number, friction = 4.2, boun
     r.rx += (targetRx - r.rx) * (1 - Math.exp(-dt * 5));
     return;
   }
-  r.vh -= GRAVITY * dt;
+  r.vh -= GRAVITY * (r.gravityScale ?? 1) * dt;
   r.s += r.vs * dt;
   r.lat += r.vlat * dt;
   r.h += r.vh * dt;
@@ -325,7 +447,7 @@ function stepRagdoll(r: Ragdoll, dt: number, floor: number, friction = 4.2, boun
     r.h = floor;
     if (r.vh < -0.8) {
       // Rubbery comical bounce: first bounce is high and springy, forward momentum preserved
-      const bCoeff = r.bounces === 0 ? 0.48 : r.bounces === 1 ? 0.35 : 0.22;
+      const bCoeff = Math.min(0.78, (r.bounces === 0 ? 0.48 : r.bounces === 1 ? 0.35 : 0.22) * (r.bouncy ?? 1));
       r.vh = -r.vh * bCoeff;
       r.vs *= 0.88; // skips forward on ground impact!
       r.bounces++;
@@ -371,6 +493,28 @@ export interface Particle {
   spin: number;
   gravity: number;
   floor: number;
+  /** >1 = partikel membesar seiring umur (asap knalpot), default mengecil */
+  grow?: number;
+}
+
+/**
+ * Efek "denyut" tipis ala kartun: SATU cincin tipis yang mengembang dari titik
+ * tabrakan lalu memudar. Dirender di World.tsx (Pulses) sebagai mesh additive.
+ */
+export interface Pulse {
+  x: number;
+  y: number;
+  z: number;
+  /** umur (detik) dan umur maksimum */
+  t: number;
+  max: number;
+  /** jari-jari awal -> akhir (unit dunia) */
+  r0: number;
+  r1: number;
+  /** warna 0..1 */
+  cr: number;
+  cg: number;
+  cb: number;
 }
 
 export type InputAction = "tap" | "up" | "down" | "left" | "right" | "double" | "holdStart" | "holdEnd" | "nos" | "boost" | "cycle";
@@ -405,6 +549,8 @@ class Engine {
   menuT = 0;
   /** time scale used for the GTA-style slow motion on impact */
   slowMo = 1;
+  /** denyut kamera halus (zoom tipis) 1 -> 0 setelah hewan ditabrak */
+  punch = 0;
   crashSpeed = 0;
   private pushDustT = 0;
   private downhillFlag = false;
@@ -446,7 +592,17 @@ class Engine {
   /** Responsive jump buffer (seconds) to jump the exact millisecond wheels touch the asphalt */
   jumpBuffer = 0;
   nosCans: { id: number; s: number; lane: number; taken: boolean; wx: number; wy: number; wz: number; phase: number }[] = [];
+  /** Item LANGKA: roket NOS berkilau sinar. Jarang muncul, sekali ambil NOS penuh. */
+  rockets: { id: number; s: number; lane: number; taken: boolean; kind: RareKind; wx: number; wy: number; wz: number; phase: number }[] = [];
+  /** statistik: jumlah roket yang sudah diambil (untuk uji & pencapaian) */
+  rocketTaken = 0;
+  /** kilatan sinar saat roket diambil (0 = tidak ada) */
+  rareFlash = 0;
+  rareFlashPos: Vec3 = [0, 0, 0];
+  rareFlashRGB: [number, number, number] = [1, 0.86, 0.42];
   nextNosS = 0;
+  /** jarak (s) tempat roket langka berikutnya muncul */
+  nextRocketS = 0;
 
   nextRoadworkS = 0;
   nextOverpassS = 0;
@@ -457,6 +613,8 @@ class Engine {
   nextIntersectionS = 0;
   crashCause: CrashCause = "obstacle";
   particles: Particle[] = [];
+  /** gelombang "denyut" yang sedang aktif (lihat Pulse) */
+  pulses: Pulse[] = [];
   reserved: { lane: number; from: number; until: number }[] = [];
   listVersion = 0;
   moverVersion = 0;
@@ -574,6 +732,10 @@ class Engine {
     this.nosT = 0;
     this.nosFlame = 0;
     this.nosCans = [];
+    this.rockets = [];
+    this.rocketTaken = 0;
+    this.rareFlash = 0;
+    this.rareFlashRGB = [1, 0.86, 0.42];
     this.nextNosS = this.distance + 70;
     this.cycleIndex = 0;
     this.nextRoadworkS = this.distance + 120 + rand(0, 60);
@@ -583,6 +745,7 @@ class Engine {
     this.wet = 0;
     this.nextCrossingS = START_S + FIRST_CROSSING_M;
     this.nextIntersectionS = START_S + 68;
+    this.nextRocketS = START_S + ROCKET_FIRST_S; // roket pertama muncul agak awal biar pemain lihat itemnya
     this.particles = [];
     this.reserved = [];
     this.nextChunkS = 0;
@@ -634,6 +797,8 @@ class Engine {
     p.pushCooldown = 0.6;
     p.pushCount = 0;
     this.slowMo = 1;
+    this.punch = 0;
+    this.pulses = [];
     this.downhillFlag = false;
     while (this.nextChunkS < this.distance + 90) this.spawnChunk();
     track.sample(this.distance, this.center);
@@ -1290,6 +1455,9 @@ class Engine {
     }
     track.sample(this.distance, this.center);
     this.shake = Math.max(0, this.shake - dt * 2.5);
+    this.punch = Math.max(0, this.punch - dt * 3.4);
+    // kilatan sinar roket langka mereda dalam RARE_FLASH_T detik
+    this.rareFlash = Math.max(0, this.rareFlash - dt);
 
     // world generation
     track.ensure(this.distance + 240);
@@ -1306,6 +1474,7 @@ class Engine {
     else this.updateCrash(dt);
 
     this.updateParticles(dt);
+    this.updatePulses(dt);
     this.updatePetals(dt);
     this.updateTransform();
 
@@ -1766,6 +1935,13 @@ class Engine {
         this.crash("oncoming", { hardness: 1.4 });
         return;
       }
+      if (m.kind === "motorcycle") {
+        if (Math.abs(m.s - d) > 0.62 + PLAYER_HALF) continue;
+        if (Math.abs(m.lat - p.lat) > 1.0) continue;
+        if (p.h >= MOTOR_CLEAR_H) continue; // lompatan bersih di atas motor
+        this.crash("motorcycle", { hardness: 1.15, side: m.lat >= p.lat ? -1 : 1 });
+        return;
+      }
       if (m.kind === "pedestrian") {
         if (Math.abs(m.s - d) > 0.55 + PLAYER_HALF) continue;
         if (Math.abs(m.lat - p.lat) > 0.95) continue;
@@ -1777,7 +1953,7 @@ class Engine {
       if (m.kind === "cat") {
         if (Math.abs(m.s - d) > 0.45 + PLAYER_HALF) continue;
         if (Math.abs(m.lat - p.lat) > 0.85) continue;
-        if (p.h >= 1.2) continue; // clean jump over cat
+        if (p.h >= CAT_CLEAR_H) continue; // clean jump over cat
         this.hitCat(m);
         continue;
       }
@@ -1836,6 +2012,13 @@ class Engine {
       sfx.nosPickup();
     }
 
+    // item LANGKA: ROCKET — sekali ambil langsung NOS penuh + skor besar + kilatan sinar
+    for (const r of this.rockets) {
+      if (r.taken) continue;
+      if (Math.abs(r.s - d) > 1.0 || Math.abs(LANE_LAT[r.lane] - p.lat) > 1.05 || p.h > 1.7) continue;
+      this.collectRocket(r);
+    }
+
     // puddles: safe, just a splash (and a wet trail)
     this.wet = Math.max(0, this.wet - dt * 0.8);
     for (const pu of this.puddles) {
@@ -1869,20 +2052,26 @@ class Engine {
     const v = Math.max(this.speed, 5);
     const side = m.lat >= p.lat ? 1 : -1;
     const isAnimal = m.kind === "cat" || m.kind === "chicken";
+    // Animals that got the size boost also get a bigger body sphere, so the bigger
+    // model still rests/bounces ON the road instead of sinking into it.
+    const animalBoost = m.kind === "cat" ? CAT_SIZE_BOOST : m.kind === "chicken" ? CHICKEN_SIZE_BOOST : 1;
     const r = makeRagdoll(
       m.s,
       m.lat,
-      m.h + (m.kind === "pedestrian" ? 1.0 : 0.25),
-      m.kind === "pedestrian" ? 0.6 : 0.22
+      m.h + (m.kind === "pedestrian" ? 1.0 : 0.25 * animalBoost),
+      m.kind === "pedestrian" ? 0.6 : 0.22 * animalBoost
     );
     if (isAnimal) {
-      // Natural, cute, grounded knockback (not "lebay" / not shooting into outer space)
-      r.vs = v * 0.38 + rand(0.6, 1.4);
-      r.vh = 2.2 + rand(0.2, 0.6);
-      r.vlat = side * (1.1 + rand(0.3, 0.8));
-      r.wz = -rand(3, 5.5);
-      r.wx = side * rand(2, 3.5);
-      r.wy = rand(-1.5, 1.5);
+      // MENTAL ala kartun: hewan dilontarkan tinggi, jauh, dan muter-muter kocak.
+      // Gayaberat dikecilkan + pantulan ekstra kenyal supaya hang time-nya lucu.
+      r.vs = v * 0.62 + rand(1.6, 3.2);
+      r.vh = 5.2 + rand(0.9, 2.1);
+      r.vlat = side * (2.2 + rand(0.7, 1.6));
+      r.wz = -rand(10, 17);
+      r.wx = side * rand(6, 11);
+      r.wy = rand(-6, 6);
+      r.gravityScale = ANIMAL_GRAVITY_SCALE;
+      r.bouncy = ANIMAL_BOUNCE;
     } else {
       r.vs = v * (1.1 / mass) + rand(0, 2);
       r.vh = 4 + v * (0.5 / mass) + rand(0, 2);
@@ -1900,24 +2089,30 @@ class Engine {
     if (m.phase === "hit") return;
     this.launchVictim(m, 0.55);
     track.frame(m.s, m.lat, m.h + 0.6, tmpV);
-    this.emitWorld("feather", tmpV.x, tmpV.y, tmpV.z, tmpV.y - m.h - 0.6, 14, 0, 0);
+    const floor = tmpV.y - m.h - 0.6;
+    this.animalImpactFx(tmpV.x, tmpV.y, tmpV.z, floor, [1, 0.55, 0.25]);
+    this.emitWorld("feather", tmpV.x, tmpV.y, tmpV.z, floor, 18, 0, 0);
+    sfx.thwack();
     sfx.bonk();
     sfx.squawk();
     this.player.squash = 0.35;
     this.trickScore += 75;
-    useUI.getState().addPopup("CHICKEN YEET! 🐔", "#ef4444", "BAWK!");
+    useUI.getState().addPopup("CHICKEN YEET! 🐔", "#ef4444", "BAWK! 💥");
   }
 
   private hitCat(m: Mover) {
     if (m.phase === "hit") return;
     this.launchVictim(m, 0.42);
     track.frame(m.s, m.lat, m.h + 0.35, tmpV);
-    this.emitWorld("dust", tmpV.x, tmpV.y, tmpV.z, tmpV.y - m.h - 0.35, 12, 0, 0);
+    const floor = tmpV.y - m.h - 0.35;
+    this.animalImpactFx(tmpV.x, tmpV.y, tmpV.z, floor, [1, 0.78, 0.28]);
+    this.emitWorld("dust", tmpV.x, tmpV.y, tmpV.z, floor, 12, 0, 0);
+    sfx.thwack();
     sfx.bonk();
     sfx.meow();
     this.player.squash = 0.35;
     this.trickScore += 75;
-    useUI.getState().addPopup("CAT YEET! 🐱", "#f59e0b", "MEOWWW!");
+    useUI.getState().addPopup("CAT YEET! 🐱", "#f59e0b", "MEOWWW! 💥");
   }
 
   private launchCatFromCar(o: Obstacle) {
@@ -1934,6 +2129,8 @@ class Engine {
     this.launchVictim(m, 1.4);
     track.frame(m.s, m.lat, m.h + 1.2, tmpV);
     this.emitWorld("dust", tmpV.x, tmpV.y, tmpV.z, tmpV.y - m.h - 1.2, 10, 0, 0);
+    // tongkatnya terlempar ikut tuannya :)
+    if (m.elderly) this.emitWorld("pow", tmpV.x, tmpV.y - 0.6, tmpV.z, tmpV.y - m.h - 1.2, 4, 0, 0);
     sfx.yelp();
   }
 
@@ -2128,8 +2325,17 @@ class Engine {
       let remove = false;
       if (m.phase === "hit" && m.rag) {
         m.hitT += dt;
-        const bounceDamping = m.kind === "cat" || m.kind === "chicken" ? 4.2 : 3.0;
+        const isAnimal = m.kind === "cat" || m.kind === "chicken";
+        const bounceDamping = isAnimal ? 3.4 : 3.0; // hewan: gesekan lebih kecil -> makin mental
+        const bBefore = m.rag.bounces;
         stepRagdoll(m.rag, dt, m.rag.radius, bounceDamping, 0.45);
+        // setiap mantul di aspal: kepulan debu + bunyi kenyal (makin lucu & satisfying)
+        if (isAnimal && m.rag.bounces > bBefore) {
+          track.frame(m.rag.s, m.rag.lat, m.rag.h - m.rag.radius, tmpV);
+          this.emitWorld("dust", tmpV.x, tmpV.y + 0.05, tmpV.z, tmpV.y, m.rag.bounces === 1 ? 5 : 3, 0, 0);
+          if (m.rag.bounces <= 2) sfx.boing();
+          else sfx.bonk();
+        }
         m.s = m.rag.s;
         m.lat = clamp(m.rag.lat, -7, 7);
         m.h = m.rag.h - m.rag.radius;
@@ -2160,13 +2366,16 @@ class Engine {
           if (Math.abs(m.lat) > 7.2) remove = true;
         }
         if (m.s < d - 16) remove = true;
-      } else if (m.kind === "car") {
+      } else if (m.kind === "car" || m.kind === "motorcycle") {
+        const isBike = m.kind === "motorcycle";
         m.s -= m.speed * dt;
         m.squash = Math.max(0, m.squash - dt * 4.5);
-        if (!m.warned && m.s - d < 32) {
+        if (!m.warned && m.s - d < (isBike ? 34 : 32)) {
           m.warned = true;
-          if (this.phase === "playing") sfx.horn();
+          if (this.phase === "playing") (isBike ? sfx.motor() : sfx.horn());
         }
+        // asap knalpot keluar selama kendaraan jalan (di belakang kendaraan)
+        this.emitExhaust(m, isBike ? 0.52 : 1.05, isBike ? 0.3 : 0.26, isBike ? 0.05 : 0.08, dt);
         if (m.s < d - 16) remove = true;
       } else {
         if (m.phase === "wait") {
@@ -2381,19 +2590,25 @@ class Engine {
         inter.spawnTimer1 -= dt;
         if (inter.spawnTimer1 <= 0) {
           inter.spawnTimer1 = rand(1.3, 2.1) - t * 0.35;
-          this.spawnCrossCar(inter.id, inter.s - 1.8, -25, 1, 8.5 + rand(0, 2.5) + t * 2);
+          // Jalur kiri (Jepang/Indonesia): yang melaju ke +lat memakai jalur +s (sisi kiri jalannya)
+          this.spawnCrossCar(inter.id, inter.s + CROSS_LANE_OFFSET, -CROSS_SPAWN_LAT, 1, 8.5 + rand(0, 2.5) + t * 2);
         }
 
         inter.spawnTimer2 -= dt;
         if (inter.spawnTimer2 <= 0) {
           inter.spawnTimer2 = rand(1.4, 2.2) - t * 0.35;
-          this.spawnCrossCar(inter.id, inter.s + 1.8, 25, -1, 8.5 + rand(0, 2.5) + t * 2);
+          this.spawnCrossCar(inter.id, inter.s - CROSS_LANE_OFFSET, CROSS_SPAWN_LAT, -1, 8.5 + rand(0, 2.5) + t * 2);
         }
       }
     }
   }
 
   private spawnCrossCar(intersectionId: number, s: number, startLat: number, dir: 1 | -1, speed: number) {
+    // jangan susulkan mobil baru kalau mobil sejalur masih dekat titik muncul (dulu bisa saling tumpuk)
+    const blocked = this.crossCars.some(
+      (o) => o.dir === dir && Math.abs(Math.abs(o.lat) - Math.abs(startLat)) < 14,
+    );
+    if (blocked) return;
     const cc: CrossTrafficCar = {
       id: this.nextId++,
       intersectionId,
@@ -2414,8 +2629,33 @@ class Engine {
     let changed = false;
     for (let i = this.crossCars.length - 1; i >= 0; i--) {
       const cc = this.crossCars[i];
-      cc.lat += cc.dir * cc.speed * dt;
 
+      // Jalur lintas tidak boleh menembus lalu lintas jalan utama: kalau ada mobil/motor
+      // (bukan pemain, biar bahaya T-bone tetap ada) yang sedang di/dekat perempatan,
+      // mobil penyeberang berhenti menunggu di tepi jalan.
+      const yielding =
+        Math.abs(cc.lat) > CROSS_DECK_LAT + 1.4 &&
+        Math.abs(cc.lat) < 12 &&
+        this.movers.some(
+          (m) => (m.kind === "car" || m.kind === "motorcycle") && Math.abs(m.s - cc.s) < 5.5,
+        );
+      cc.waiting = yielding;
+
+      // rem / gas halus, jadi mobil tidak berhenti mendadak di bibir perempatan
+      const target = yielding ? 0 : 1;
+      const k0 = cc.speedK ?? 1;
+      let k = k0 + (target - k0) * (1 - Math.exp(-dt * 6));
+      if (yielding && k < 0.05) k = 0; // benar-benar berhenti, bukan merayap selamanya
+      cc.speedK = k;
+      cc.lat += cc.dir * cc.speed * k * dt;
+
+      // asap knalpot mobil yang menyeberang di perempatan
+      cc.smokeT = (cc.smokeT ?? 0) - dt;
+      if (cc.smokeT <= 0) {
+        cc.smokeT = 0.09;
+        const pl = this.place(cc.s, cc.lat - cc.dir * 1.5, 0.26);
+        this.emitWorld("smoke", pl.pos[0], pl.pos[1], pl.pos[2], pl.pos[1] - 0.4, 1, Math.cos(pl.rotY), Math.sin(pl.rotY));
+      }
       // Honk horn as car approaches the middle road
       if (!cc.horn && Math.abs(cc.lat) < 7.5 && Math.abs(cc.s - d) < 42) {
         cc.horn = true;
@@ -2424,7 +2664,7 @@ class Engine {
         }
       }
 
-      if (Math.abs(cc.lat) > 30 || cc.s < d - 24) {
+      if (Math.abs(cc.lat) > CROSS_DESPAWN_LAT || cc.s < d - 24) {
         this.crossCars.splice(i, 1);
         changed = true;
       }
@@ -2810,7 +3050,7 @@ class Engine {
       dir: 1,
       h: 0,
       vh: 0,
-      phase: kind === "car" ? "drive" : "wait",
+      phase: kind === "car" || kind === "motorcycle" ? "drive" : "wait",
       hopT: 0,
       hopFrom: 0,
       hopTo: 0,
@@ -2832,10 +3072,27 @@ class Engine {
       this.addObstacle("car", meetS, lane);
       return;
     }
+    // 1 dari 3 lalu lintas datang adalah motor (kadang berboncengan dua motor beruntun)
+    if (Math.random() < 0.34) {
+      this.spawnMotorcycle(s0, lane, v);
+      if (t > 0.35 && Math.random() < 0.35) this.spawnMotorcycle(s0 + 2.4, this.otherLane([lane]), v * rand(0.92, 1.06));
+      this.reserved.push({ lane, from: meetS - 7, until: s0 + 6 });
+      return;
+    }
     const m = this.newMover("car", s0, lane, LANE_LAT[lane]);
     m.speed = v;
     this.movers.push(m);
     this.reserved.push({ lane, from: meetS - 7, until: s0 + 6 });
+    this.moverVersion++;
+  }
+
+  /** Motor dari arah depan: badan lebih kecil, sedikit lebih cepat dari mobil. */
+  private spawnMotorcycle(s0: number, lane: number, v: number) {
+    const m = this.newMover("motorcycle", s0, lane, LANE_LAT[lane]);
+    m.speed = v * rand(1.05, 1.2);
+    m.variant = randInt(0, 5);
+    m.smokeT = rand(0, 0.08);
+    this.movers.push(m);
     this.moverVersion++;
   }
 
@@ -2871,13 +3128,18 @@ class Engine {
     const n = 1 + (Math.random() < 0.5 ? 1 : 0) + (t > 0.4 && Math.random() < 0.4 ? 1 : 0);
     const est = Math.max(this.speed, START_SPEED);
     const d = this.distance;
+    // kadang yang menyeberang adalah kakek/nenek bertongkat (jalannya lambat)
+    const elderIndex = Math.random() < 0.42 ? randInt(0, n - 1) : -1;
     for (let i = 0; i < n; i++) {
       const dir = Math.random() < 0.5 ? 1 : -1;
       const m = this.newMover("pedestrian", x + i * 3.0, -1, -dir * 6.8);
       m.dir = dir;
-      m.speed = rand(1.6, 2.3);
-      m.variant = randInt(0, 4);
+      const elderly = i === elderIndex;
+      m.elderly = elderly;
+      m.speed = elderly ? rand(0.85, 1.25) : rand(1.6, 2.3);
+      m.variant = randInt(0, elderly ? 2 : 4);
       // time the walk so they are on the road when the player arrives
+      // (lansia jalannya lambat, jadi mereka lebih lama ADA di tengah jalan)
       const eta = (x + i * 3.0 - d) / est;
       const walk = (6.8 - 1.2) / m.speed;
       m.delay = Math.max(0.1, eta - walk + rand(-0.6, 0.6));
@@ -2885,6 +3147,24 @@ class Engine {
     }
     this.moverVersion++;
     return n * 3.0 + 2;
+  }
+
+  /**
+   * Jalur yang bebas rintangan & kendaraan di sekitar jarak `s` — dipakai item langka biar
+   * roketnya benar-benar bisa diambil (bukan muncul di dalam barrier atau di jalur mobil datang).
+   * Kembalikan -1 kalau semua jalur sedang penuh.
+   */
+  private clearLaneNear(s: number): number {
+    const lanes = [1, 0, 2]; // tengah dulu (paling gampang diambil), lalu pinggir
+    for (const lane of lanes) {
+      const blocked =
+        this.obstacles.some((o) => o.kind !== "ramp" && o.kind !== "rail" && o.lane === lane && Math.abs(o.s - s) < 6) ||
+        this.movers.some((m) => m.kind !== "pedestrian" && Math.abs(m.lane - lane) < 0.5 && Math.abs(m.s - s) < 12) ||
+        this.crossCars.some((cc) => Math.abs(cc.s - s) < 8) ||
+        this.reserved.some((r) => r.lane === lane && s > r.from - 2 && s < r.until + 2);
+      if (!blocked) return lane;
+    }
+    return -1;
   }
 
   private spawnGroup() {
@@ -2897,6 +3177,22 @@ class Engine {
       this.nosCans.push({ id: this.nextId++, s: x, lane, taken: false, wx: tmpV.x, wy: tmpV.y, wz: tmpV.z, phase: Math.random() * 6 });
       this.listVersion++;
       this.nextNosS = x + NOS_CAN_S + rand(0, 30);
+    }
+    // ---- item LANGKA: roket NOS (jarang, dan selalu di jalur yang bebas rintangan) ----
+    if (x >= this.nextRocketS) {
+      const tooCloseToSpecial =
+        this.crossings.some((c) => Math.abs(c.s - x) < 14) ||
+        this.intersections.some((it) => Math.abs(it.s - x) < 16);
+      const lane = this.clearLaneNear(x);
+      if (tooCloseToSpecial || lane < 0) {
+        // tempatnya tidak aman: coba lagi beberapa meter kemudian
+        this.nextRocketS = x + 12;
+      } else {
+        track.frame(x, LANE_LAT[lane], 0, tmpV);
+        this.rockets.push({ id: this.nextId++, s: x, lane, taken: false, kind: pickRareKind(), wx: tmpV.x, wy: tmpV.y, wz: tmpV.z, phase: Math.random() * 6 });
+        this.listVersion++;
+        this.nextRocketS = x + rand(ROCKET_GAP[0], ROCKET_GAP[1]);
+      }
     }
     if (x >= this.nextRoadworkS && !this.crossings.some((c) => Math.abs(c.s - x) < 40)) {
       const len = this.spawnRoadworks(x, t);
@@ -3156,6 +3452,10 @@ class Engine {
       this.nosCans = this.nosCans.filter((c) => c.s > d - 14);
       changed = true;
     }
+    if (this.rockets.length && this.rockets[0].s < d - 16) {
+      this.rockets = this.rockets.filter((r) => r.s > d - 16);
+      changed = true;
+    }
     if (this.roadSigns.length && this.roadSigns[0].variant < d - 30) {
       this.roadSigns.shift();
       changed = true;
@@ -3212,18 +3512,117 @@ class Engine {
     }
   }
 
+  /* ---------- Denyut (cincin tipis) ---------- */
+  /** Tambah satu cincin "denyut" di titik tabrakan. */
+  spawnPulse(x: number, y: number, z: number, opts: { max: number; r0: number; r1: number; color: [number, number, number] }) {
+    this.pulses.push({
+      x,
+      y,
+      z,
+      t: 0,
+      max: opts.max,
+      r0: opts.r0,
+      r1: opts.r1,
+      cr: opts.color[0],
+      cg: opts.color[1],
+      cb: opts.color[2],
+    });
+    if (this.pulses.length > 8) this.pulses.splice(0, this.pulses.length - 8);
+  }
+
+  /**
+   * Ambil item LANGKA (roket): NOS langsung penuh, bonus skor besar, kilatan sinar
+   * (raylight) + cincin emas, dan getaran kecil di kamera biar terasa "berharga".
+   */
+  private collectRocket(r: { taken: boolean; kind: RareKind; wx: number; wy: number; wz: number }) {
+    const reward = RARE_REWARD[r.kind] ?? RARE_REWARD.rocket;
+    const rgb = RARE_FLASH_RGB[r.kind] ?? RARE_FLASH_RGB.rocket;
+    r.taken = true;
+    this.rocketTaken++;
+    this.trickScore += reward.score;
+    this.addNos(NOS_MAX * reward.nos);
+    this.rareFlash = RARE_FLASH_T;
+    this.rareFlashPos = [r.wx, r.wy, r.wz];
+    this.rareFlashRGB = [rgb[0], rgb[1], rgb[2]];
+    this.punch = Math.max(this.punch, 0.22);
+    this.spawnPulse(r.wx, r.wy + 0.5, r.wz, { max: 0.55, r0: 0.6, r1: 4.2, color: [rgb[0], rgb[1], rgb[2]] });
+    this.emitWorld("pow", r.wx, r.wy + 0.6, r.wz, r.wy, 14, 0, 0);
+    this.emitWorld("spark", r.wx, r.wy + 0.5, r.wz, r.wy, 18, 0, 0);
+    useUI.getState().addPopup(reward.title, r.kind === "diamond" ? "#4fd8ff" : "#ffc93c", reward.sub);
+    sfx.rare();
+  }
+
+  private updatePulses(dt: number) {
+    for (let i = this.pulses.length - 1; i >= 0; i--) {
+      const q = this.pulses[i];
+      q.t += dt;
+      if (q.t >= q.max) this.pulses.splice(i, 1);
+    }
+  }
+
+  /**
+   * Efek tabrakan hewan: CUKUP satu cincin denyut tipis yang mengembang cepat
+   * (ripple ala knockback) + sedikit serpihan. Tanpa screen shake, tanpa freeze,
+   * dan kamera cuma dapat nudge zoom tipis.
+   */
+  private animalImpactFx(x: number, y: number, z: number, floorY: number, color: [number, number, number]) {
+    this.spawnPulse(x, y, z, { max: 0.28, r0: 0.35, r1: 1.7, color });
+    this.emitWorld("pow", x, y, z, floorY, 7, 0, 0);
+    this.punch = ANIMAL_PUNCH;
+  }
+
+  /** Asap knalpot untuk kendaraan yang sedang berjalan (dipanggil tiap frame, dibatasi timer). */
+  private emitExhaust(m: Mover, back: number, h: number, interval: number, dt: number) {
+    if (this.phase !== "playing" && this.phase !== "menu") return;
+    m.smokeT = (m.smokeT ?? 0) - dt;
+    if (m.smokeT > 0) return;
+    m.smokeT = interval;
+    // posisi knalpot: di belakang kendaraan yang sedang melaju mendekat (+s)
+    const sPos = m.s + back;
+    const c = track.sample(sPos, tmpS);
+    const lat = m.lat + rand(-0.16, 0.16);
+    const x = c.x - Math.sin(c.th) * lat;
+    const z = c.z + Math.cos(c.th) * lat;
+    this.emitWorld("smoke", x, c.y + h, z, c.y - 0.4, 1, Math.cos(c.th), Math.sin(c.th));
+  }
+
   /* ---------- Particles ---------- */
-  emit(kind: "feather" | "crumb" | "spark" | "dust" | "splash", ds: number, h: number, lat: number, n: number) {
+  emit(kind: "feather" | "crumb" | "spark" | "dust" | "splash" | "pow", ds: number, h: number, lat: number, n: number) {
     const c = track.sample(this.distance + ds, tmpS);
     const x = c.x - Math.sin(c.th) * lat;
     const z = c.z + Math.cos(c.th) * lat;
     this.emitWorld(kind, x, c.y + h, z, c.y + 0.02, n, Math.cos(c.th), Math.sin(c.th));
   }
 
-  emitWorld(kind: "feather" | "crumb" | "spark" | "dust" | "splash", x: number, y: number, z: number, floor: number, n: number, tx: number, tz: number) {
+  emitWorld(kind: "feather" | "crumb" | "spark" | "dust" | "splash" | "pow" | "smoke", x: number, y: number, z: number, floor: number, n: number, tx: number, tz: number) {
     for (let i = 0; i < n; i++) {
       let pt: Particle;
-      if (kind === "feather") {
+      if (kind === "smoke") {
+        // asap knalpot: abu-abu, naik pelan sambil membesar lalu memudar
+        const g = rand(0.42, 0.62);
+        pt = {
+          x: x + rand(-0.06, 0.06), y: y + rand(-0.03, 0.05), z: z + rand(-0.06, 0.06),
+          vx: -tx * rand(0.5, 1.6) + rand(-0.35, 0.35),
+          vy: rand(0.5, 1.15),
+          vz: -tz * rand(0.5, 1.6) + rand(-0.35, 0.35),
+          life: 0, max: rand(0.45, 0.8), size: rand(0.07, 0.12),
+          r: g, g: g, b: g + 0.03,
+          rx: rand(0, 6), ry: rand(0, 6), spin: rand(-2, 2),
+          gravity: -0.35, floor, grow: 2.6,
+        };
+      } else if (kind === "pow") {
+        // serpihan komik ala "POW!": menyebar radial, putih/keemasan, muter cepat
+        const a = (i / Math.max(1, n)) * Math.PI * 2 + rand(-0.18, 0.18);
+        const sp = rand(4, 8.5);
+        const gold = Math.random() < 0.5;
+        pt = {
+          x, y, z,
+          vx: Math.cos(a) * sp, vy: rand(1.2, 4.6), vz: Math.sin(a) * sp,
+          life: 0, max: rand(0.22, 0.42), size: rand(0.17, 0.3),
+          r: 1, g: gold ? rand(0.7, 0.9) : 1, b: gold ? rand(0.12, 0.35) : 0.9,
+          rx: rand(0, 6), ry: rand(0, 6), spin: rand(-16, 16), gravity: 3, floor,
+        };
+      } else if (kind === "feather") {
         const g = rand(0.55, 0.95);
         pt = {
           x: x + rand(-0.3, 0.3), y: y + rand(-0.3, 0.3), z: z + rand(-0.3, 0.3),

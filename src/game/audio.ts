@@ -102,6 +102,16 @@ export const sfx = {
     tone(480, 0.12, "sine", { to: 160, vol: 0.35 });
     tone(920, 0.08, "triangle", { to: 280, vol: 0.25 });
   },
+  /** Kartun "POW!" tipis: thump bass pendek + noise tabrakan (tanpa slide-whistle). */
+  thwack: () => {
+    tone(150, 0.13, "square", { to: 62, vol: 0.26 });
+    noise(0.1, 0.2, 1400);
+  },
+  /** Boing kenyal saat hewan mantul di aspal. */
+  boing: () => {
+    tone(240, 0.26, "sine", { to: 780, vol: 0.22 });
+    tone(780, 0.16, "sine", { to: 320, vol: 0.12, delay: 0.14 });
+  },
   horn: () => {
     tone(392, 0.13, "square", { vol: 0.22 });
     tone(392, 0.2, "square", { vol: 0.22, delay: 0.18 });
@@ -109,6 +119,12 @@ export const sfx = {
   squawk: () => {
     tone(980, 0.22, "sawtooth", { to: 320, vol: 0.28 });
     noise(0.15, 0.25, 2500);
+  },
+  /** Motor dari arah depan: raungan mesin pendek (bukan klakson mobil). */
+  motor: () => {
+    tone(150, 0.3, "sawtooth", { to: 230, vol: 0.2 });
+    tone(300, 0.22, "square", { to: 420, vol: 0.12, delay: 0.04 });
+    noise(0.18, 0.14, 700);
   },
   cluck: () => tone(720, 0.05, "triangle", { to: 520, vol: 0.18 }),
   click: () => tone(720, 0.05, "square", { vol: 0.16 }),
@@ -146,6 +162,14 @@ export const sfx = {
   sprint: () => {
     noise(0.28, 0.12, 2000);
     tone(280, 0.28, "triangle", { to: 760, vol: 0.18, attack: 0.02 });
+  },
+  /** Item LANGKA (roket): chime naik berkilau + whoosh kecil. */
+  rare: () => {
+    tone(523, 0.09, "triangle", { vol: 0.32, attack: 0.005 });
+    tone(784, 0.09, "triangle", { vol: 0.3, delay: 0.07 });
+    tone(1046, 0.14, "triangle", { vol: 0.3, delay: 0.14 });
+    tone(1568, 0.22, "sine", { vol: 0.24, delay: 0.21 });
+    noise(0.5, 0.1, 3200);
   },
   nosPickup: () => {
     tone(440, 0.06, "triangle", { vol: 0.3 });
