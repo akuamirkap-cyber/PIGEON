@@ -280,20 +280,30 @@ export function trainCovers(tr: Train, lat: number) {
  * 2.0 = tepat di tengah panah jalur yang dicat di dek jalan lintas (lihat intersectionRoadParts).
  */
 export const CROSS_LANE_OFFSET = 2.0;
+/** Mobil penyeberang muncul/hilang jauh di ujung jalan lintas (|lat|), jadi tidak nongol di depan pemain. */
+export const CROSS_SPAWN_LAT = 38;
+export const CROSS_DESPAWN_LAT = 41;
 
 /** Tinggi DEK jalan lintas di perempatan (atas aspal: 0.145 + 0.06/2). Roda mobil penyeberang menapak di sini. */
 export const CROSS_DECK_H = 0.175;
-/** Lebar jalur lintas: dek jalan lintas mulai di |lat| 4.0 (lihat intersectionRoadParts di models.ts). */
+/** Dek jalan lintas mulai di |lat| 4.0 (lihat intersectionRoadParts di models.ts). */
 export const CROSS_DECK_LAT = 4.0;
+/** Ujung ramp curb-cut di model perempatan (box ramp di |lat| 3.6 → 4.0). */
+export const CROSS_RAMP_START = 3.6;
 
 /**
  * Tinggi mobil penyeberang di perempatan:
- * rata dengan jalan utama saat melintasi perempatan, lalu naik mulus ke dek jalan lintas.
+ * rata dengan jalan utama saat melintasi perempatan, lalu naik mulus lewat curb-cut
+ * dan TEPAT setinggi dek jalan lintas mulai dari bibir dek (|lat| 4.0).
+ * Sebelumnya ramp baru penuh di |lat| 4.2, jadi roda sempat terbenam ~9 cm di bibir dek.
  */
 export function crossCarH(lat: number): number {
   const a = Math.abs(lat);
-  if (a >= CROSS_DECK_LAT + 0.2) return CROSS_DECK_H;
-  return Math.max(0, (a - (CROSS_DECK_LAT - 0.6)) / 0.8) * CROSS_DECK_H;
+  if (a >= CROSS_DECK_LAT) return CROSS_DECK_H;
+  if (a <= CROSS_RAMP_START) return 0;
+  const u = (a - CROSS_RAMP_START) / (CROSS_DECK_LAT - CROSS_RAMP_START);
+  const smooth = u * u * (3 - 2 * u); // halus di kedua ujung, tanpa lompatan
+  return smooth * CROSS_DECK_H;
 }
 
 export interface Intersection {
@@ -325,6 +335,8 @@ export interface CrossTrafficCar {
   smokeT?: number;
   /** sedang menunggu di tepi perempatan (ada kendaraan jalan utama lewat) */
   waiting?: boolean;
+  /** 0 = berhenti, 1 = jalan penuh (diperhalus biar tidak menghentak) */
+  speedK?: number;
 }
 
 export type { TrickKind } from "./tricks";
@@ -2514,19 +2526,24 @@ class Engine {
         if (inter.spawnTimer1 <= 0) {
           inter.spawnTimer1 = rand(1.3, 2.1) - t * 0.35;
           // Jalur kiri (Jepang/Indonesia): yang melaju ke +lat memakai jalur +s (sisi kiri jalannya)
-          this.spawnCrossCar(inter.id, inter.s + CROSS_LANE_OFFSET, -25, 1, 8.5 + rand(0, 2.5) + t * 2);
+          this.spawnCrossCar(inter.id, inter.s + CROSS_LANE_OFFSET, -CROSS_SPAWN_LAT, 1, 8.5 + rand(0, 2.5) + t * 2);
         }
 
         inter.spawnTimer2 -= dt;
         if (inter.spawnTimer2 <= 0) {
           inter.spawnTimer2 = rand(1.4, 2.2) - t * 0.35;
-          this.spawnCrossCar(inter.id, inter.s - CROSS_LANE_OFFSET, 25, -1, 8.5 + rand(0, 2.5) + t * 2);
+          this.spawnCrossCar(inter.id, inter.s - CROSS_LANE_OFFSET, CROSS_SPAWN_LAT, -1, 8.5 + rand(0, 2.5) + t * 2);
         }
       }
     }
   }
 
   private spawnCrossCar(intersectionId: number, s: number, startLat: number, dir: 1 | -1, speed: number) {
+    // jangan susulkan mobil baru kalau mobil sejalur masih dekat titik muncul (dulu bisa saling tumpuk)
+    const blocked = this.crossCars.some(
+      (o) => o.dir === dir && Math.abs(Math.abs(o.lat) - Math.abs(startLat)) < 14,
+    );
+    if (blocked) return;
     const cc: CrossTrafficCar = {
       id: this.nextId++,
       intersectionId,
@@ -2559,7 +2576,13 @@ class Engine {
         );
       cc.waiting = yielding;
 
-      if (!yielding) cc.lat += cc.dir * cc.speed * dt;
+      // rem / gas halus, jadi mobil tidak berhenti mendadak di bibir perempatan
+      const target = yielding ? 0 : 1;
+      const k0 = cc.speedK ?? 1;
+      let k = k0 + (target - k0) * (1 - Math.exp(-dt * 6));
+      if (yielding && k < 0.05) k = 0; // benar-benar berhenti, bukan merayap selamanya
+      cc.speedK = k;
+      cc.lat += cc.dir * cc.speed * k * dt;
 
       // asap knalpot mobil yang menyeberang di perempatan
       cc.smokeT = (cc.smokeT ?? 0) - dt;
@@ -2576,7 +2599,7 @@ class Engine {
         }
       }
 
-      if (Math.abs(cc.lat) > 30 || cc.s < d - 24) {
+      if (Math.abs(cc.lat) > CROSS_DESPAWN_LAT || cc.s < d - 24) {
         this.crossCars.splice(i, 1);
         changed = true;
       }

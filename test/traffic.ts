@@ -10,7 +10,18 @@
  */
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
-import { engine, track, CROSS_DECK_H, CROSS_LANE_OFFSET, crossCarH, LANE_LAT } from "../src/game/engine";
+import {
+  engine,
+  track,
+  CROSS_DECK_H,
+  CROSS_DECK_LAT,
+  CROSS_LANE_OFFSET,
+  CROSS_SPAWN_LAT,
+  CROSS_DESPAWN_LAT,
+  crossCarH,
+  LANE_LAT,
+} from "../src/game/engine";
+import { crossingCarParts, CROSS_STREET_LEN } from "../src/game/models";
 
 const DT = 1 / 60;
 let pass = 0;
@@ -100,18 +111,24 @@ check("dua arah tidak memakai jalur yang sama (tidak tabrakan depan-depan)", Mat
 
 check("roda mobil menapak dek jalan lintas", Math.abs(crossCarH(6) - CROSS_DECK_H) < 1e-9, `h(6 m)=${crossCarH(6).toFixed(3)}`);
 check("di jalan utama tinggi nol (rata aspal)", crossCarH(0) === 0 && crossCarH(3) === 0, `h(0)=${crossCarH(0)}, h(3)=${crossCarH(3)}`);
-check("naik mulus ke dek (tanpa lompat)", (() => {
+check("naik mulus lewat curb-cut (tanpa lompatan)", (() => {
   let prev: number | null = null;
-  for (let lat = 0; lat <= 8; lat += 0.05) {
+  for (let lat = 0; lat <= 8; lat += 0.01) {
     const h = crossCarH(lat);
     if (prev !== null) {
       if (h < prev - 1e-9) return false; // tidak boleh turun
-      if (h - prev > 0.02) return false; // tangga > 2 cm = ada lompatan
+      if (h - prev > 0.01) return false; // tangga > 1 cm = ada lompatan
     }
     prev = h;
   }
   return prev !== null && Math.abs(prev - CROSS_DECK_H) < 1e-9;
 })(), "monoton & mulus sampai dek");
+check("tinggi dek dicapai TEPAT di bibir dek (bukan 0.2 m setelahnya)", Math.abs(crossCarH(CROSS_DECK_LAT) - CROSS_DECK_H) < 1e-9 && crossCarH(CROSS_DECK_LAT - 0.15) < CROSS_DECK_H - 0.001, `h(4.00)=${crossCarH(CROSS_DECK_LAT).toFixed(3)}, h(3.85)=${crossCarH(3.85).toFixed(3)}`);
+check("rata aspal di dalam perempatan", crossCarH(0) === 0 && crossCarH(3.5) === 0, "");
+const carB = crossingCarParts(0);
+const carMinY = Math.min(...carB.map((p) => p.y - p.h / 2));
+check("ban mobil penyeberang menapak (bawah ban = 0, tidak terbenam)", Math.abs(carMinY) < 0.005, `bawah y=${carMinY.toFixed(3)}`);
+check("jalan lintas cukup panjang untuk titik muncul mobil", CROSS_SPAWN_LAT < 4 + CROSS_STREET_LEN - 2 && CROSS_DESPAWN_LAT <= 4 + CROSS_STREET_LEN, `muncul di |lat| ${CROSS_SPAWN_LAT}, jalan sampai ${4 + CROSS_STREET_LEN}`);
 check("World.tsx memakai helper crossCarH (view & fisika sama)", /crossCarH\(cc\.lat\)/.test(world), "");
 
 /* =========== 3. Tidak saling tembus di perempatan =========== */
@@ -126,8 +143,10 @@ const mainCar = e.newMover("car", inter2.s, 1, LANE_LAT[1]);
 mainCar.speed = 0.1;
 engine.movers.push(mainCar);
 const latBefore = ccObj.lat;
-step(20);
-check("penyeberang menunggu saat ada mobil jalan utama", ccObj.lat === latBefore && ccObj.waiting === true, `lat tetap ${latBefore.toFixed(2)}, waiting=${ccObj.waiting}`);
+step(60); // mengerem halus sampai berhenti
+const latAfterBrake = ccObj.lat;
+step(60);
+check("penyeberang menunggu (berhenti) saat ada mobil jalan utama", ccObj.waiting === true && Math.abs(ccObj.lat - latAfterBrake) < 0.02 && Math.abs(ccObj.lat) > 4, `lat ${latBefore.toFixed(2)} → ${latAfterBrake.toFixed(2)} → ${ccObj.lat.toFixed(2)} (berhenti di |lat| ${Math.abs(ccObj.lat).toFixed(2)})`);
 engine.movers = [];
 step(20);
 check("penyeberang jalan lagi setelah jalan utama bebas", ccObj.lat > latBefore + 1, `lat ${latBefore.toFixed(2)} → ${ccObj.lat.toFixed(2)}`);
@@ -167,6 +186,17 @@ engine.player.h = 0;
 step(1);
 check("kena kabin/atap penyeberang = tumbang (sebab 'cross_traffic')", engine.phase !== "playing" && engine.crashCause === "cross_traffic", `cause=${engine.crashCause}`);
 
+// dua mobil sejalur tidak boleh muncul bertumpuk
+engine.startRun();
+quiet();
+const interSp = e.addIntersection(engine.distance + 60);
+e.spawnCrossCar(interSp.id, interSp.s + CROSS_LANE_OFFSET, -CROSS_SPAWN_LAT, 1, 9);
+const n1 = engine.crossCars.length;
+e.spawnCrossCar(interSp.id, interSp.s + CROSS_LANE_OFFSET, -(CROSS_SPAWN_LAT - 6), 1, 9);
+check("mobil sejalur tidak disusulkan kalau masih terlalu dekat", engine.crossCars.length === n1, `${n1} → ${engine.crossCars.length} mobil`);
+e.spawnCrossCar(interSp.id, interSp.s + CROSS_LANE_OFFSET, -(CROSS_SPAWN_LAT - 20), 1, 9);
+check("mobil sejalur boleh muncul kalau jaraknya sudah cukup", engine.crossCars.length === n1 + 1, `${engine.crossCars.length} mobil`);
+
 // motor dari arah depan juga bikin penyeberang menunggu (jalur lintas hormat)
 engine.startRun();
 quiet();
@@ -177,7 +207,8 @@ e.spawnMotorcycle(inter4.s, 1, 4);
 engine.movers.forEach((m: { speed: number }) => (m.speed = 0.1));
 const lat5 = cc5.lat;
 step(20);
-check("motor dari arah depan juga dihormati penyeberang", cc5.lat === lat5 && cc5.waiting === true, `waiting=${cc5.waiting}`);
+check("motor dari arah depan juga dihormati penyeberang", cc5.waiting === true, `waiting=${cc5.waiting}`);
+check("penyeberang mengerem halus (tidak berhenti mendadak)", (cc5.speedK ?? 1) < 0.2 && Math.abs(cc5.lat - lat5) < 3, `speedK=${(cc5.speedK ?? 1).toFixed(2)}, maju ${Math.abs(cc5.lat - lat5).toFixed(2)} m sebelum berhenti`);
 
 // kendaraan yang SUDAH di tengah perempatan tidak berhenti mendadak (tidak macet di tengah)
 engine.startRun();

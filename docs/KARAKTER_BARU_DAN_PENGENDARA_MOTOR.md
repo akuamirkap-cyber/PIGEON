@@ -68,8 +68,16 @@ Diuji pakai vektor rig: `dot(moncong, arah pemain) = −1.000`.
 - Mobil penyeberang sekarang memakai **jalur kiri** masing-masing arah
   (`CROSS_LANE_OFFSET = 2.0`, tepat di tengah panah jalur yang dicat di dek jalan lintas):
   yang melaju ke `+lat` di jalur `+s`, yang ke `−lat` di jalur `−s` — tidak ada dua arah di jalur yang sama.
-- Rodanya **menapak dek jalan lintas** (`crossCarH()`: rata di jalan utama, naik mulus ke `0.175 m`
-  deck aspal, bukan lagi 0.145 yang bikin roda terbenam 3 cm).
+- Rodanya **menapak dek jalan lintas**: `crossCarH()` sekarang rata di jalan utama, naik mulus
+  lewat curb-cut (|lat| 3.6 → 4.0), dan **tepat setinggi dek 0.175 m mulai dari bibir dek** —
+  sebelumnya ramp baru penuh di |lat| 4.2 sehingga roda sempat terbenam ~9 cm di bibir perempatan.
+  Model mobil penyeberang juga dinaikkan 2 cm (tapak ban kini pas di y = 0, tidak lagi -0.02).
+- **Jalan lintas diperpanjang** dari 26 m jadi 38 m per sisi (`CROSS_STREET_LEN`) dan mobil
+  muncul/hilang di |lat| 38/41 (`CROSS_SPAWN_LAT`/`CROSS_DESPAWN_LAT`) — tidak lagi nongol atau
+  lenyap tepat di depan pemain; marka, trotoar, dan kanstin ikut memanjang.
+- **Tidak ada mobil bertumpuk sejalur**: mobil baru tidak disusulkan kalau mobil searah masih
+  dalam 14 m dari titik muncul.
+- **Rem halus**: mobil penyeberang memperlambat (`speedK`) lalu berhenti, bukan menghentak.
 - Penyeberang **tidak menembus** lalu lintas jalan utama: kalau ada mobil/motor di/dekat perempatan
   mereka berhenti menunggu di tepi (`waiting`), lalu jalan lagi saat bebas. Pemain **tidak** dihitung,
   jadi bahaya T-bone + HOOD JUMP tetap ada. Kendaraan yang sudah di tengah perempatan tidak berhenti mendadak.
@@ -81,7 +89,7 @@ Diuji pakai vektor rig: `dot(moncong, arah pemain) = −1.000`.
 npx esbuild test/animalSize.ts --bundle --platform=node --outfile=/tmp/a.cjs && node /tmp/a.cjs   # 32/32
 npx esbuild test/newFeatures.ts --bundle --platform=node --outfile=/tmp/n.cjs && node /tmp/n.cjs  # 36/36
 npx esbuild test/characters.ts --bundle --platform=node --outfile=/tmp/c.cjs && node /tmp/c.cjs   # 82/82
-npx esbuild test/traffic.ts --bundle --platform=node --outfile=/tmp/t.cjs && node /tmp/t.cjs      # 25/25
+npx esbuild test/traffic.ts --bundle --platform=node --outfile=/tmp/t.cjs && node /tmp/t.cjs      # 32/32
 # catatan: test/traffic.ts membaca src/game/World.tsx, jalankan dari root repo
 npx vite build                                       # sukses
 ```

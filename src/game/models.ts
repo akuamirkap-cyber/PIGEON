@@ -1048,6 +1048,10 @@ export function puddleParts(variant: number): Part[] {
 /* ---------- Perempatan (4-Way Crossroads / Intersection) ---------- */
 
 export const INTERSECTION_W = 8.4;
+/** Panjang jalan lintas di tiap sisi perempatan (dari dek |lat| 4 sampai ujungnya). */
+export const CROSS_STREET_LEN = 38;
+/** Titik tengah jalan lintas tiap sisi (|lat| 4 → 42). */
+const CROSS_STREET_MID = 4 + CROSS_STREET_LEN / 2;
 export const HOOD_JUMP_CLEAR_H = 0.88;
 
 /** Complete 4-way asphalt cross-street with raised lateral roadbeds, sidewalks, corner curb cuts, tactile blocks, and 4-way zebra crossings. */
@@ -1075,11 +1079,11 @@ export function intersectionRoadParts(): Part[] {
 
   // 2. Lateral Cross-Streets (Left: z = -4.0 to -30, Right: z = +4.0 to +30)
   // Raised to y = 0.145 (surface top at y = 0.175) so it cleanly overlays ground sidewalk (0.12) & curbs (0.14)
-  for (const sz of [-17, 17]) {
-    // Roadbed asphalt (26m long each side, 8.4m wide)
-    parts.push({ x: 0, y: 0.145, z: sz, w: W, h: 0.06, d: 26, color: asphalt });
+  for (const sz of [-CROSS_STREET_MID, CROSS_STREET_MID]) {
+    // Roadbed asphalt (38m long each side, 8.4m wide)
+    parts.push({ x: 0, y: 0.145, z: sz, w: W, h: 0.06, d: CROSS_STREET_LEN, color: asphalt });
     // Underneath skirt foundation down to y = -0.3 to prevent any floating seams
-    parts.push({ x: 0, y: -0.05, z: sz, w: W + 0.1, h: 0.35, d: 26, color: "#2d3139" });
+    parts.push({ x: 0, y: -0.05, z: sz, w: W + 0.1, h: 0.35, d: CROSS_STREET_LEN, color: "#2d3139" });
   }
 
   // Smooth curb-cut ramp connecting main street (y = 0) to cross street (y = 0.145)
@@ -1092,11 +1096,11 @@ export function intersectionRoadParts(): Part[] {
     const curbX = side * (halfW + 0.18);
     const walkX = side * (halfW + 0.95);
     for (const dir of [-1, 1]) {
-      const walkZ = dir * 17;
+      const walkZ = dir * CROSS_STREET_MID;
       // Curb stone along the side street
-      parts.push({ x: curbX, y: 0.18, z: walkZ, w: 0.36, h: 0.14, d: 25.5, color: curb });
+      parts.push({ x: curbX, y: 0.18, z: walkZ, w: 0.36, h: 0.14, d: CROSS_STREET_LEN - 0.5, color: curb });
       // Sidewalk paving tiles along the side street
-      parts.push({ x: walkX, y: 0.165, z: walkZ, w: 1.25, h: 0.11, d: 25.5, color: sidewalk });
+      parts.push({ x: walkX, y: 0.165, z: walkZ, w: 1.25, h: 0.11, d: CROSS_STREET_LEN - 0.5, color: sidewalk });
     }
   }
 
@@ -1118,14 +1122,14 @@ export function intersectionRoadParts(): Part[] {
 
   // 6. Double Solid Yellow Center Dividing Lines on the Cross-Street
   for (const dir of [-1, 1]) {
-    for (let z = 5.2; z <= 28; z += 1.8) {
+    for (let z = 5.2; z <= CROSS_STREET_MID + CROSS_STREET_LEN / 2 - 1; z += 1.8) {
       const cz = dir * z;
       parts.push({ x: -0.15, y: 0.18, z: cz, w: 0.14, h: 0.022, d: 1.3, color: yellow });
       parts.push({ x: 0.15, y: 0.18, z: cz, w: 0.14, h: 0.022, d: 1.3, color: yellow });
     }
     // Solid white shoulder edge lines on the cross street
     for (const sx of [-halfW + 0.5, halfW - 0.5]) {
-      parts.push({ x: sx, y: 0.178, z: dir * 17, w: 0.16, h: 0.022, d: 24, color: white });
+      parts.push({ x: sx, y: 0.178, z: dir * CROSS_STREET_MID, w: 0.16, h: 0.022, d: CROSS_STREET_LEN - 3, color: white });
     }
     // Painted directional arrows on the cross-street lanes
     const arrowZ = dir * 11;
@@ -1283,15 +1287,16 @@ export function crossingCarParts(variant: number): Part[] {
 
     // --- 5. WHEELS & HUBS ---
     // Front wheels (x = +1.0)
-    { x: 1.0, y: 0.27, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
-    { x: 1.0, y: 0.27, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
-    { x: 1.0, y: 0.27, z: 0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
-    { x: 1.0, y: 0.27, z: -0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
+    // y roda 0.29 = jari-jari 0.29, jadi tapak ban tepat di y = 0 (menapak permukaan, tidak terbenam)
+    { x: 1.0, y: 0.29, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
+    { x: 1.0, y: 0.29, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
+    { x: 1.0, y: 0.29, z: 0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
+    { x: 1.0, y: 0.29, z: -0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
     // Rear wheels (x = -1.0)
-    { x: -1.0, y: 0.27, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
-    { x: -1.0, y: 0.27, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
-    { x: -1.0, y: 0.27, z: 0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
-    { x: -1.0, y: 0.27, z: -0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
+    { x: -1.0, y: 0.29, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
+    { x: -1.0, y: 0.29, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: darkTire },
+    { x: -1.0, y: 0.29, z: 0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
+    { x: -1.0, y: 0.29, z: -0.86, w: 0.26, h: 0.26, d: 0.04, color: rim },
   ];
 }
 
