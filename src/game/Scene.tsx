@@ -195,7 +195,9 @@ function CameraRig() {
 function Lights() {
   const light = useRef<THREE.DirectionalLight>(null);
   const night = useUI((s) => s.trackMode) === "shibuya";
-  const cloudy = useUI((s) => s.weather === "cloudy") && useUI((s) => s.trackMode) !== "shibuya";
+  // PENTING: hook harus selalu terpanggil dengan urutan sama — jangan pakai && antar useUI
+  const cloudyWeather = useUI((s) => s.weather === "cloudy");
+  const cloudy = cloudyWeather && !night;
   const nightBright = useUI((s) => s.nightBright);
   const nightMul = [0.82, 1, 1.18][nightBright];
   const target = useMemo(() => new THREE.Object3D(), []);
