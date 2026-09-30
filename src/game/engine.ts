@@ -231,7 +231,8 @@ export type DecorKind =
   | "touge_lamp"
   | "billboard"
   | "jam_car"
-  | "tower109";
+  | "tower109"
+  | "avenue_lamp";
 export interface Decor {
   kind: DecorKind;
   pos: Vec3;
@@ -362,6 +363,8 @@ export interface Intersection {
   spawnTimer2: number;
   trafficTimer: number;
   lightState: "green" | "yellow" | "red";
+  /** Shibuya Scramble Crossing: perempatan raksasa selebar avenue dengan zebra diagonal & kerumunan */
+  scramble?: boolean;
 }
 
 export interface CrossTrafficCar {
@@ -614,6 +617,8 @@ class Engine {
   wet = 0;
   nextCrossingS = 0;
   nextIntersectionS = 0;
+  /** hitungan perempatan (untuk cadence Shibuya Scramble tiap 2 perempatan) */
+  private interCount = 0;
   crashCause: CrashCause = "obstacle";
   particles: Particle[] = [];
   /** gelombang "denyut" yang sedang aktif (lihat Pulse) */
@@ -721,6 +726,7 @@ class Engine {
     this.crossings = [];
     this.trains = [];
     this.intersections = [];
+    this.interCount = 0;
     this.crossCars = [];
     this.puddles = [];
     this.overpassCars = [];
@@ -2682,6 +2688,8 @@ class Engine {
     const sc = track.sample(s - 26, tmpS);
     track.frame(s - 26, 4.9, 0.12, tmpV);
     const signPos: Vec3 = [tmpV.x, tmpV.y, tmpV.z];
+    // Di Shibuya, setiap perempatan ke-2 adalah SCRAMBLE CROSSING raksasa ala pusat Shibuya
+    const scramble = track.mode === "shibuya" && this.interCount++ % 2 === 1;
     const inter: Intersection = {
       id: this.nextId++,
       s,
@@ -2694,12 +2702,32 @@ class Engine {
       spawnTimer2: rand(0.7, 1.4),
       trafficTimer: rand(0, 6),
       lightState: "green",
+      scramble,
     };
     this.intersections.push(inter);
+    if (scramble) {
+      // Gelombang penyeberang SUNGGUHAN di jalur pemain — rame tapi tetap fair & seru
+      const n = 3 + randInt(0, 2);
+      const est = Math.max(this.speed, START_SPEED);
+      for (let i = 0; i < n; i++) {
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        const px = s - 3.5 + i * 1.8 + rand(-0.4, 0.4);
+        const m = this.newMover("pedestrian", px, -1, -dir * 6.8);
+        m.dir = dir;
+        m.speed = rand(1.7, 2.4);
+        m.variant = randInt(0, 4);
+        const eta = (px - this.distance) / est;
+        const walk = (6.8 - 1.2) / m.speed;
+        m.delay = Math.max(0.1, eta - walk + rand(-0.9, 0.9));
+        this.movers.push(m);
+      }
+      this.moverVersion++;
+    }
     // clear static obstacles & bread directly in the crossroads area (s - 8.5 to s + 8.5)
-    this.obstacles = this.obstacles.filter((o) => o.s < s - 8.5 || o.s > s + 8.5);
-    this.breads = this.breads.filter((b) => b.s < s - 7.5 || b.s > s + 7.5);
-    this.puddles = this.puddles.filter((pu) => pu.s < s - 8.5 || pu.s > s + 8.5);
+    const half = scramble ? 11 : 8.5;
+    this.obstacles = this.obstacles.filter((o) => o.s < s - half || o.s > s + half);
+    this.breads = this.breads.filter((b) => b.s < s - (half - 1) || b.s > s + (half - 1));
+    this.puddles = this.puddles.filter((pu) => pu.s < s - half || pu.s > s + half);
     this.listVersion++;
     return inter;
   }
@@ -2935,9 +2963,10 @@ class Engine {
       if (Math.random() < 0.55) add("tree", rand(1.5, 10.5), rand(-5.3, -5.7), 0.12, randInt(0, 2));
       if (Math.random() < 0.5) add("tree", rand(1.5, 10.5), rand(13.9, 14.6), 0.12, randInt(0, 2));
 
-      // 8. Street lamps every chunk — the playable lanes stay bright
-      if (id % 2 === 0) add("lamp", 6, -4.3, 0.06);
-      if (id % 3 === 1) add("lamp", 3, 12.55, 0.14);
+      // 8. Lampu jalan rapat: tiap chunk di KEDUA trotoar + lampu avenue dua kepala di median
+      add("lamp", id % 2 === 0 ? 3 : 9, -4.3, 0.06);
+      add("lamp", id % 2 === 0 ? 9 : 3, 12.55, 0.14);
+      if (id % 2 === 0 && !nearCrossing(6.5)) add("avenue_lamp", 6.5, 4.35, 0.16);
 
       this.chunks.push({ id, s0, kind: "shibuya", decor });
       this.listVersion++;
@@ -3291,9 +3320,9 @@ class Engine {
       this.spawnCrossingPattern(cr, x);
       return;
     }
-    const nearbyInter = this.intersections.find((it) => Math.abs(it.s - x) < 10);
+    const nearbyInter = this.intersections.find((it) => Math.abs(it.s - x) < (it.scramble ? 12.5 : 10));
     if (nearbyInter) {
-      this.nextObstacleS = Math.max(x + 6, nearbyInter.s + 12 + rand(1, 4));
+      this.nextObstacleS = Math.max(x + 6, nearbyInter.s + (nearbyInter.scramble ? 14.5 : 12) + rand(1, 4));
       return;
     }
     const total = weights.reduce((s, w) => s + w[1], 0);

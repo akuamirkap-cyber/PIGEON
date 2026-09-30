@@ -78,6 +78,10 @@ import {
   billboardParts,
   jamCarParts,
   tower109Parts,
+  avenueLampParts,
+  stopSignParts,
+  pedCrossingSignParts,
+  scrambleRoadParts,
   tougeRouteSignParts,
   tougeStreetlampParts,
   momijiLeafParts,
@@ -169,6 +173,8 @@ const DecorView = memo(function DecorView({ d }: { d: Decor }) {
         return getGeometryPair(`jam-car-${d.variant % 5}`, () => jamCarParts(d.variant));
       case "tower109":
         return getGeometryPair("tower109", tower109Parts);
+      case "avenue_lamp":
+        return getGeometryPair("avenue-lamp", avenueLampParts);
     }
   }, [d]);
   useEffect(() => {
@@ -832,9 +838,98 @@ function Trains() {
 }
 
 /* ---------- Perempatan (4-Way Crossroads / Intersections) ---------- */
+/** Penyeberang ambient di paruh jauh Scramble Crossing (median -> trotoar seberang).
+ *  Murni visual: jalur pemain hanya diisi penyeberang SUNGGUHAN dari sistem mover. */
+const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Intersection; idx: number }) {
+  const rootRef = useRef<THREE.Group>(null);
+  const innerRef = useRef<THREE.Group>(null);
+  const armLRef = useRef<THREE.Group>(null);
+  const armRRef = useRef<THREE.Group>(null);
+  const legLRef = useRef<THREE.Group>(null);
+  const legRRef = useRef<THREE.Group>(null);
+  const variant = idx % 5;
+  const pedKey = `${variant}`;
+  const headGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-normal`, () => pedestrianHeadParts(variant, false, false)), [pedKey, variant]);
+  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${pedKey}`, () => pedestrianTorsoParts(variant, false)), [pedKey, variant]);
+  const armLGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-L`, () => pedestrianArmParts(variant, 1, false, false)), [pedKey, variant]);
+  const armRGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-R`, () => pedestrianArmParts(variant, -1, false, false)), [pedKey, variant]);
+  const legLGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-L`, () => pedestrianLegParts(variant, 1, false)), [pedKey, variant]);
+  const legRGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-R`, () => pedestrianLegParts(variant, -1, false)), [pedKey, variant]);
+  const seed = useMemo(
+    () => ({
+      x: -4.6 + Math.random() * 9.2, // posisi menyeberang di dalam junction
+      diag: -2.6 + Math.random() * 5.2, // drift diagonal ala scramble
+      u: Math.random(),
+      dirU: (Math.random() < 0.5 ? 1 : -1) as 1 | -1,
+      rate: 0.11 + Math.random() * 0.07, // kecepatan menyeberang (u/detik)
+      t0: Math.random() * 20,
+    }),
+    [],
+  );
+  useFrame((_, dtRaw) => {
+    const root = rootRef.current;
+    const inner = innerRef.current;
+    if (!root || !inner) return;
+    const dt = Math.min(dtRaw, 0.05);
+    seed.u += seed.dirU * seed.rate * dt;
+    if (seed.u > 1) {
+      seed.u = 1;
+      seed.dirU = -1;
+      seed.x = -4.6 + Math.random() * 9.2;
+      seed.diag = -2.6 + Math.random() * 5.2;
+    } else if (seed.u < 0) {
+      seed.u = 0;
+      seed.dirU = 1;
+      seed.x = -4.6 + Math.random() * 9.2;
+      seed.diag = -2.6 + Math.random() * 5.2;
+    }
+    const lat = 4.2 + seed.u * 11.0; // median (4.2) -> trotoar seberang (15.2)
+    const sPos = inter.s + seed.x + seed.diag * seed.u;
+    // tinggi permukaan: median/trotoar jauh ditinggikan, aspal jalur lawan rendah
+    const h = lat < 5.2 ? 0.18 : lat > 12.25 ? 0.18 : 0.03;
+    track.frame(sPos, lat, h, root.position);
+    track.quat(sPos, root.quaternion);
+    inner.rotation.y = seed.dirU > 0 ? -Math.PI / 2 : Math.PI / 2;
+    inner.scale.setScalar(PED_SCALE);
+    const t = engine.time * 7.2 + seed.t0;
+    const swing = Math.sin(t) * 0.5;
+    if (legLRef.current) legLRef.current.rotation.x = swing;
+    if (legRRef.current) legRRef.current.rotation.x = -swing;
+    if (armLRef.current) armLRef.current.rotation.x = -swing * 0.8;
+    if (armRRef.current) armRRef.current.rotation.x = swing * 0.8;
+    inner.position.y = PED_LIFT + Math.abs(Math.sin(t)) * 0.028;
+  });
+  return (
+    <group ref={rootRef}>
+      <group ref={innerRef}>
+        <mesh geometry={torsoGeo} material={voxelMaterial} />
+        <group position={[0, 0.34, 0]}>
+          <mesh geometry={headGeo} material={voxelMaterial} />
+        </group>
+        <group ref={armLRef} position={[0, 0.27, 0.34]}>
+          <mesh geometry={armLGeo} material={voxelMaterial} />
+        </group>
+        <group ref={armRRef} position={[0, 0.27, -0.34]}>
+          <mesh geometry={armRGeo} material={voxelMaterial} />
+        </group>
+        <group ref={legLRef} position={[0, -0.34, 0.11]}>
+          <mesh geometry={legLGeo} material={voxelMaterial} />
+        </group>
+        <group ref={legRRef} position={[0, -0.34, -0.11]}>
+          <mesh geometry={legRGeo} material={voxelMaterial} />
+        </group>
+      </group>
+    </group>
+  );
+});
+
 const IntersectionView = memo(function IntersectionView({ inter }: { inter: Intersection }) {
+  const isShibuya = useUI((s) => s.trackMode) === "shibuya";
   const roadGeo = useMemo(() => getGeometry("intersection-road", intersectionRoadParts), []);
+  const scrambleGeo = useMemo(() => getGeometryPair("scramble-road", scrambleRoadParts), []);
   const signGeo = useMemo(() => getGeometry("intersection-sign", intersectionSignParts), []);
+  const stopGeo = useMemo(() => getGeometryPair("stop-sign", stopSignParts), []);
+  const pedSignGeo = useMemo(() => getGeometryPair("ped-crossing-sign", pedCrossingSignParts), []);
   const tlGeoGreen = useMemo(() => getGeometry("tl-green", () => trafficLightParts("green")), []);
   const tlGeoYellow = useMemo(() => getGeometry("tl-yellow", () => trafficLightParts("yellow")), []);
   const tlGeoRed = useMemo(() => getGeometry("tl-red", () => trafficLightParts("red")), []);
@@ -845,14 +940,28 @@ const IntersectionView = memo(function IntersectionView({ inter }: { inter: Inte
   }, [inter]);
 
   const tlGeo = inter.lightState === "green" ? tlGeoGreen : inter.lightState === "yellow" ? tlGeoYellow : tlGeoRed;
+  const cornerX = inter.scramble ? 7.2 : 4.6;
+  const pair = (g: { lit: THREE.BufferGeometry; glow: THREE.BufferGeometry | null }, pos: [number, number, number], ry: number, key: string) => (
+    <group key={key} position={pos} rotation-y={ry}>
+      <mesh geometry={g.lit} material={voxelMaterial} castShadow />
+      {g.glow && <mesh geometry={g.glow} material={glowMaterial} />}
+    </group>
+  );
 
   return (
     <group>
-      {/* Crossroad asphalt and zebra crossings */}
+      {/* Crossroad asphalt and zebra crossings (scramble = perempatan raksasa selebar avenue) */}
       <group position={inter.pos} rotation-y={inter.rotY}>
-        <mesh geometry={roadGeo} material={voxelMaterial} receiveShadow />
-        {/* 4 Traffic light posts at the corner sidewalk curbs */}
-        {[-4.6, 4.6].map((x) =>
+        {inter.scramble ? (
+          <>
+            <mesh geometry={scrambleGeo.lit} material={voxelMaterial} receiveShadow />
+            {scrambleGeo.glow && <mesh geometry={scrambleGeo.glow} material={glowMaterial} />}
+          </>
+        ) : (
+          <mesh geometry={roadGeo} material={voxelMaterial} receiveShadow />
+        )}
+        {/* Traffic light posts at the corner sidewalk curbs */}
+        {[-cornerX, cornerX].map((x) =>
           [-4.8, 4.8].map((z) => (
             <mesh
               key={`${x}-${z}`}
@@ -864,10 +973,24 @@ const IntersectionView = memo(function IntersectionView({ inter }: { inter: Inte
             />
           ))
         )}
+        {/* Shibuya: sepasang lampu lalu lintas lagi di sudut seberang avenue */}
+        {isShibuya &&
+          [-cornerX, cornerX].map((x) => (
+            <mesh key={`far-${x}`} geometry={tlGeo} material={voxelMaterial} position={[x, 0.18, 13.1]} rotation-y={0} castShadow />
+          ))}
+        {/* 🚸 Rambu lalu lintas di SEMUA perempatan: rambu penyeberangan + STOP (止まれ) di sudut */}
+        {pair(pedSignGeo, [-cornerX - 0.7, 0.18, -4.5], 0, "ps1")}
+        {pair(pedSignGeo, [cornerX + 0.7, 0.18, 4.6], Math.PI, "ps2")}
+        {pair(stopGeo, [cornerX + 0.6, 0.18, -4.5], Math.PI / 2, "st1")}
+        {pair(stopGeo, [-cornerX - 0.6, 0.18, 4.6], -Math.PI / 2, "st2")}
+        {isShibuya && pair(pedSignGeo, [cornerX + 0.7, 0.18, 12.9], Math.PI, "ps3")}
+        {isShibuya && pair(stopGeo, [-cornerX - 0.6, 0.18, 12.9], -Math.PI / 2, "st3")}
       </group>
       {/* ⚠️ Perempatan warning signs placed ahead on both sides of the road */}
       <mesh geometry={signGeo} material={voxelMaterial} position={inter.signPos} rotation-y={inter.signRotY} castShadow />
       <mesh geometry={signGeo} material={voxelMaterial} position={signPos2} rotation-y={inter.signRotY} castShadow />
+      {/* Kerumunan scramble: penyeberang ambient memenuhi paruh jauh avenue */}
+      {inter.scramble && Array.from({ length: 9 }, (_, i) => <ScrambleWalker key={i} inter={inter} idx={i} />)}
     </group>
   );
 });

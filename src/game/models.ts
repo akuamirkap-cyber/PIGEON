@@ -2873,3 +2873,125 @@ export function catRagdollFlyingParts(variant: number): Part[] {
 
 
 
+
+/* ---------- Rambu & perlengkapan perempatan ---------- */
+
+/** Rambu STOP Jepang (止まれ): segitiga merah terbalik di tiang — dipasang di sudut perempatan. */
+export function stopSignParts(): Part[] {
+  const red = "#d90429";
+  return [
+    { x: 0, y: 0.05, z: 0, w: 0.28, h: 0.1, d: 0.28, color: "#6b7078" },
+    { x: 0, y: 1.05, z: 0, w: 0.08, h: 2.1, d: 0.08, color: "#8d949c" },
+    // segitiga terbalik: 3 pelat menyempit ke bawah (menyala biar kebaca malam)
+    { x: 0, y: 2.32, z: 0.03, w: 0.05, h: 0.3, d: 0.96, color: red, glow: true },
+    { x: 0, y: 2.06, z: 0.03, w: 0.05, h: 0.24, d: 0.62, color: red, glow: true },
+    { x: 0, y: 1.86, z: 0.03, w: 0.05, h: 0.18, d: 0.3, color: red, glow: true },
+    // tulisan 止まれ (bar putih)
+    { x: 0, y: 2.36, z: 0.07, w: 0.02, h: 0.12, d: 0.66, color: "#ffffff", glow: true },
+    // garis tepi putih atas
+    { x: 0, y: 2.5, z: 0.05, w: 0.03, h: 0.06, d: 0.9, color: "#ffffff", glow: true },
+  ];
+}
+
+/** Rambu penyeberangan pejalan kaki Jepang: panel biru persegi dengan figur pejalan putih. */
+export function pedCrossingSignParts(): Part[] {
+  const blue = "#1d4ed8";
+  return [
+    { x: 0, y: 0.05, z: 0, w: 0.28, h: 0.1, d: 0.28, color: "#6b7078" },
+    { x: 0, y: 1.1, z: 0, w: 0.08, h: 2.2, d: 0.08, color: "#8d949c" },
+    // panel biru menyala
+    { x: 0, y: 2.5, z: 0.03, w: 0.06, h: 0.86, d: 0.86, color: blue, glow: true },
+    // figur pejalan kaki (putih): kepala, badan, kaki melangkah
+    { x: 0, y: 2.76, z: 0.07, w: 0.03, h: 0.14, d: 0.14, color: "#ffffff", glow: true },
+    { x: 0, y: 2.56, z: 0.07, w: 0.03, h: 0.26, d: 0.16, color: "#ffffff", glow: true },
+    { x: 0, y: 2.32, z: 0.13, w: 0.03, h: 0.24, d: 0.08, color: "#ffffff", glow: true },
+    { x: 0, y: 2.32, z: 0.0, w: 0.03, h: 0.22, d: 0.08, color: "#ffffff", glow: true },
+    // zebra kecil di bawah figur
+    { x: 0, y: 2.16, z: 0.05, w: 0.03, h: 0.05, d: 0.6, color: "#ffffff", glow: true },
+  ];
+}
+
+/** Lampu jalan avenue dua kepala untuk median Shibuya (menyinari dua arah jalur). */
+export function avenueLampParts(): Part[] {
+  const pole = "#3f444c";
+  return [
+    { x: 0, y: 0.12, z: 0, w: 0.5, h: 0.24, d: 0.5, color: pole },
+    { x: 0, y: 2.4, z: 0, w: 0.18, h: 4.6, d: 0.18, color: "#4a4f57" },
+    // lengan silang dua arah
+    { x: 0, y: 4.6, z: 0, w: 0.14, h: 0.14, d: 2.6, color: "#4a4f57" },
+    // dua kepala lampu + bohlam menyala hangat
+    { x: 0, y: 4.52, z: 1.2, w: 0.5, h: 0.14, d: 0.55, color: "#4a4f57" },
+    { x: 0, y: 4.42, z: 1.2, w: 0.42, h: 0.1, d: 0.46, color: "#fff2b0", glow: true },
+    { x: 0, y: 4.52, z: -1.2, w: 0.5, h: 0.14, d: 0.55, color: "#4a4f57" },
+    { x: 0, y: 4.42, z: -1.2, w: 0.42, h: 0.1, d: 0.46, color: "#fff2b0", glow: true },
+    // aksen banner kota kecil di tiang (khas avenue Jepang)
+    { x: 0, y: 3.2, z: 0.28, w: 0.06, h: 0.9, d: 0.42, color: "#ff5fa2", glow: true },
+  ];
+}
+
+/**
+ * SHIBUYA SCRAMBLE CROSSING: perempatan raksasa selebar avenue 6 jalur.
+ * Frame lokal: +x searah jalan pemain, +z = arah lat (median di z≈4.35, jalur lawan z 5..12.3).
+ * Zebra putihnya self-luminous supaya menyala bersih di malam hari.
+ */
+export function scrambleRoadParts(): Part[] {
+  const asphalt = "#3b4152";
+  const asphaltDark = "#343a4a";
+  const zebra = "#f2f5fa";
+  const parts: Part[] = [];
+  const XW = 13.4; // lebar cross-street raksasa
+  const XH = XW / 2;
+
+  // 1. Hamparan aspal junction menutupi SELURUH avenue (median ikut dipaving — plaza scramble)
+  parts.push({ x: 0, y: 0.016, z: 0, w: XW, h: 0.024, d: 8.0, color: asphalt });
+  parts.push({ x: 0, y: 0.016, z: 8.65, w: XW, h: 0.024, d: 7.35, color: asphalt });
+  parts.push({ x: 0, y: 0.09, z: 4.35, w: XW, h: 0.175, d: 1.6, color: asphaltDark }); // median dipaving rata
+  // bekas jejak ban menyilang
+  parts.push({ x: -3.4, y: 0.02, z: 0, w: 1.6, h: 0.026, d: 7.6, color: asphaltDark });
+  parts.push({ x: 3.4, y: 0.02, z: 0, w: 1.6, h: 0.026, d: 7.6, color: asphaltDark });
+
+  // 2. Cross-street raksasa dua sisi (ditinggikan menimpa trotoar seperti perempatan biasa)
+  for (const [z0, z1] of [
+    [-30, -4.0],
+    [12.3, 30],
+  ] as const) {
+    const mid = (z0 + z1) / 2;
+    parts.push({ x: 0, y: 0.145, z: mid, w: XW, h: 0.06, d: z1 - z0, color: asphalt });
+    // marka tengah cross street
+    parts.push({ x: 0, y: 0.18, z: mid, w: 0.14, h: 0.012, d: (z1 - z0) * 0.86, color: "#e9e9e9" });
+  }
+
+  // 3. ZEBRA menyeberangi avenue di kedua tepi junction (menyala)
+  for (const bx of [-XH + 0.9, XH - 0.9]) {
+    for (let z = -3.4; z <= 12.0; z += 1.0) {
+      const onMedian = z > 3.4 && z < 5.3;
+      parts.push({ x: bx, y: onMedian ? 0.19 : 0.04, z, w: 1.25, h: 0.02, d: 0.55, color: zebra, glow: true });
+    }
+  }
+
+  // 4. ZEBRA menyeberangi cross-street di kedua sisi (di atas bagian yang ditinggikan)
+  for (const bz of [-5.2, 13.9]) {
+    for (let x = -XH + 1.2; x <= XH - 1.2; x += 1.05) {
+      parts.push({ x, y: 0.19, z: bz, w: 0.55, h: 0.02, d: 1.3, color: zebra, glow: true });
+    }
+  }
+
+  // 5. ZEBRA DIAGONAL X — tanda tangan Shibuya Scramble!
+  const ND = 13;
+  for (let i = 0; i < ND; i++) {
+    const t = i / (ND - 1);
+    const x = -4.9 + t * 9.8;
+    const zA = -2.4 + t * 12.6; // diagonal /
+    const zB = 10.2 - t * 12.6; // diagonal \
+    const yA = zA > 3.4 && zA < 5.3 ? 0.19 : 0.045;
+    const yB = zB > 3.4 && zB < 5.3 ? 0.19 : 0.045;
+    parts.push({ x, y: yA, z: zA, w: 0.55, h: 0.02, d: 1.2, ry: Math.PI / 4, color: zebra, glow: true });
+    parts.push({ x, y: yB, z: zB, w: 0.55, h: 0.02, d: 1.2, ry: -Math.PI / 4, color: zebra, glow: true });
+  }
+
+  // 6. Garis henti tebal di jalur pemain & jalur lawan
+  parts.push({ x: -XH - 0.35, y: 0.04, z: 0, w: 0.4, h: 0.018, d: 7.4, color: zebra, glow: true });
+  parts.push({ x: XH + 0.35, y: 0.04, z: 8.6, w: 0.4, h: 0.018, d: 7.2, color: zebra, glow: true });
+
+  return parts;
+}
