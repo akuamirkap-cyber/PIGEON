@@ -9,6 +9,10 @@ import { Player } from "./Player";
 import { Podium } from "./Podium";
 import { Backdrop } from "./Backdrop";
 import { applyCurveToScene, curveUniforms, disableCurve, curveDisabled } from "./curve";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 /**
  * Subway-Surfers style third-person chase camera:
@@ -224,9 +228,9 @@ function Lights() {
     <>
       {/* Shibuya Night: bright "city that never sleeps" ambience — the sky stays dark but streets
           and facades are washed by warm shop light + violet sky bounce, and every sign self-glows */}
-      <hemisphereLight args={night ? ["#b9c1ff", "#3a3f63", 1.35] : ["#ffffff", "#b0c4d8", 1.7]} />
-      <ambientLight intensity={night ? 0.72 : 0.2} color={night ? "#a7aeff" : "#ffffff"} />
-      <directionalLight ref={light} position={[-2, 25, 4.5]} intensity={night ? 1.45 : 2.1} color={night ? "#d7ddff" : "#ffffff"} castShadow />
+      <hemisphereLight args={night ? ["#c3caff", "#454a70", 1.5] : ["#ffffff", "#b0c4d8", 1.7]} />
+      <ambientLight intensity={night ? 0.82 : 0.2} color={night ? "#aeb5ff" : "#ffffff"} />
+      <directionalLight ref={light} position={[-2, 25, 4.5]} intensity={night ? 1.5 : 2.1} color={night ? "#d7ddff" : "#ffffff"} castShadow />
       <primitive object={target} />
     </>
   );
@@ -235,6 +239,33 @@ function Lights() {
 function Loop() {
   useFrame((_, dt) => engine.update(dt), -10);
   return null;
+}
+
+/** Bloom malam: sign, jendela, dan lampu memancar lembut — "pas", tidak menyilaukan.
+ *  Hanya aktif di Shibuya Night; siang hari kembali ke render biasa. */
+function NightBloom() {
+  const { gl, scene, camera, size } = useThree();
+  const composer = useMemo(() => {
+    const c = new EffectComposer(gl);
+    c.addPass(new RenderPass(scene, camera));
+    // strength 0.5, radius 0.45, threshold 0.45: hanya bagian terang (glow) yang mekar
+    c.addPass(new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.5, 0.45, 0.45));
+    c.addPass(new OutputPass());
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gl, scene, camera]);
+  useEffect(() => {
+    composer.setPixelRatio(gl.getPixelRatio());
+    composer.setSize(size.width, size.height);
+  }, [composer, gl, size]);
+  useEffect(() => () => composer.dispose(), [composer]);
+  useFrame(() => composer.render(), 1);
+  return null;
+}
+
+function NightBloomGate() {
+  const night = useUI((s) => s.trackMode) === "shibuya";
+  return night ? <NightBloom /> : null;
 }
 
 /** Sky dome + distant haze so the curved horizon fades nicely. */
@@ -308,6 +339,7 @@ export function Scene({ onContextLost }: { onContextLost?: () => void }) {
       style={{ position: "absolute", inset: 0, touchAction: "none" }}
     >
       <CameraRig />
+      <NightBloomGate />
       <Lights />
       <Loop />
       <Sky />

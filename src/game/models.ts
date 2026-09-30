@@ -282,14 +282,6 @@ export function breadParts(): Part[] {
     // butter
     { x: 0.03, y: 0.62, z: 0.13, w: 0.2, h: 0.12, d: 0.08, color: "#ffe066" },
     { x: 0.05, y: 0.66, z: 0.15, w: 0.1, h: 0.06, d: 0.06, color: "#fff3b0" },
-    // kawaii face
-    { x: -0.12, y: 0.4, z: 0.12, w: 0.07, h: 0.09, d: 0.02, color: "#3b2a1a" },
-    { x: 0.12, y: 0.4, z: 0.12, w: 0.07, h: 0.09, d: 0.02, color: "#3b2a1a" },
-    { x: -0.2, y: 0.3, z: 0.12, w: 0.09, h: 0.05, d: 0.02, color: "#ffb3b3" },
-    { x: 0.2, y: 0.3, z: 0.12, w: 0.09, h: 0.05, d: 0.02, color: "#ffb3b3" },
-    { x: 0, y: 0.27, z: 0.12, w: 0.1, h: 0.03, d: 0.02, color: "#3b2a1a" },
-    { x: -0.06, y: 0.295, z: 0.12, w: 0.03, h: 0.03, d: 0.02, color: "#3b2a1a" },
-    { x: 0.06, y: 0.295, z: 0.12, w: 0.03, h: 0.03, d: 0.02, color: "#3b2a1a" },
   ];
 }
 
@@ -3018,4 +3010,41 @@ export function scrambleRoadParts(): Part[] {
   parts.push({ x: XH + 0.35, y: 0.04, z: 8.6, w: 0.4, h: 0.018, d: 7.2, color: zebra, glow: true });
 
   return parts;
+}
+
+
+/* ---------- Lampu kendaraan malam hari (overlay glow, hanya dirender saat mode malam) ---------- */
+
+/** Lampu mobil `carParts` (hadap +x): headlight hangat menyala + taillight merah. */
+export function carLightParts(): Part[] {
+  return [
+    { x: 1.66, y: 0.65, z: 0.5, w: 0.1, h: 0.26, d: 0.34, color: "#fff8d8", glow: true },
+    { x: 1.66, y: 0.65, z: -0.5, w: 0.1, h: 0.26, d: 0.34, color: "#fff8d8", glow: true },
+    // pendar kecil di aspal depan lampu (kesan sorot)
+    { x: 2.35, y: 0.03, z: 0.5, w: 1.3, h: 0.02, d: 0.42, color: "#fff3c4", glow: true },
+    { x: 2.35, y: 0.03, z: -0.5, w: 1.3, h: 0.02, d: 0.42, color: "#fff3c4", glow: true },
+    { x: -1.66, y: 0.65, z: 0.5, w: 0.1, h: 0.22, d: 0.3, color: "#ff3b3b", glow: true },
+    { x: -1.66, y: 0.65, z: -0.5, w: 0.1, h: 0.22, d: 0.3, color: "#ff3b3b", glow: true },
+  ];
+}
+
+/** Lampu motor `motorcycleParts` (hadap +x). */
+export function motoLightParts(): Part[] {
+  return [
+    { x: 0.7, y: 0.86, z: 0, w: 0.1, h: 0.18, d: 0.26, color: "#fff8d8", glow: true },
+    { x: 1.3, y: 0.03, z: 0, w: 1.1, h: 0.02, d: 0.34, color: "#fff3c4", glow: true },
+    { x: -0.73, y: 0.62, z: 0, w: 0.08, h: 0.12, d: 0.18, color: "#ff3b3b", glow: true },
+  ];
+}
+
+/** Lampu mobil silang `crossingCarParts` (hadap +x). */
+export function crossCarLightParts(): Part[] {
+  return [
+    { x: 1.66, y: 0.64, z: 0.52, w: 0.1, h: 0.24, d: 0.36, color: "#fff8d8", glow: true },
+    { x: 1.66, y: 0.64, z: -0.52, w: 0.1, h: 0.24, d: 0.36, color: "#fff8d8", glow: true },
+    { x: 2.35, y: 0.03, z: 0.52, w: 1.3, h: 0.02, d: 0.44, color: "#fff3c4", glow: true },
+    { x: 2.35, y: 0.03, z: -0.52, w: 1.3, h: 0.02, d: 0.44, color: "#fff3c4", glow: true },
+    { x: -1.62, y: 0.64, z: 0.52, w: 0.1, h: 0.2, d: 0.3, color: "#ff3b3b", glow: true },
+    { x: -1.62, y: 0.64, z: -0.52, w: 0.1, h: 0.2, d: 0.3, color: "#ff3b3b", glow: true },
+  ];
 }

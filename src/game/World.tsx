@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useReducer, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { buildVoxelPair, getGeometry, getGeometryPair, glowMaterial, voxelMaterial, type GeoPair } from "./voxel";
+import { buildVoxelPair, getGeometry, getGeometryPair, glossyGroundMaterial, glowMaterial, streakMaterial, voxelMaterial, type GeoPair } from "./voxel";
 import { applyCurve } from "./curve";
 import {
   CHUNK_LEN,
@@ -12,6 +12,9 @@ import {
   buildingParts,
   bushParts,
   carParts,
+  carLightParts,
+  motoLightParts,
+  crossCarLightParts,
   chickenParts,
   motorcycleParts,
   CANE_GRIP_Y,
@@ -112,7 +115,7 @@ import {
   type Obstacle,
   type Train,
 } from "./engine";
-import { buildGroundGeometry } from "./ground";
+import { buildGroundGeometry, buildReflectionStreaks } from "./ground";
 
 /* ---------- Decorations ---------- */
 const DecorView = memo(function DecorView({ d }: { d: Decor }) {
@@ -209,10 +212,19 @@ const DecorView = memo(function DecorView({ d }: { d: Decor }) {
 
 const ChunkView = memo(function ChunkView({ chunk }: { chunk: Chunk }) {
   const geo = useMemo(() => buildGroundGeometry(track, chunk.s0, CHUNK_LEN, chunk.kind), [chunk]);
-  useEffect(() => () => geo.dispose(), [geo]);
+  // Shibuya: aspal halus memantulkan lampu kota -> material glossy + streak refleksi neon
+  const streaks = useMemo(() => (chunk.kind === "shibuya" ? buildReflectionStreaks(track, chunk.s0, CHUNK_LEN) : null), [chunk]);
+  useEffect(
+    () => () => {
+      geo.dispose();
+      streaks?.dispose();
+    },
+    [geo, streaks],
+  );
   return (
     <group>
-      <mesh geometry={geo} material={voxelMaterial} receiveShadow />
+      <mesh geometry={geo} material={chunk.kind === "shibuya" ? glossyGroundMaterial : voxelMaterial} receiveShadow />
+      {streaks && <mesh geometry={streaks} material={streakMaterial} />}
       {chunk.decor.map((d, i) => (
         <DecorView key={i} d={d} />
       ))}
@@ -533,12 +545,20 @@ const MoverView = memo(function MoverView({
   }, [m.kind, m.variant, m.phase]);
   const diamond = useMemo(() => getGeometry("sign-diamond", signDiamondParts), []);
   const exclaim = useMemo(() => getGeometry("sign-ex", signExclaimParts), []);
+  const night = useUI((s) => s.trackMode) === "shibuya";
+  const lightsGeo = useMemo(() => {
+    if (!night) return null;
+    if (m.kind === "car") return getGeometry("car-lights", carLightParts);
+    if (m.kind === "motorcycle") return getGeometry("moto-lights", motoLightParts);
+    return null;
+  }, [night, m.kind]);
   const innerRot = m.kind === "car" || m.kind === "motorcycle" ? Math.PI : m.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
   return (
     <>
       <group ref={(g) => register(m.id, g)}>
         <group rotation-y={innerRot}>
           <mesh geometry={geo} material={flashMat ?? voxelMaterial} castShadow receiveShadow />
+          {lightsGeo && <mesh geometry={lightsGeo} material={glowMaterial} />}
         </group>
       </group>
       {(m.kind === "car" || m.kind === "motorcycle") && (
@@ -1042,10 +1062,13 @@ const CrossCarView = memo(function CrossCarView({ cc }: { cc: CrossTrafficCar })
     inner.rotation.y = cc.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
   });
 
+  const night = useUI((s) => s.trackMode) === "shibuya";
+  const lightsGeo = useMemo(() => (night ? getGeometry("cross-car-lights", crossCarLightParts) : null), [night]);
   return (
     <group ref={rootRef}>
       <group ref={innerRef}>
         <mesh geometry={geo} material={voxelMaterial} castShadow receiveShadow />
+        {lightsGeo && <mesh geometry={lightsGeo} material={glowMaterial} />}
       </group>
     </group>
   );
@@ -1408,6 +1431,41 @@ function Breads() {
   return <instancedMesh ref={ref} args={[geo, voxelMaterial, MAX_BREAD]} frustumCulled={false} castShadow />;
 }
 
+/* ---------- Efek ambil roti: terbang & mengecil ke badan merpati (juicy hypercasual) ---------- */
+const BREAD_FX_N = 8;
+const _fxTarget = new THREE.Vector3();
+
+function BreadFx() {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const geo = useMemo(() => getGeometry("bread", breadParts), []);
+  useFrame(() => {
+    const m = ref.current;
+    if (!m) return;
+    // target = dada merpati (posisi player saat ini)
+    const p = engine.player;
+    track.frame(engine.distance + 0.25, p.lat, p.h + 0.5, _fxTarget);
+    let i = 0;
+    for (const fx of engine.breadFx) {
+      if (i >= BREAD_FX_N) break;
+      const u = Math.min(1, fx.age / 0.38);
+      const e = u * u * (3 - 2 * u); // smoothstep: awalnya ngambang, lalu tersedot cepat
+      const arc = Math.sin(u * Math.PI) * 0.55; // melengkung naik dulu, khas hypercasual
+      tmpObj.position.set(
+        fx.x + (_fxTarget.x - fx.x) * e,
+        fx.y + (_fxTarget.y - fx.y) * e + arc,
+        fx.z + (_fxTarget.z - fx.z) * e,
+      );
+      tmpObj.rotation.set(0, fx.age * 14, fx.age * 6);
+      tmpObj.scale.setScalar(Math.max(0.06, 1 - e * 0.94)); // mengecil sampai "masuk" ke badan
+      tmpObj.updateMatrix();
+      m.setMatrixAt(i++, tmpObj.matrix);
+    }
+    m.count = i;
+    m.instanceMatrix.needsUpdate = true;
+  });
+  return <instancedMesh ref={ref} args={[geo, voxelMaterial, BREAD_FX_N]} frustumCulled={false} />;
+}
+
 /* ---------- Denyut: satu cincin tipis saat hewan mental ---------- */
 const PULSE_POOL = 4;
 
@@ -1698,6 +1756,7 @@ export function World() {
       <Movers />
       <ShibuyaCrowd />
       <Breads />
+      <BreadFx />
       <Particles />
       <Pulses />
     </group>

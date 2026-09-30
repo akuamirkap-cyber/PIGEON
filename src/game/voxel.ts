@@ -98,6 +98,24 @@ export const voxelMaterial = applyCurve(new THREE.MeshLambertMaterial({ vertexCo
  *  (still bends with the world curve and fades into the distance haze). */
 export const glowMaterial = applyCurve(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }));
 
+/** Aspal malam Shibuya yang HALUS: Phong dengan specular biru-keunguan supaya jalan
+ *  memantulkan kilau lampu kota (kesan wet-look tanpa biaya reflection map). */
+export const glossyGroundMaterial = applyCurve(
+  new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 80, specular: new THREE.Color("#6a70a0") }),
+);
+
+/** Material streak refleksi neon di aspal: additive, lembut, tidak menulis depth. */
+export const streakMaterial = applyCurve(
+  new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.16,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  }),
+);
+
 export function rand(min: number, max: number) {
   return min + Math.random() * (max - min);
 }

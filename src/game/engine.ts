@@ -584,6 +584,8 @@ class Engine {
   trains: Train[] = [];
   intersections: Intersection[] = [];
   crossCars: CrossTrafficCar[] = [];
+  /** Efek roti terbang ke badan merpati saat diambil (juicy hypercasual). */
+  breadFx: { x: number; y: number; z: number; age: number }[] = [];
   puddles: Puddle[] = [];
   overpassCars: OverpassCar[] = [];
   roadSigns: Decor[] = [];
@@ -730,6 +732,7 @@ class Engine {
     this.intersections = [];
     this.interCount = 0;
     this.crossCars = [];
+    this.breadFx = [];
     this.puddles = [];
     this.overpassCars = [];
     this.roadSigns = [];
@@ -2053,7 +2056,9 @@ class Engine {
       b.taken = true;
       this.breadCount++;
       this.addNos(NOS_PER_BREAD);
-      this.emitWorld("crumb", b.wx, b.wy, b.wz, b.wy - b.h, 7, 0, 0);
+      this.breadFx.push({ x: b.wx, y: b.wy, z: b.wz, age: 0 });
+      if (this.breadFx.length > 8) this.breadFx.shift();
+      this.emitWorld("crumb", b.wx, b.wy, b.wz, b.wy - b.h, 5, 0, 0);
       sfx.bread();
     }
   }
@@ -2329,6 +2334,10 @@ class Engine {
   }
 
   private updateMovers(dt: number) {
+    if (this.breadFx.length) {
+      for (const fx of this.breadFx) fx.age += dt;
+      this.breadFx = this.breadFx.filter((fx) => fx.age < 0.42);
+    }
     const d = this.distance;
     let changed = false;
     for (let i = this.movers.length - 1; i >= 0; i--) {

@@ -289,3 +289,48 @@ export function buildGroundGeometry(track: Track, s0: number, len: number, kind:
   geo.computeBoundingSphere();
   return geo;
 }
+
+
+/* ---------- Refleksi lampu kota di aspal basah (streak memanjang searah pandang) ---------- */
+const STREAK_COLORS = ["#ffd23f", "#ff8a3d", "#fff3c4", "#ff4438", "#58c96b", "#4d9fff", "#ffe9a3", "#ffffff"];
+
+/** Streak refleksi neon: pita tipis meruncing di kedua ujung, tersebar di kedua carriageway. */
+export function buildReflectionStreaks(track: Track, s0: number, len: number): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  const c = new THREE.Color();
+  const N = 14;
+  for (let i = 0; i < N; i++) {
+    const s = s0 + Math.random() * len;
+    const nearSide = Math.random() < 0.6;
+    const lat = nearSide ? -3.4 + Math.random() * 6.8 : 5.4 + Math.random() * 6.6;
+    const L = 2.5 + Math.random() * 4.5;
+    const wHalf = 0.1 + Math.random() * 0.16;
+    c.set(STREAK_COLORS[Math.floor(Math.random() * STREAK_COLORS.length)]);
+    const SEG = 5;
+    const base = pos.length / 3;
+    for (let k = 0; k <= SEG; k++) {
+      const t = k / SEG;
+      const w = wHalf * Math.sin(t * Math.PI); // meruncing di ujung -> lembut
+      const ss = s + (t - 0.5) * L;
+      const a = track.sample(ss, tmp);
+      const sn = Math.sin(a.th);
+      const cs = Math.cos(a.th);
+      for (const sign of [-1, 1]) {
+        const la = lat + sign * Math.max(w, 0.012);
+        pos.push(a.x - sn * la, a.y + 0.032, a.z + cs * la);
+        col.push(c.r, c.g, c.b);
+      }
+      if (k < SEG) {
+        const q = base + k * 2;
+        idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
