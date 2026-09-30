@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useReducer, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { buildVoxelPair, getGeometry, getGeometryPair, glossyGroundMaterial, glowMaterial, streakMaterial, voxelMaterial, type GeoPair } from "./voxel";
+import { buildVoxelPair, getGeometry, getGeometryPair, glossyGroundMaterial, glowMaterial, voxelMaterial, type GeoPair } from "./voxel";
 import { applyCurve } from "./curve";
 import {
   CHUNK_LEN,
@@ -115,7 +115,7 @@ import {
   type Obstacle,
   type Train,
 } from "./engine";
-import { buildGroundGeometry, buildReflectionStreaks } from "./ground";
+import { buildGroundGeometry } from "./ground";
 
 /* ---------- Decorations ---------- */
 const DecorView = memo(function DecorView({ d }: { d: Decor }) {
@@ -212,19 +212,11 @@ const DecorView = memo(function DecorView({ d }: { d: Decor }) {
 
 const ChunkView = memo(function ChunkView({ chunk }: { chunk: Chunk }) {
   const geo = useMemo(() => buildGroundGeometry(track, chunk.s0, CHUNK_LEN, chunk.kind), [chunk]);
-  // Shibuya: aspal halus memantulkan lampu kota -> material glossy + streak refleksi neon
-  const streaks = useMemo(() => (chunk.kind === "shibuya" ? buildReflectionStreaks(track, chunk.s0, CHUNK_LEN) : null), [chunk]);
-  useEffect(
-    () => () => {
-      geo.dispose();
-      streaks?.dispose();
-    },
-    [geo, streaks],
-  );
+  useEffect(() => () => geo.dispose(), [geo]);
   return (
     <group>
+      {/* Shibuya: aspal halus glossy memantulkan kilau lampu kota */}
       <mesh geometry={geo} material={chunk.kind === "shibuya" ? glossyGroundMaterial : voxelMaterial} receiveShadow />
-      {streaks && <mesh geometry={streaks} material={streakMaterial} />}
       {chunk.decor.map((d, i) => (
         <DecorView key={i} d={d} />
       ))}

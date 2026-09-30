@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { clamp } from "./voxel";
+import { clamp, setGlowBoost } from "./voxel";
 import { engine, track } from "./engine";
 import { useUI } from "./store";
 import { World } from "./World";
@@ -173,7 +173,9 @@ function CameraRig() {
       curveUniforms.uCurveStart.value = 8.0; // keeps the first 8m ahead completely flat and clear
       curveUniforms.uHazeRange.value.set(c.hazeNear, c.hazeFar);
       // distance haze matches the world: pale daylight mist vs deep indigo Shibuya night
-      curveUniforms.uHazeColor.value.set(trackModeNow === "shibuya" ? "#1b1838" : "#dbeeff");
+      curveUniforms.uHazeColor.value.set(
+        trackModeNow === "shibuya" ? "#1b1838" : useUI.getState().weather === "cloudy" ? "#dfe7ee" : "#dbeeff",
+      );
     }
 
     // newly created materials (buildings, thumbnails, etc.) get patched lazily
@@ -193,6 +195,9 @@ function CameraRig() {
 function Lights() {
   const light = useRef<THREE.DirectionalLight>(null);
   const night = useUI((s) => s.trackMode) === "shibuya";
+  const cloudy = useUI((s) => s.weather === "cloudy") && useUI((s) => s.trackMode) !== "shibuya";
+  const nightBright = useUI((s) => s.nightBright);
+  const nightMul = [0.82, 1, 1.18][nightBright];
   const target = useMemo(() => new THREE.Object3D(), []);
   useEffect(() => {
     const l = light.current;
@@ -228,9 +233,23 @@ function Lights() {
     <>
       {/* Shibuya Night: bright "city that never sleeps" ambience — the sky stays dark but streets
           and facades are washed by warm shop light + violet sky bounce, and every sign self-glows */}
-      <hemisphereLight args={night ? ["#c3caff", "#454a70", 1.5] : ["#ffffff", "#b0c4d8", 1.7]} />
-      <ambientLight intensity={night ? 0.82 : 0.2} color={night ? "#aeb5ff" : "#ffffff"} />
-      <directionalLight ref={light} position={[-2, 25, 4.5]} intensity={night ? 1.5 : 2.1} color={night ? "#d7ddff" : "#ffffff"} castShadow />
+      <hemisphereLight
+        args={
+          night
+            ? ["#c3caff", "#454a70", 1.5 * nightMul]
+            : cloudy
+              ? ["#e8edf4", "#93a0ad", 1.4]
+              : ["#ffffff", "#b0c4d8", 1.7]
+        }
+      />
+      <ambientLight intensity={night ? 0.82 * nightMul : cloudy ? 0.5 : 0.2} color={night ? "#aeb5ff" : cloudy ? "#eef2f7" : "#ffffff"} />
+      <directionalLight
+        ref={light}
+        position={[-2, 25, 4.5]}
+        intensity={night ? 1.5 * nightMul : cloudy ? 1.15 : 2.1}
+        color={night ? "#d7ddff" : cloudy ? "#eef2f6" : "#ffffff"}
+        castShadow
+      />
       <primitive object={target} />
     </>
   );
@@ -241,30 +260,44 @@ function Loop() {
   return null;
 }
 
-/** Bloom malam: sign, jendela, dan lampu memancar lembut — "pas", tidak menyilaukan.
- *  Hanya aktif di Shibuya Night; siang hari kembali ke render biasa. */
+/** Bloom malam SELEKTIF via HDR: material glow di-boost > 1.0 (render target half-float),
+ *  threshold bloom = 1.0, jadi HANYA lampu/sign glow yang mekar — cat marka jalan, zebra,
+ *  dan permukaan putih biasa (maks 1.0) dijamin TIDAK ikut bloom. Radius besar + strength
+ *  kalem = halo lembut yang tidak menyilaukan. Kecerahan mengikuti setelan LAMPU. */
 function NightBloom() {
   const { gl, scene, camera, size } = useThree();
-  const composer = useMemo(() => {
-    const c = new EffectComposer(gl);
-    c.addPass(new RenderPass(scene, camera));
-    // strength 0.5, radius 0.45, threshold 0.45: hanya bagian terang (glow) yang mekar
-    c.addPass(new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.5, 0.45, 0.45));
-    c.addPass(new OutputPass());
-    return c;
+  const nightBright = useUI((s) => s.nightBright);
+  const built = useMemo(() => {
+    const composer = new EffectComposer(gl);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.42, 0.7, 1.0);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+    return { composer, bloom };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gl, scene, camera]);
   useEffect(() => {
-    composer.setPixelRatio(gl.getPixelRatio());
-    composer.setSize(size.width, size.height);
-  }, [composer, gl, size]);
-  useEffect(() => () => composer.dispose(), [composer]);
-  useFrame(() => composer.render(), 1);
+    built.composer.setPixelRatio(gl.getPixelRatio());
+    built.composer.setSize(size.width, size.height);
+  }, [built, gl, size]);
+  useEffect(() => {
+    // REDUP / PAS / TERANG — semua tetap smooth, hanya intens halonya yang berubah
+    built.bloom.strength = [0.3, 0.42, 0.55][nightBright];
+    built.bloom.radius = 0.7;
+    built.bloom.threshold = 1.0;
+    setGlowBoost([1.28, 1.42, 1.58][nightBright]);
+  }, [built, nightBright]);
+  useEffect(() => () => built.composer.dispose(), [built]);
+  useFrame(() => built.composer.render(), 1);
   return null;
 }
 
 function NightBloomGate() {
   const night = useUI((s) => s.trackMode) === "shibuya";
+  useEffect(() => {
+    // siang hari: glow kembali 1:1 (tanpa boost HDR)
+    if (!night) setGlowBoost(1);
+  }, [night]);
   return night ? <NightBloom /> : null;
 }
 
@@ -272,8 +305,11 @@ function NightBloomGate() {
 const SKY_DAY = { top: "#2f86dc", mid: "#cbe6f8", bot: "#e2f1fb" };
 // Shibuya Night: deep indigo zenith melting into a violet-magenta city glow at the horizon
 const SKY_NIGHT = { top: "#0a0e2c", mid: "#5b3a92", bot: "#2c2456" };
+// Siang berawan yang lembut: zenith abu kebiruan turun ke horizon putih keperakan
+const SKY_CLOUDY = { top: "#7d93ab", mid: "#c9d6e0", bot: "#eaf0f5" };
 function Sky() {
   const night = useUI((s) => s.trackMode) === "shibuya";
+  const cloudy = useUI((s) => s.weather === "cloudy");
   const mat = useMemo(() => {
     const m = new THREE.ShaderMaterial({
       side: THREE.BackSide,
@@ -290,11 +326,11 @@ function Sky() {
     return m;
   }, []);
   useEffect(() => {
-    const pal = night ? SKY_NIGHT : SKY_DAY;
+    const pal = night ? SKY_NIGHT : cloudy ? SKY_CLOUDY : SKY_DAY;
     (mat.uniforms.top.value as THREE.Color).set(pal.top);
     (mat.uniforms.mid.value as THREE.Color).set(pal.mid);
     (mat.uniforms.bot.value as THREE.Color).set(pal.bot);
-  }, [night, mat]);
+  }, [night, cloudy, mat]);
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ camera }) => {
     if (ref.current) ref.current.position.copy(camera.position);

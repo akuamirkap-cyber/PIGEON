@@ -143,6 +143,10 @@ function SettingsRow() {
   const setCurve = useUI((s) => s.setWorldCurve);
   const wheel = useUI((s) => s.wheelColor);
   const setWheel = useUI((s) => s.setWheelColor);
+  const weather = useUI((s) => s.weather);
+  const toggleWeather = useUI((s) => s.toggleWeather);
+  const nightBright = useUI((s) => s.nightBright);
+  const cycleNightBright = useUI((s) => s.cycleNightBright);
   const addPopup = useUI((s) => s.addPopup);
   const [tips, setTips] = useState(false);
 
@@ -189,6 +193,27 @@ function SettingsRow() {
         <CyclePill label="SPEED" value={speed === 1 ? "NORMAL" : `${speed}×`} accent={speed > 1 ? "#c9700a" : undefined} onTap={() => setSpeed(speed === 1 ? 2 : speed === 2 ? 3 : 1)} />
         <CyclePill label="CURVE" value={curve === "subway" ? "SUBWAY" : "FLAT"} onTap={toggleCurve} />
         <CyclePill label="BOARD" value={deck === "baguette" ? "ROTI" : "PRO"} accent={deck === "baguette" ? "#c9700a" : undefined} onTap={toggleDeck} />
+      </div>
+      <div className="flex w-full gap-1.5">
+        <CyclePill
+          label="CUACA"
+          value={weather === "cloudy" ? "BERAWAN" : "CERAH"}
+          accent={weather === "cloudy" ? "#6b7f93" : undefined}
+          onTap={() => {
+            toggleWeather();
+            sfx.click();
+            addPopup(weather === "sunny" ? "SIANG BERAWAN ☁️" : "SIANG CERAH ☀️", weather === "sunny" ? "#8fa3b8" : "#ffc46b", weather === "sunny" ? "langit lembut keperakan" : "matahari penuh");
+          }}
+        />
+        <CyclePill
+          label="LAMPU"
+          value={nightBright === 0 ? "REDUP" : nightBright === 1 ? "PAS" : "TERANG"}
+          accent={nightBright === 2 ? "#c9a13d" : undefined}
+          onTap={() => {
+            cycleNightBright();
+            sfx.click();
+          }}
+        />
       </div>
       <div className="flex w-full gap-1.5">
         <CyclePill label="TURN" value={turn === "new" ? "STEER" : "SLIDE"} onTap={() => setTurn(turn === "new" ? "old" : "new")} />

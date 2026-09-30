@@ -15,6 +15,7 @@ import { PANO, paintFuji, paintHills, paintCityNight } from "./backdropPaint";
 export function Backdrop() {
   const gl = useThree((s) => s.gl);
   const night = useUI((s) => s.trackMode) === "shibuya";
+  const cloudy = useUI((s) => s.weather === "cloudy") && !night;
   const root = useRef<THREE.Group>(null);
   const fuji = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Group>(null);
@@ -49,10 +50,17 @@ export function Backdrop() {
       hillsGeo: new THREE.CylinderGeometry(BACK.hills, BACK.hills, hillsH, 192, 1, true),
       hillsY: (PANO.topY - PANO.botY) / 2,
       // night clouds turn into dim indigo silhouettes lit faintly from the city below
-      cloudMat: new THREE.MeshBasicMaterial({ vertexColors: true, color: night ? "#575d8a" : "#ffffff", fog: false, depthWrite: false, depthTest: false, toneMapped: false }),
+      cloudMat: new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        color: night ? "#575d8a" : cloudy ? "#f4f7fa" : "#ffffff",
+        fog: false,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+      }),
       clouds: buildClouds(),
     };
-  }, [gl, night]);
+  }, [gl, night, cloudy]);
   useEffect(
     () => () => {
       built.fujiTex.dispose();

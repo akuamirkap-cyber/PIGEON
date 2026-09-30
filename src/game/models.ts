@@ -2947,7 +2947,7 @@ export function avenueLampParts(): Part[] {
 export function scrambleRoadParts(): Part[] {
   const asphalt = "#3b4152";
   const asphaltDark = "#343a4a";
-  const zebra = "#f2f5fa";
+  const zebra = "#dde2ec"; // cat marka biasa (lit) — TIDAK glow, supaya tidak ikut bloom
   const parts: Part[] = [];
   const XW = 13.4; // lebar cross-street raksasa
   const XH = XW / 2;
@@ -2976,14 +2976,14 @@ export function scrambleRoadParts(): Part[] {
   for (const bx of [-XH + 1.6, XH - 1.6]) {
     for (let z = -3.2; z <= 12.0; z += 0.9) {
       const onMedian = z > 3.4 && z < 5.3;
-      parts.push({ x: bx, y: onMedian ? 0.19 : 0.04, z, w: 2.5, h: 0.02, d: 0.48, color: zebra, glow: true });
+      parts.push({ x: bx, y: onMedian ? 0.19 : 0.04, z, w: 2.5, h: 0.02, d: 0.48, color: zebra });
     }
   }
 
   // 4. ZEBRA menyeberangi cross-street di kedua sisi (garis memanjang searah laju = z)
   for (const bz of [-5.4, 13.7]) {
     for (let x = -XH + 1.2; x <= XH - 1.2; x += 0.85) {
-      parts.push({ x, y: 0.19, z: bz, w: 0.46, h: 0.02, d: 2.2, color: zebra, glow: true });
+      parts.push({ x, y: 0.19, z: bz, w: 0.46, h: 0.02, d: 2.2, color: zebra });
     }
   }
 
@@ -3001,13 +3001,13 @@ export function scrambleRoadParts(): Part[] {
       const x = dg.x0 + t * dx;
       const z = dg.z0 + t * dz;
       const y = z > 3.4 && z < 5.3 ? 0.19 : 0.045;
-      parts.push({ x, y, z, w: 2.4, h: 0.02, d: 0.5, ry, color: zebra, glow: true });
+      parts.push({ x, y, z, w: 2.4, h: 0.02, d: 0.5, ry, color: zebra });
     }
   }
 
   // 6. Garis henti tebal di jalur pemain & jalur lawan
-  parts.push({ x: -XH - 0.35, y: 0.04, z: 0, w: 0.4, h: 0.018, d: 7.4, color: zebra, glow: true });
-  parts.push({ x: XH + 0.35, y: 0.04, z: 8.6, w: 0.4, h: 0.018, d: 7.2, color: zebra, glow: true });
+  parts.push({ x: -XH - 0.35, y: 0.04, z: 0, w: 0.4, h: 0.018, d: 7.4, color: zebra });
+  parts.push({ x: XH + 0.35, y: 0.04, z: 8.6, w: 0.4, h: 0.018, d: 7.2, color: zebra });
 
   return parts;
 }
@@ -3020,9 +3020,6 @@ export function carLightParts(): Part[] {
   return [
     { x: 1.66, y: 0.65, z: 0.5, w: 0.1, h: 0.26, d: 0.34, color: "#fff8d8", glow: true },
     { x: 1.66, y: 0.65, z: -0.5, w: 0.1, h: 0.26, d: 0.34, color: "#fff8d8", glow: true },
-    // pendar kecil di aspal depan lampu (kesan sorot)
-    { x: 2.35, y: 0.03, z: 0.5, w: 1.3, h: 0.02, d: 0.42, color: "#fff3c4", glow: true },
-    { x: 2.35, y: 0.03, z: -0.5, w: 1.3, h: 0.02, d: 0.42, color: "#fff3c4", glow: true },
     { x: -1.66, y: 0.65, z: 0.5, w: 0.1, h: 0.22, d: 0.3, color: "#ff3b3b", glow: true },
     { x: -1.66, y: 0.65, z: -0.5, w: 0.1, h: 0.22, d: 0.3, color: "#ff3b3b", glow: true },
   ];
@@ -3032,7 +3029,6 @@ export function carLightParts(): Part[] {
 export function motoLightParts(): Part[] {
   return [
     { x: 0.7, y: 0.86, z: 0, w: 0.1, h: 0.18, d: 0.26, color: "#fff8d8", glow: true },
-    { x: 1.3, y: 0.03, z: 0, w: 1.1, h: 0.02, d: 0.34, color: "#fff3c4", glow: true },
     { x: -0.73, y: 0.62, z: 0, w: 0.08, h: 0.12, d: 0.18, color: "#ff3b3b", glow: true },
   ];
 }
@@ -3042,8 +3038,6 @@ export function crossCarLightParts(): Part[] {
   return [
     { x: 1.66, y: 0.64, z: 0.52, w: 0.1, h: 0.24, d: 0.36, color: "#fff8d8", glow: true },
     { x: 1.66, y: 0.64, z: -0.52, w: 0.1, h: 0.24, d: 0.36, color: "#fff8d8", glow: true },
-    { x: 2.35, y: 0.03, z: 0.52, w: 1.3, h: 0.02, d: 0.44, color: "#fff3c4", glow: true },
-    { x: 2.35, y: 0.03, z: -0.52, w: 1.3, h: 0.02, d: 0.44, color: "#fff3c4", glow: true },
     { x: -1.62, y: 0.64, z: 0.52, w: 0.1, h: 0.2, d: 0.3, color: "#ff3b3b", glow: true },
     { x: -1.62, y: 0.64, z: -0.52, w: 0.1, h: 0.2, d: 0.3, color: "#ff3b3b", glow: true },
   ];

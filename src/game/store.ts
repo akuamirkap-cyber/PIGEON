@@ -59,6 +59,12 @@ interface UIState {
   /** "tokyo" = city streets & parks; "haruna" = Mount Haruna (Gunma Touge) downhill & hairpins; "shibuya" = neon night city (Shibuya scramble) */
   trackMode: TrackMode;
   setTrackMode: (m: TrackMode) => void;
+  /** cuaca mode siang: cerah / berawan indah */
+  weather: "sunny" | "cloudy";
+  toggleWeather: () => void;
+  /** kecerahan lampu malam: 0 = redup, 1 = pas, 2 = terang */
+  nightBright: 0 | 1 | 2;
+  cycleNightBright: () => void;
   deckOverride: "default" | "baguette";
   setDeckOverride: (d: "default" | "baguette") => void;
   wheelColor: WheelColor;
@@ -167,6 +173,21 @@ export const useUI = create<UIState>((set, get) => ({
     const m = load<string>("pigeon-sk8-trackmode", "haruna");
     return (m === "tokyo" || m === "shibuya" ? m : "haruna") as TrackMode;
   })(),
+  weather: load<"sunny" | "cloudy">("pigeon-sk8-weather", "sunny") === "cloudy" ? "cloudy" : "sunny",
+  toggleWeather: () => {
+    const weather = get().weather === "sunny" ? "cloudy" : "sunny";
+    save("pigeon-sk8-weather", weather);
+    set({ weather });
+  },
+  nightBright: ((): 0 | 1 | 2 => {
+    const v = load<number>("pigeon-sk8-nightbright", 1);
+    return v === 0 || v === 2 ? v : 1;
+  })(),
+  cycleNightBright: () => {
+    const nightBright = (((get().nightBright + 1) % 3) as 0 | 1 | 2);
+    save("pigeon-sk8-nightbright", nightBright);
+    set({ nightBright });
+  },
   setTrackMode: (trackMode) => {
     save("pigeon-sk8-trackmode", trackMode);
     set({ trackMode });
