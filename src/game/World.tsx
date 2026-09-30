@@ -49,6 +49,10 @@ import {
   pedestrianTorsoParts,
   pedestrianArmParts,
   pedestrianLegParts,
+  briefcaseParts,
+  isSuitVariant,
+  guardFenceParts,
+  sidewalkPlanterParts,
   overpassParts,
   overpassCarParts,
   puddleParts,
@@ -179,6 +183,10 @@ const DecorView = memo(function DecorView({ d }: { d: Decor }) {
         return getGeometryPair("tower109", tower109Parts);
       case "avenue_lamp":
         return getGeometryPair("avenue-lamp", avenueLampParts);
+      case "guard_fence":
+        return getGeometryPair("guard-fence", () => guardFenceParts(3.2));
+      case "sidewalk_planter":
+        return getGeometryPair(`sw-planter-${d.variant % 3}`, () => sidewalkPlanterParts(d.variant));
     }
   }, [d]);
   useEffect(() => {
@@ -320,7 +328,7 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
 
   // kakek/nenek (elderly) punya geometri sendiri: rambut putih, kacamata, cardigan, tongkat
   const isElder = !!m.elderly;
-  const pedKey = `${m.variant % 5}${isElder ? "-old" : ""}`;
+  const pedKey = `${m.variant % 8}${isElder ? "-old" : ""}`;
   const headNormalGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-normal`, () => pedestrianHeadParts(m.variant, false, isElder)), [pedKey, m.variant, isElder]);
   const headHitGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-hit`, () => pedestrianHeadParts(m.variant, true, isElder)), [pedKey, m.variant, isElder]);
   const torsoGeo = useMemo(() => getGeometry(`ped-torso-${pedKey}`, () => pedestrianTorsoParts(m.variant, isElder)), [pedKey, m.variant, isElder]);
@@ -333,6 +341,8 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
 
   const accGeo = useMemo(() => {
     if (isElder) return null; // lansia bawa tongkat, bukan tas/payung
+    // salaryman: tas kerja kulit DIKEMPIT di sisi badan (bukan tote/payung)
+    if (isSuitVariant(m.variant)) return getGeometry(`ped-briefcase-${m.variant % 2}`, () => briefcaseParts(m.variant));
     if (m.variant % 3 === 1) {
       return getGeometry("ped-bag", () => [
         { x: 0.05, y: -0.28, z: 0.1, w: 0.28, h: 0.34, d: 0.1, color: "#f4e1b5" },
@@ -863,10 +873,13 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
   const armRRef = useRef<THREE.Group>(null);
   const legLRef = useRef<THREE.Group>(null);
   const legRRef = useRef<THREE.Group>(null);
-  const variant = idx % 5;
-  const pedKey = `${variant}`;
-  const headGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-normal`, () => pedestrianHeadParts(variant, false, false)), [pedKey, variant]);
-  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${pedKey}`, () => pedestrianTorsoParts(variant, false)), [pedKey, variant]);
+  // varian 0..7: campuran kasual + salaryman berjas (5..7); idx 4 = anak sekolah ber-randoseru
+  const variant = idx % 8;
+  const kid = idx === 4;
+  const pedKey = `${variant}${kid ? "-kid" : ""}`;
+  const headGeo = useMemo(() => getGeometry(`ped-head-${variant}-normal`, () => pedestrianHeadParts(variant, false, false)), [variant]);
+  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${pedKey}`, () => pedestrianTorsoParts(variant, false, kid)), [pedKey, variant, kid]);
+  const caseGeo = useMemo(() => (!kid && isSuitVariant(variant) ? getGeometry(`ped-briefcase-${variant % 2}`, () => briefcaseParts(variant)) : null), [variant, kid]);
   const armLGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-L`, () => pedestrianArmParts(variant, 1, false, false)), [pedKey, variant]);
   const armRGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-R`, () => pedestrianArmParts(variant, -1, false, false)), [pedKey, variant]);
   const legLGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-L`, () => pedestrianLegParts(variant, 1, false)), [pedKey, variant]);
@@ -907,9 +920,10 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
     track.frame(sPos, lat, h, root.position);
     track.quat(sPos, root.quaternion);
     inner.rotation.y = seed.dirU > 0 ? -Math.PI / 2 : Math.PI / 2;
-    inner.scale.setScalar(PED_SCALE);
+    const scl = PED_SCALE * (kid ? 0.62 : 1);
+    inner.scale.setScalar(scl);
     const walkSpeed = seed.rate * 11.0; // ~m/s dari laju u
-    seed.t0 += dt * (walkSpeed / (0.62 * PED_SCALE)) * Math.PI;
+    seed.t0 += dt * (walkSpeed / (0.62 * scl)) * Math.PI;
     const t = seed.t0;
     const swing = Math.sin(t) * 0.4;
     if (legLRef.current) legLRef.current.rotation.x = swing;
@@ -922,11 +936,12 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
     <group ref={rootRef}>
       <group ref={innerRef}>
         <mesh geometry={torsoGeo} material={voxelMaterial} />
-        <group position={[0, 0.34, 0]}>
+        <group position={[0, 0.34, 0]} scale={kid ? 1.3 : 1}>
           <mesh geometry={headGeo} material={voxelMaterial} />
         </group>
         <group ref={armLRef} position={[0, 0.27, 0.34]}>
           <mesh geometry={armLGeo} material={voxelMaterial} />
+          {caseGeo && <mesh geometry={caseGeo} material={voxelMaterial} />}
         </group>
         <group ref={armRRef} position={[0, 0.27, -0.34]}>
           <mesh geometry={armRGeo} material={voxelMaterial} />
@@ -1574,6 +1589,7 @@ interface Walker {
 }
 
 const CROWD_N = 24;
+const CROWD_KINDS: ("adult" | "suit" | "kid" | "elder")[] = ["adult", "suit", "kid", "adult", "elder", "suit", "adult", "kid", "suit", "adult", "suit", "kid"];
 
 /** Pilih posisi trotoar. Arus dipisah per arah (kebiasaan Jepang: jalur kiri),
  *  jadi orang berpapasan di band berbeda dan tidak saling menembus. */
@@ -1587,7 +1603,12 @@ function crowdLat(dir: 1 | -1): number {
   return dir > 0 ? 13.55 + Math.random() * 0.55 : 14.2 + Math.random() * 0.6;
 }
 
-const AmbientWalker = memo(function AmbientWalker({ w, all, variant, elderly }: { w: Walker; all: Walker[]; variant: number; elderly: boolean }) {
+type WalkerKind = "adult" | "elder" | "suit" | "kid";
+
+const AmbientWalker = memo(function AmbientWalker({ w, all, variant, kind }: { w: Walker; all: Walker[]; variant: number; kind: WalkerKind }) {
+  const elderly = kind === "elder";
+  const kid = kind === "kid";
+  const suit = kind === "suit";
   const rootRef = useRef<THREE.Group>(null);
   const innerRef = useRef<THREE.Group>(null);
   const armLRef = useRef<THREE.Group>(null);
@@ -1597,14 +1618,16 @@ const AmbientWalker = memo(function AmbientWalker({ w, all, variant, elderly }: 
   const headRef = useRef<THREE.Group>(null);
 
   // pakai cache geometri yang sama dengan pedestrian penyeberang (hemat memori)
-  const pedKey = `${variant % 5}${elderly ? "-old" : ""}`;
-  const headGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-normal`, () => pedestrianHeadParts(variant, false, elderly)), [pedKey, variant, elderly]);
-  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${pedKey}`, () => pedestrianTorsoParts(variant, elderly)), [pedKey, variant, elderly]);
+  const pedKey = `${variant % 8}${elderly ? "-old" : ""}${kid ? "-kid" : ""}`;
+  const headGeo = useMemo(() => getGeometry(`ped-head-${variant % 8}${elderly ? "-old" : ""}-normal`, () => pedestrianHeadParts(variant, false, elderly)), [variant, elderly]);
+  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${pedKey}`, () => pedestrianTorsoParts(variant, elderly, kid)), [pedKey, variant, elderly, kid]);
   const armLGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-L`, () => pedestrianArmParts(variant, 1, elderly, false)), [pedKey, variant, elderly]);
   const armRGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-R`, () => pedestrianArmParts(variant, -1, elderly, elderly)), [pedKey, variant, elderly]);
   const legLGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-L`, () => pedestrianLegParts(variant, 1, elderly)), [pedKey, variant, elderly]);
   const legRGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-R`, () => pedestrianLegParts(variant, -1, elderly)), [pedKey, variant, elderly]);
   const caneGeo = useMemo(() => (elderly ? getGeometry("ped-cane", caneParts) : null), [elderly]);
+  // salaryman: tas kerja dikempit rapat di sisi badan, lengan kirinya tidak mengayun
+  const caseGeo = useMemo(() => (suit ? getGeometry(`ped-briefcase-${variant % 2}`, () => briefcaseParts(variant)) : null), [suit, variant]);
 
   useFrame((_, dtRaw) => {
     const root = rootRef.current;
@@ -1636,25 +1659,26 @@ const AmbientWalker = memo(function AmbientWalker({ w, all, variant, elderly }: 
       w.s = dist + 8 + Math.random() * 82;
       w.dir = Math.random() < 0.5 ? 1 : -1;
       w.lat = crowdLat(w.dir);
-      w.speed = (elderly ? 0.55 : 0.9) + Math.random() * (elderly ? 0.35 : 1.0);
+      w.speed = (elderly ? 0.55 : kid ? 0.75 : 0.9) + Math.random() * (elderly ? 0.35 : kid ? 0.85 : 1.0);
       w.t0 = Math.random() * 20;
     }
 
     track.frame(w.s, w.lat, 0.13, root.position);
     track.quat(w.s, root.quaternion);
     inner.rotation.y = w.dir > 0 ? 0 : Math.PI;
-    inner.scale.setScalar(PED_SCALE);
+    const scl = PED_SCALE * (kid ? 0.6 : 1);
+    inner.scale.setScalar(scl);
 
     // CARA JALAN DIBENERIN: irama langkah mengikuti kecepatan nyata (tidak "moonwalk"),
     // ayunan lebih kalem, berhenti = kaki diam
-    const strideHz = v / (0.62 * PED_SCALE); // langkah/detik dari panjang langkah nyata
+    const strideHz = v / (0.62 * scl); // langkah/detik dari panjang langkah nyata
     w.t0 += dt * strideHz * Math.PI;
     const t = w.t0;
-    const amp = v < 0.02 ? 0 : elderly ? 0.26 : 0.4;
+    const amp = v < 0.02 ? 0 : elderly ? 0.26 : kid ? 0.5 : 0.4;
     const swing = Math.sin(t) * amp;
     if (legLRef.current) legLRef.current.rotation.x = swing;
     if (legRRef.current) legRRef.current.rotation.x = -swing;
-    if (armLRef.current) armLRef.current.rotation.x = -swing * 0.55;
+    if (armLRef.current) armLRef.current.rotation.x = suit ? 0.1 : -swing * 0.55; // lengan pengempit tas tetap rapat
     if (armRRef.current) armRRef.current.rotation.x = elderly ? 0.16 : swing * 0.55;
     if (headRef.current) headRef.current.rotation.y = Math.sin(engine.time * 0.9 + w.s) * 0.18;
     inner.position.y = PED_LIFT + (amp > 0 ? Math.abs(Math.sin(t)) * 0.018 : 0);
@@ -1664,11 +1688,12 @@ const AmbientWalker = memo(function AmbientWalker({ w, all, variant, elderly }: 
     <group ref={rootRef}>
       <group ref={innerRef}>
         <mesh geometry={torsoGeo} material={voxelMaterial} />
-        <group ref={headRef} position={[0, 0.34, 0]}>
+        <group ref={headRef} position={[0, 0.34, 0]} scale={kid ? 1.3 : 1}>
           <mesh geometry={headGeo} material={voxelMaterial} />
         </group>
         <group ref={armLRef} position={[0, 0.27, 0.34]}>
           <mesh geometry={armLGeo} material={voxelMaterial} />
+          {caseGeo && <mesh geometry={caseGeo} material={voxelMaterial} />}
         </group>
         <group ref={armRRef} position={[0, 0.27, -0.34]}>
           <mesh geometry={armRGeo} material={voxelMaterial} />
@@ -1708,9 +1733,11 @@ function ShibuyaCrowd() {
   if (trackMode !== "shibuya") return null;
   return (
     <>
-      {walkers.map((w, i) => (
-        <AmbientWalker key={i} w={w} all={walkers} variant={i % 5} elderly={i % 9 === 4} />
-      ))}
+      {walkers.map((w, i) => {
+        // campuran kerumunan: 4 salaryman berjas, 3 anak sekolah, 1 lansia, 4 kasual per 12 orang
+        const kind = CROWD_KINDS[i % CROWD_KINDS.length];
+        return <AmbientWalker key={i} w={w} all={walkers} variant={kind === "suit" ? 5 + (i % 3) : i % 5} kind={kind} />;
+      })}
     </>
   );
 }

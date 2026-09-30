@@ -969,7 +969,15 @@ const PED_OUTFITS = [
   { top: "#2a9d8f", pants: "#6c584c", hair: "#111111", skin: "#c68642" },
   { top: "#9b5de5", pants: "#3a3a3a", hair: "#5a3825", skin: "#e0ac69" },
   { top: "#f4a261", pants: "#264653", hair: "#8d5524", skin: "#f1c9a5" },
+  // varian 5..7 = SALARYMAN: setelan jas kantor (jaket & celana senada gelap)
+  { top: "#2e3546", pants: "#2e3546", hair: "#1b1b1f", skin: "#f1c9a5" },
+  { top: "#23272f", pants: "#23272f", hair: "#111111", skin: "#e8b98e" },
+  { top: "#3d4459", pants: "#3d4459", hair: "#2b1d12", skin: "#f6d7bd" },
 ];
+/** Jumlah varian outfit pejalan kaki (0..4 kasual, 5..7 setelan jas kantor). */
+export const PED_VARIANTS = PED_OUTFITS.length;
+/** Varian >= 5 adalah salaryman berjas (kemeja putih + dasi + tas kerja dikempit). */
+export const isSuitVariant = (v: number) => v % PED_VARIANTS >= 5;
 
 /** Kakek/nenek yang menyeberang: cardigan hangat, rambut putih, kacamata, dan tongkat. */
 const ELDER_OUTFITS = [
@@ -1062,8 +1070,8 @@ export function pedestrianHeadParts(variant: number, isHit = false, elderly = fa
   return parts;
 }
 
-/** Pedestrian torso. Origin at torso center (y = 0). */
-export function pedestrianTorsoParts(variant: number, elderly = false): Part[] {
+/** Pedestrian torso. Origin at torso center (y = 0). `kid` menambah tas randoseru sekolah. */
+export function pedestrianTorsoParts(variant: number, elderly = false, kid = false): Part[] {
   const o = elderly ? ELDER_OUTFITS[variant % ELDER_OUTFITS.length] : PED_OUTFITS[variant % PED_OUTFITS.length];
   const parts: Part[] = [
     { x: 0, y: 0, z: 0, w: 0.42, h: 0.68, d: 0.52, color: o.top },
@@ -1073,6 +1081,20 @@ export function pedestrianTorsoParts(variant: number, elderly = false): Part[] {
     // punggung agak bungkuk (punuk di belakang bahu) + kerah cardigan
     parts.push({ x: -0.16, y: 0.2, z: 0, w: 0.16, h: 0.3, d: 0.44, color: o.top });
     parts.push({ x: 0.0, y: 0.31, z: 0, w: 0.44, h: 0.06, d: 0.5, color: "#ffffff" });
+  } else if (isSuitVariant(variant) && !kid) {
+    // SALARYMAN: kemeja putih menyembul di dada + dasi + kerah/lapel jas
+    parts.push({ x: 0.215, y: 0.0, z: 0, w: 0.02, h: 0.56, d: 0.2, color: "#f6f7f9" });
+    parts.push({ x: 0.228, y: 0.04, z: 0, w: 0.015, h: 0.38, d: 0.085, color: variant % 2 ? "#a8323e" : "#31518f" });
+    parts.push({ x: 0.215, y: 0.27, z: 0.12, w: 0.035, h: 0.1, d: 0.1, color: o.top });
+    parts.push({ x: 0.215, y: 0.27, z: -0.12, w: 0.035, h: 0.1, d: 0.1, color: o.top });
+  }
+  if (kid) {
+    // RANDOSERU: tas sekolah kulit khas anak Jepang (merah / hitam) di punggung
+    const rc = variant % 2 ? "#b5323c" : "#262b33";
+    parts.push({ x: -0.3, y: 0.0, z: 0, w: 0.17, h: 0.46, d: 0.4, color: rc });
+    parts.push({ x: -0.33, y: 0.25, z: 0, w: 0.13, h: 0.07, d: 0.42, color: rc });
+    parts.push({ x: -0.22, y: 0.1, z: 0.17, w: 0.045, h: 0.34, d: 0.07, color: "#3a3f47" });
+    parts.push({ x: -0.22, y: 0.1, z: -0.17, w: 0.045, h: 0.34, d: 0.07, color: "#3a3f47" });
   }
   return parts;
 }
@@ -1121,6 +1143,65 @@ export function pedestrianParts(variant: number, isHit = false, elderly = false)
     parts.push({ x: 0.1, y: 2.1, z: -0.34, w: 1.0, h: 0.12, d: 1.0, color: variant % 2 ? "#ff5c8a" : "#4cc9f0" });
     parts.push({ x: 0.1, y: 2.2, z: -0.34, w: 0.6, h: 0.1, d: 0.6, color: variant % 2 ? "#ff8fb1" : "#7fdbff" });
   }
+  return parts;
+}
+
+/** Tas kerja kulit yang DIKEMPIT salaryman di sisi badan (dipasang pada grup lengan kiri;
+ *  origin di sendi bahu, tas menempel rapat antara lengan dan pinggul). */
+export function briefcaseParts(variant = 0): Part[] {
+  const c = variant % 2 ? "#4a3423" : "#26292f";
+  const trim = variant % 2 ? "#5f4830" : "#363b44";
+  return [
+    { x: 0.04, y: -0.44, z: -0.1, w: 0.52, h: 0.36, d: 0.1, color: c },
+    { x: 0.04, y: -0.28, z: -0.1, w: 0.54, h: 0.05, d: 0.12, color: trim },
+    { x: 0.04, y: -0.22, z: -0.1, w: 0.16, h: 0.07, d: 0.05, color: "#1c1f24" },
+    { x: 0.305, y: -0.4, z: -0.065, w: 0.014, h: 0.06, d: 0.045, color: "#c9a13d" },
+    { x: 0.305, y: -0.4, z: -0.135, w: 0.014, h: 0.06, d: 0.045, color: "#c9a13d" },
+  ];
+}
+
+/** Pagar pembatas trotoar pipa putih khas kota Jepang (横断防止柵): tiang + 2 rel horizontal. */
+export function guardFenceParts(len = 3.2): Part[] {
+  const white = "#eef1f4";
+  const parts: Part[] = [];
+  for (let i = 0; i < 3; i++) {
+    parts.push({ x: -len / 2 + (len / 2) * i, y: 0.37, z: 0, w: 0.1, h: 0.74, d: 0.1, color: white });
+  }
+  parts.push({ x: 0, y: 0.72, z: 0, w: len, h: 0.1, d: 0.1, color: white });
+  parts.push({ x: 0, y: 0.42, z: 0, w: len, h: 0.07, d: 0.07, color: "#e2e6ea" });
+  return parts;
+}
+
+/** Planter TROTOAR Shibuya: bak bata/beton berisi semak, rumpun rumput & bunga; varian 2 = pagar tanaman (hedge). */
+export function sidewalkPlanterParts(variant: number): Part[] {
+  const v = Math.abs(variant) % 3;
+  const parts: Part[] = [];
+  if (v === 2) {
+    // hedge panjang di bak beton rendah
+    parts.push({ x: 0, y: 0.14, z: 0, w: 2.6, h: 0.28, d: 0.5, color: "#9aa0a8" });
+    parts.push({ x: 0, y: 0.5, z: 0, w: 2.4, h: 0.5, d: 0.4, color: "#3f7a45" });
+    parts.push({ x: -0.7, y: 0.78, z: 0, w: 0.8, h: 0.16, d: 0.36, color: "#4c8a4f" });
+    parts.push({ x: 0.6, y: 0.76, z: 0, w: 0.9, h: 0.14, d: 0.36, color: "#5e9b57" });
+    return parts;
+  }
+  const box = v === 0 ? "#9c5a3c" : "#a8adb5"; // bak bata merah / beton
+  const rim = v === 0 ? "#7d452e" : "#8d939c";
+  parts.push({ x: 0, y: 0.2, z: 0, w: 1.5, h: 0.4, d: 0.55, color: box });
+  parts.push({ x: 0, y: 0.42, z: 0, w: 1.58, h: 0.08, d: 0.63, color: rim });
+  parts.push({ x: 0, y: 0.45, z: 0, w: 1.38, h: 0.06, d: 0.44, color: "#4a3a28" });
+  // semak hijau
+  parts.push({ x: -0.35, y: 0.58, z: 0, w: 0.5, h: 0.28, d: 0.36, color: "#4c8a4f" });
+  parts.push({ x: 0.3, y: 0.56, z: 0.02, w: 0.46, h: 0.24, d: 0.34, color: "#5e9b57" });
+  // rumpun rumput
+  for (const gx of [-0.6, 0.05, 0.55]) {
+    parts.push({ x: gx, y: 0.62, z: -0.1, w: 0.07, h: 0.3, d: 0.07, color: "#6fae5c" });
+    parts.push({ x: gx + 0.08, y: 0.58, z: 0.08, w: 0.06, h: 0.24, d: 0.06, color: "#87c46a" });
+  }
+  // bunga warna-warni
+  const fl = v === 0 ? ["#e84855", "#ffd166", "#ff8fa3"] : ["#ffffff", "#b48ce0", "#ffd166"];
+  [-0.45, -0.1, 0.25, 0.55].forEach((fx, i) => {
+    parts.push({ x: fx, y: 0.72 + (i % 2) * 0.05, z: i % 2 ? 0.12 : -0.08, w: 0.11, h: 0.11, d: 0.11, color: fl[i % fl.length] });
+  });
   return parts;
 }
 

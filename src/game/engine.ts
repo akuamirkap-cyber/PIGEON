@@ -232,7 +232,9 @@ export type DecorKind =
   | "billboard"
   | "jam_car"
   | "tower109"
-  | "avenue_lamp";
+  | "avenue_lamp"
+  | "guard_fence"
+  | "sidewalk_planter";
 export interface Decor {
   kind: DecorKind;
   pos: Vec3;
@@ -2743,7 +2745,8 @@ class Engine {
         const m = this.newMover("pedestrian", px, -1, -dir * 6.8);
         m.dir = dir;
         m.speed = rand(1.7, 2.4);
-        m.variant = randInt(0, 4);
+        // gelombang scramble ala Shibuya asli: banyak salaryman berjas pulang kantor
+        m.variant = Math.random() < 0.4 ? randInt(5, 7) : randInt(0, 4);
         const eta = (px - this.distance) / est;
         const walk = (6.8 - 1.2) / m.speed;
         m.delay = Math.max(0.1, eta - walk + rand(-0.9, 0.9));
@@ -2974,10 +2977,15 @@ class Engine {
       }
       if (id % 2 === 1 && !nearCrossing(6)) add("lamp", 6, 4.35, 0.16);
 
-      // 6. Opposite carriageway: slow-and-go night traffic (headlights toward the player)
+      // 6. Opposite carriageway: slow-and-go traffic — KADANG 2x lebih ramai (jam kota)
+      const busyTraffic = Math.random() < 0.4;
       for (const ln of [6.2, 8.6, 11.0]) {
         const lx = rand(1.5, 10.5);
-        if (Math.random() < 0.42 && !nearCrossing(lx)) add("jam_car", lx, ln, 0.02, randInt(0, 4));
+        if (Math.random() < (busyTraffic ? 0.62 : 0.42) && !nearCrossing(lx)) add("jam_car", lx, ln, 0.02, randInt(0, 4));
+        if (busyTraffic) {
+          const lx2 = lx > 6 ? lx - rand(3.4, 4.6) : lx + rand(3.4, 4.6);
+          if (Math.random() < 0.6 && !nearCrossing(lx2)) add("jam_car", lx2, ln, 0.02, randInt(0, 4));
+        }
       }
 
       // 7. Buzzing sidewalks BOTH sides: neon signboards, vending machines, mamachari, trees
@@ -2995,6 +3003,17 @@ class Engine {
       add("lamp", id % 2 === 0 ? 3 : 9, -4.3, 0.06);
       add("lamp", id % 2 === 0 ? 9 : 3, 12.55, 0.14);
       if (id % 2 === 0 && !nearCrossing(6.5)) add("avenue_lamp", 6.5, 4.35, 0.16);
+
+      // 9. Pagar pembatas trotoar pipa putih khas Jepang di bibir curb — KEDUA sisi jalan
+      for (const flx of [1.8, 5.2, 8.6]) {
+        if (!nearCrossing(flx)) {
+          add("guard_fence", flx, -4.14, 0.12);
+          add("guard_fence", flx, 12.78, 0.12);
+        }
+      }
+      // 10. Hiasan hijau trotoar: planter bata/beton berisi bunga & rumput + pagar tanaman
+      if (Math.random() < 0.8) add("sidewalk_planter", rand(1.5, 10.5), -4.85, 0.12, randInt(0, 2));
+      if (Math.random() < 0.55) add("sidewalk_planter", rand(1.5, 10.5), 13.3, 0.12, randInt(0, 2));
 
       this.chunks.push({ id, s0, kind: "shibuya", decor });
       this.listVersion++;
@@ -3268,7 +3287,8 @@ class Engine {
       const elderly = i === elderIndex;
       m.elderly = elderly;
       m.speed = elderly ? rand(0.85, 1.25) : rand(1.6, 2.3);
-      m.variant = randInt(0, elderly ? 2 : 4);
+      // sebagian penyeberang dewasa adalah salaryman berjas dengan tas kerja dikempit
+      m.variant = elderly ? randInt(0, 2) : Math.random() < 0.35 ? randInt(5, 7) : randInt(0, 4);
       // time the walk so they are on the road when the player arrives
       // (lansia jalannya lambat, jadi mereka lebih lama ADA di tengah jalan)
       const eta = (x + i * 3.0 - d) / est;
