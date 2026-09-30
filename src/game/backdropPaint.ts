@@ -211,19 +211,25 @@ export function paintFuji(W = 1600, H = 400): HTMLCanvasElement {
 export const PANO = { topY: 14, botY: 50 };
 
 interface Palette {
+  /** warna badan tajuk */
   base: string;
+  /** sisi yang kena cahaya */
   mid: string;
+  /** kilau paling atas */
   hi: string;
+  /** bayangan / bagian bawah tajuk */
+  shade: string;
 }
+
 const GREENS: Palette[] = [
-  { base: "#3f8f57", mid: "#58a96c", hi: "#82c98f" },
-  { base: "#4a9a5d", mid: "#66b676", hi: "#8fd39b" },
-  { base: "#3a8450", mid: "#4f9f63", hi: "#74be82" },
+  { base: "#4f9d63", mid: "#63b476", hi: "#93d49f", shade: "#3c7f4f" },
+  { base: "#579f68", mid: "#6dbb7e", hi: "#9edaaa", shade: "#41834f" },
+  { base: "#489158", mid: "#5cab6c", hi: "#8ccb96", shade: "#376f44" },
 ];
 const PINKS: Palette[] = [
-  { base: "#e37ea9", mid: "#f6a4c6", hi: "#ffd2e3" },
-  { base: "#ea8fb6", mid: "#f9b4d1", hi: "#ffdcea" },
-  { base: "#dd77a3", mid: "#f39cc0", hi: "#ffc9de" },
+  { base: "#ee8fb7", mid: "#f8aecb", hi: "#ffd7e6", shade: "#cf6e97" },
+  { base: "#f19ac1", mid: "#fbbcd4", hi: "#ffe0ec", shade: "#d77aa1" },
+  { base: "#e785ae", mid: "#f4a6c4", hi: "#ffcee0", shade: "#c76591" },
 ];
 
 export function paintHills(W = 4096, H = 512): HTMLCanvasElement {
@@ -246,70 +252,166 @@ export function paintHills(W = 4096, H = 512): HTMLCanvasElement {
     if (x + r > W) draw(x - W);
   };
 
-  const fillLayer = (crest: (x: number) => number, color: string, rim?: { color: string; w: number }) => {
+  /** Isi satu lapisan bukit dengan gradasi lembut (atas lebih terang, bawah lebih dalam). */
+  const fillLayer = (crest: (x: number) => number, top: string, bottom: string, rim?: string) => {
     g.beginPath();
     g.moveTo(0, H);
     for (let x = 0; x <= W; x += 4) g.lineTo(x, crest(x));
     g.lineTo(W, H);
     g.closePath();
-    g.fillStyle = color;
+    const grad = g.createLinearGradient(0, yUnits(2), 0, H);
+    grad.addColorStop(0, top);
+    grad.addColorStop(1, bottom);
+    g.fillStyle = grad;
     g.fill();
     if (rim) {
       g.beginPath();
-      for (let x = 0; x <= W; x += 4) (x === 0 ? g.moveTo : g.lineTo).call(g, x, crest(x) + rim.w / 2);
-      g.lineWidth = rim.w;
-      g.strokeStyle = rim.color;
+      for (let x = 0; x <= W; x += 4) (x === 0 ? g.moveTo : g.lineTo).call(g, x, crest(x) + 2.5 * s);
+      g.lineWidth = 5 * s;
+      g.strokeStyle = rim;
       g.stroke();
     }
   };
 
-  const crown = (x: number, y: number, r: number, pal: Palette) => {
-    wrap(x, r, (xx) => {
-      if (r > 11 * s) {
-        g.fillStyle = "#6b4a2b";
-        g.fillRect(xx - r * 0.09, y + r * 0.6, r * 0.18, r * 0.5);
-      }
-      g.fillStyle = pal.base;
-      g.beginPath();
-      g.arc(xx, y, r, 0, TAU);
-      g.fill();
-      g.fillStyle = pal.mid;
-      g.beginPath();
-      g.arc(xx - r * 0.1, y - r * 0.12, r * 0.86, 0, TAU);
-      g.fill();
-      g.fillStyle = pal.hi;
-      g.beginPath();
-      g.arc(xx - r * 0.3, y - r * 0.34, r * 0.42, 0, TAU);
-      g.fill();
-    });
-  };
+  /** Periode gelombang dalam piksel, tapi jumlah gelombangnya BULAT keliling tabung (anti-jahitan di seam). */
+  const cyc = (pxAt4096: number) => W / Math.max(1, Math.round(4096 / pxAt4096));
 
-  // pinkness field: discrete groves (threshold, not a gradient)
-  const pinkAt = (x: number, seed: number) => harm(x, [[7 + seed, 1, seed], [13 + seed * 2, 0.8, seed * 2.3], [29, 0.5, seed * 1.1]]) > 0.75;
+  /** Sisi atas rimba: gabungan beberapa sinus (gelombang besar + sedang + keriting kecil). */
+  const bumpyTop = (crest: (x: number) => number, x: number, dy: number, amp: number, seed: number) =>
+    crest(x) +
+    dy * pxPerUnit +
+    Math.sin((TAU * x) / cyc(9.5) + seed) * amp * pxPerUnit * 0.5 +
+    Math.sin((TAU * x) / cyc(4.3) + seed * 1.9) * amp * pxPerUnit * 0.3 +
+    Math.sin((TAU * x) / cyc(1.7) + seed * 3.1) * amp * pxPerUnit * 0.15 +
+    Math.sin((TAU * x) / cyc(0.86) + seed * 5.3) * amp * pxPerUnit * 0.1;
 
-  const treeLine = (crest: (x: number) => number, rMin: number, rMax: number, gap: number, dy: number, seed: number) => {
-    for (let x = 0; x < W; ) {
-      const r = (rMin + R() * (rMax - rMin)) * s;
-      const y = crest(x) + dy * s + (R() - 0.5) * 3 * s;
-      const pink = pinkAt(x, seed) ? R() < 0.92 : R() < 0.04;
-      const pal = pink ? PINKS[Math.floor(R() * PINKS.length)] : GREENS[Math.floor(R() * GREENS.length)];
-      crown(x, y, r, pal);
-      x += r * gap;
+  /**
+   * RIMBA menyatu: bidang dengan sisi atas bergelombang dan sisi bawah mengikuti garis bukit.
+   * Ini pengganti deretan bulatan hijau — yang terlihat adalah siluet hutan, bukan untaian manik.
+   */
+  const forestBand = (
+    crest: (x: number) => number,
+    o: { dy: number; thick: number; amp: number; seed: number; top: string; bottom: string; rim?: string; x0?: number; x1?: number },
+  ) => {
+    const x0 = o.x0 ?? 0;
+    const x1 = o.x1 ?? W;
+    const botAt = (x: number) => crest(x) + (o.dy + o.thick) * pxPerUnit + Math.sin((TAU * x) / cyc(15) + o.seed * 0.7) * o.amp * pxPerUnit * 0.45;
+    g.beginPath();
+    for (let x = x0; x <= x1; x += 4) {
+      const y = bumpyTop(crest, x, o.dy, o.amp, o.seed);
+      if (x === x0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    for (let x = x1; x >= x0; x -= 4) g.lineTo(x, botAt(x));
+    g.closePath();
+    const grad = g.createLinearGradient(0, bumpyTop(crest, (x0 + x1) / 2, o.dy, o.amp, o.seed) - o.amp * pxPerUnit, 0, botAt((x0 + x1) / 2) + o.thick * pxPerUnit);
+    grad.addColorStop(0, o.top);
+    grad.addColorStop(1, o.bottom);
+    g.fillStyle = grad;
+    g.fill();
+    if (o.rim) {
+      g.beginPath();
+      for (let x = x0; x <= x1; x += 4) (x === x0 ? g.moveTo : g.lineTo).call(g, x, bumpyTop(crest, x, o.dy, o.amp, o.seed) + 1.1 * s);
+      g.lineWidth = 2.6 * s;
+      g.strokeStyle = o.rim;
+      g.stroke();
     }
   };
 
-  /* --- far ridge: pale blue-teal, no detail --- */
+  /**
+   * Tajuk pohon tunggal berbentuk BLOB tak beraturan (bukan lingkaran), dengan bayangan
+   * bawah dan kilau atas. Dipakai hemat: hanya untuk pohon aksen di tepi ladang / kaki bukit.
+   */
+  const blob = (x: number, y: number, rU: number, pal: Palette, seed: number, trunk = false) => {
+    const r = rU * pxPerUnit;
+    wrap(x, r * 1.8, (xx) => {
+      if (trunk && rU > 1.2) {
+        g.fillStyle = "#5c4127";
+        g.fillRect(xx - r * 0.07, y + r * 0.5, r * 0.14, r * 0.6);
+      }
+      const n = 12;
+      g.beginPath();
+      for (let i = 0; i <= n; i++) {
+        const a = (i / n) * TAU;
+        const lump = 0.76 + 0.3 * (0.5 + 0.5 * Math.sin(a * 3 + seed)) + 0.1 * Math.sin(a * 5 - seed * 1.7);
+        const rr = r * lump;
+        const px = xx + Math.cos(a) * rr;
+        const py = y + Math.sin(a) * rr * 0.8;
+        if (i === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.closePath();
+      g.fillStyle = pal.shade;
+      g.fill();
+      g.save();
+      g.clip();
+      g.fillStyle = pal.base;
+      g.beginPath();
+      g.arc(xx - r * 0.16, y - r * 0.2, r * 0.94, 0, TAU);
+      g.fill();
+      g.fillStyle = pal.mid;
+      g.beginPath();
+      g.arc(xx - r * 0.34, y - r * 0.42, r * 0.58, 0, TAU);
+      g.fill();
+      g.fillStyle = pal.hi;
+      g.beginPath();
+      g.arc(xx - r * 0.48, y - r * 0.58, r * 0.24, 0, TAU);
+      g.fill();
+      g.restore();
+    });
+  };
+
+  const pickPal = (arr: Palette[]) => arr[Math.floor(R() * arr.length)];
+
+  /** Kebun sakura: band pink di rentang x tertentu + tepi bergerigi dari pohon blob pink. */
+  const grove = (
+    x0: number,
+    x1: number,
+    crest: (x: number) => number,
+    rows: { dy: number; thick: number; amp: number; seed: number }[],
+  ) => {
+    for (const row of rows) {
+      forestBand(crest, { ...row, top: PINKS[1].mid, bottom: PINKS[0].base, x0, x1 });
+    }
+    const n = Math.max(3, Math.round((x1 - x0) / (9 * s)));
+    for (let i = 0; i < n; i++) {
+      const x = x0 + (i / Math.max(1, n - 1)) * (x1 - x0) + (R() - 0.5) * 8 * s;
+      if (x < 4 || x > W - 4) continue;
+      const last = rows[rows.length - 1];
+      const r = 1.4 + R() * 1.6;
+      const pal = R() < 0.88 ? pickPal(PINKS) : pickPal(GREENS);
+      blob(x, bumpyTop(crest, x, last.dy, last.amp, last.seed) + (R() - 0.3) * 0.8 * pxPerUnit, r, pal, R() * 6);
+    }
+  };
+
+  /* --- ridge jauh: biru pucat berkabut, tanpa detail --- */
   const farCrest = (x: number) => yUnits(0.2) + harm(x, [[3, -22 * s, 0.4], [5, 13 * s, 1.3], [9, 9 * s, 2.1], [17, 5 * s, 0.7], [33, 2.5 * s, 3]]);
-  fillLayer(farCrest, "#a9cdd3", { color: "#c6dfe3", w: 5 * s });
-  // a lighter haze over the ridge
-  g.fillStyle = "rgba(219,238,255,0.35)";
+  fillLayer(farCrest, "#b3d3d9", "#c8e0e4", "#d5e9ec");
+  g.fillStyle = "rgba(219,238,255,0.32)";
   g.fillRect(0, yUnits(0.2) - 40 * s, W, H);
 
-  /* --- mid hills: soft green with a scalloped tree line and a few pink groves + a pagoda --- */
+  /* --- bukit tengah: hijau muda dengan tiga lapis rimba + kebun sakura + pagoda --- */
   const midCrest = (x: number) => yUnits(-3.2) + harm(x, [[4, -20 * s, 2], [6, 12 * s, 0.6], [11, 8 * s, 1.7], [19, 4 * s, 2.9], [37, 2.5 * s, 0.2]]);
-  fillLayer(midCrest, "#93cf9f", { color: "#aee0b4", w: 6 * s });
-  treeLine(midCrest, 6, 9.5, 1.15, 3, 1);
-  // pagoda on the mid hills
+  fillLayer(midCrest, "#a8dcb0", "#8fcb9c", "#c2e9c7");
+  // rimba 3 lapis: belakang gelap & kecil (terbaca "jauh"), depan terang & besar
+  forestBand(midCrest, { dy: 0.4, thick: 3.2, amp: 1.1, seed: 1.3, top: "#528f65", bottom: "#3f7a51" });
+  forestBand(midCrest, { dy: 3.0, thick: 3.6, amp: 1.3, seed: 2.7, top: "#5fae72", bottom: "#4a9660" });
+  forestBand(midCrest, { dy: 6.4, thick: 4.4, amp: 1.6, seed: 4.1, top: "#74c485", bottom: "#5cae70", rim: "#a3dea9" });
+  // kebun sakura
+  for (const [gx, gw] of [
+    [0.015, 0.075],
+    [0.24, 0.085],
+    [0.43, 0.06],
+    [0.59, 0.085],
+    [0.79, 0.075],
+    [0.92, 0.065],
+  ] as [number, number][]) {
+    grove(W * gx, W * (gx + gw), midCrest, [
+      { dy: 1.8, thick: 3.4, amp: 1.1, seed: 6.2 },
+      { dy: 5.0, thick: 4.2, amp: 1.4, seed: 7.4 },
+    ]);
+  }
+  // pagoda + rimbun di kakinya
   const pagoda = (x: number, baseY: number, k: number) => {
     wrap(x, 40 * k, (xx) => {
       const tiers = 5;
@@ -322,7 +424,6 @@ export function paintHills(W = 4096, H = 512): HTMLCanvasElement {
         y -= bh;
         g.fillStyle = i % 2 ? "#efe6d0" : "#b3271b";
         g.fillRect(xx - w / 2, y, w, bh);
-        // roof: dark tile, upturned corners
         const rw = w + 9 * k;
         g.fillStyle = "#44505c";
         g.beginPath();
@@ -342,46 +443,79 @@ export function paintHills(W = 4096, H = 512): HTMLCanvasElement {
   };
   {
     const px = W * 0.234;
-    pagoda(px, midCrest(px) + 14 * s, 1.2 * s);
-    treeLine((x) => (Math.abs(x - px) < 80 * s ? midCrest(x) : 9999), 7, 10, 1.1, 8, 3);
+    // rimba rapat di belakang pagoda, jadi pagoda berdiri DI antara pepohonan
+    for (let i = 0; i < 18; i++) {
+      const x = px - 190 * s + i * 22 * s + (R() - 0.5) * 12 * s;
+      const r = 2.2 + R() * 2.2;
+      blob(x, midCrest(x) + (4.4 + R() * 2.2) * pxPerUnit, r, i % 4 === 1 ? pickPal(PINKS) : pickPal(GREENS), R() * 6);
+    }
+    pagoda(px, midCrest(px) + 7.6 * pxPerUnit, 1.35 * s);
   }
 
-  /* --- near forest: big round crowns, distinct sakura groves --- */
+  /* --- bukit dekat: rimba lebih besar & gelap di kaki --- */
   const nearCrest = (x: number) => yUnits(-10.5) + harm(x, [[5, -12 * s, 0.9], [8, 8 * s, 2.2], [14, 5 * s, 0.3], [27, 3 * s, 1.4]]);
-  fillLayer(nearCrest, "#6cba77", { color: "#8ad393", w: 6 * s });
-  treeLine(nearCrest, 13, 21, 1.05, 6, 2);
-  treeLine(nearCrest, 12, 18, 1.15, 26, 5);
+  fillLayer(nearCrest, "#7cc387", "#6cb679", "#9ad9a2");
+  forestBand(nearCrest, { dy: 0.6, thick: 4.0, amp: 1.3, seed: 2.1, top: "#4b8f5c", bottom: "#3d7b4d" });
+  forestBand(nearCrest, { dy: 3.8, thick: 4.6, amp: 1.6, seed: 3.8, top: "#5dac6f", bottom: "#48945c" });
+  forestBand(nearCrest, { dy: 7.8, thick: 5.4, amp: 1.9, seed: 5.5, top: "#72c283", bottom: "#59aa6c", rim: "#9ddba7" });
+  for (const [gx, gw] of [
+    [0.06, 0.08],
+    [0.32, 0.07],
+    [0.52, 0.09],
+    [0.74, 0.07],
+    [0.9, 0.06],
+  ] as [number, number][]) {
+    grove(W * gx, W * (gx + gw), nearCrest, [
+      { dy: 2.6, thick: 4.6, amp: 1.5, seed: 8.1 },
+      { dy: 6.6, thick: 5.6, amp: 1.8, seed: 9.3 },
+    ]);
+  }
+  // pohon aksen di kaki bukit dekat (blob besar dengan batang, bukan manik)
+  for (let i = 0; i < 9; i++) {
+    const x = (i / 9) * W + R() * 260 * s;
+    const r = 3.4 + R() * 2.6;
+    const pal = R() < 0.18 ? pickPal(PINKS) : pickPal(GREENS);
+    blob(x, nearCrest(x) + (13 + R() * 3.5) * pxPerUnit, r, pal, R() * 6, true);
+  }
 
-  /* --- fields: flat horizontal bands with a little wave, small trees in rows --- */
+  /* --- sawah / ladang: pita warna dengan garis alur --- */
   const fieldTop = yUnits(-16.2);
   {
     let y = fieldTop;
     let i = 0;
     while (y < H) {
-      const bandH = (7 + i * i * 1.15) * s;
-      g.fillStyle = i % 2 ? "#79c47f" : "#6cba77";
+      const bandH = (8 + i * i * 1.3) * s;
+      g.fillStyle = i % 2 ? "#87cc8d" : "#78c07f";
       g.beginPath();
       g.moveTo(0, y + bandH);
       for (let x = 0; x <= W; x += 8) g.lineTo(x, y + Math.sin((TAU * 23 * x) / W + i * 1.7) * 1.2 * s + Math.sin((TAU * 41 * x) / W + i) * 0.8 * s);
       g.lineTo(W, y + bandH);
       g.closePath();
       g.fill();
+      g.strokeStyle = i % 2 ? "rgba(88,150,96,0.5)" : "rgba(70,132,80,0.5)";
+      g.lineWidth = 1.4 * s;
+      g.beginPath();
+      for (let x = 0; x <= W; x += 8) {
+        const yy = y + bandH * 0.55 + Math.sin((TAU * 31 * x) / W + i * 2.3) * 1.4 * s;
+        (x === 0 ? g.moveTo : g.lineTo).call(g, x, yy);
+      }
+      g.stroke();
       y += bandH;
       i++;
     }
   }
-  const rowTrees = (y: number, r: number, gap: number, seed: number) => {
-    for (let x = R() * 30; x < W; ) {
-      const rr = r * (0.85 + R() * 0.3) * s;
-      const pink = pinkAt(x, seed) ? R() < 0.9 : R() < 0.03;
-      crown(x, y, rr, pink ? PINKS[Math.floor(R() * 3)] : GREENS[Math.floor(R() * 3)]);
-      x += rr * gap * (1 + R() * 1.4);
+  // pohon peneduh di pematang atas (jarang & kecil, jadi terbaca sebagai pohon, bukan titik)
+  {
+    let x = R() * 60 * s;
+    while (x < W) {
+      const rU = 1.2 + R() * 1.5;
+      const pal = R() < 0.12 ? pickPal(PINKS) : pickPal(GREENS);
+      blob(x, fieldTop + (2.6 + R() * 2.4) * pxPerUnit, rU, pal, R() * 6, true);
+      x += rU * pxPerUnit * (2.2 + R() * 3.4);
     }
-  };
-  rowTrees(fieldTop + 24 * s, 8, 2.2, 4);
-  rowTrees(fieldTop + 62 * s, 11.5, 2.6, 6);
+  }
 
-  // mist: only the lowest part fades to the world haze colour so the far road end melts into it
+  // kabut: hanya bagian paling bawah yang melebur ke warna haze dunia
   const m0 = yUnits(-25);
   const m1 = yUnits(-38);
   const mist = g.createLinearGradient(0, m0, 0, m1);
