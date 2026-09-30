@@ -52,6 +52,8 @@ import {
   OVERPASS_H,
   nosCanParts,
   rocketParts,
+  diamondParts,
+  crownParts,
   sakuraParts,
   stoneLanternParts,
   petalParts,
@@ -1055,13 +1057,34 @@ function NosCans() {
 }
 
 /* ---------- Item LANGKA: ROKET NOS + kilatan sinar (raylight) ---------- */
-const RARE_TINT = "#ffc93c";
+const RARE_TINT: Record<string, string> = {
+  rocket: "#ffc93c",
+  diamond: "#4fd8ff",
+  crown: "#ffc93c",
+};
 
 function Rockets() {
   const { camera } = useThree();
   const seen = useRef(-1);
   const [, force] = useReducer((x: number) => x + 1, 0);
-  const geo = useMemo(() => getGeometry("rocket", rocketParts), []);
+  const geos = useMemo(
+    () => ({
+      rocket: getGeometry("rocket", rocketParts),
+      diamond: getGeometry("diamond", diamondParts),
+      crown: getGeometry("crown", crownParts),
+    }),
+    [],
+  );
+  const ringMats = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(RARE_TINT).map(([kind, color]) => [
+          kind,
+          new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
+        ]),
+      ) as Record<string, THREE.MeshBasicMaterial>,
+    [],
+  );
   const rayTex = useMemo(() => getRayTexture(), []);
   const rayMat = useMemo(
     () =>
@@ -1075,14 +1098,13 @@ function Rockets() {
       }),
     [rayTex],
   );
-  const ringMat = useMemo(
-    () => new THREE.MeshBasicMaterial({ color: RARE_TINT, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
-    [],
+  useEffect(
+    () => () => {
+      rayMat.dispose();
+      for (const m of Object.values(ringMats)) m.dispose();
+    },
+    [rayMat, ringMats],
   );
-  useEffect(() => () => {
-    rayMat.dispose();
-    ringMat.dispose();
-  }, [rayMat, ringMat]);
 
   const refs = useRef(new Map<number, THREE.Group>());
   const rays = useRef(new Map<number, THREE.Mesh>());
@@ -1131,11 +1153,11 @@ function Rockets() {
           >
             <planeGeometry args={[3.1, 3.1]} />
           </mesh>
-          {/* piringan cahaya di jalan */}
-          <mesh material={ringMat} rotation-x={-Math.PI / 2} position={[0, -0.4, 0]}>
+          {/* piringan cahaya di jalan (warna ikut jenis item) */}
+          <mesh material={ringMats[r.kind] ?? ringMats.rocket} rotation-x={-Math.PI / 2} position={[0, -0.4, 0]}>
             <ringGeometry args={[0.42, 0.62, 24]} />
           </mesh>
-          <mesh geometry={geo} material={voxelMaterial} castShadow />
+          <mesh geometry={geos[r.kind] ?? geos.rocket} material={voxelMaterial} castShadow />
         </group>
       ))}
     </>
@@ -1180,6 +1202,9 @@ function RareFlash() {
     const k = 1 - f / RARE_FLASH_T; // 0 -> 1 seiring waktu
     const [x, y, z] = engine.rareFlashPos;
     g.position.set(x, y + 0.55, z);
+    const rgb = engine.rareFlashRGB;
+    rayMat.color.setRGB(rgb[0], rgb[1], rgb[2]);
+    pillarMat.color.setRGB(Math.min(1, rgb[0] + 0.25), Math.min(1, rgb[1] + 0.25), Math.min(1, rgb[2] + 0.25));
     if (rays.current) {
       rays.current.quaternion.copy(camera.quaternion);
       rays.current.rotateZ(k * 1.6);

@@ -88,6 +88,39 @@ export const NOS_PER_TRICK = 10;
 export const NOS_CAN_S = 50;
 /** Jarak antar-item LANGKA (roket NOS): jarang, rata-rata ~1 tiap 270 m. */
 export const ROCKET_GAP: [number, number] = [200, 340];
+/**
+ * Jenis ITEM LANGKA yang muncul di jalan. Roket = NOS, Berlian = skor paling gede,
+ * Mahkota = jackpot (paling jarang). Semua bercahaya raylight & wajib bisa diambil.
+ */
+export type RareKind = "rocket" | "diamond" | "crown";
+/** Bobot undian jenis item langka (roket paling sering, mahkota paling jarang). */
+export function pickRareKind(): RareKind {
+  const total = RARE_WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
+  let roll = Math.random() * total;
+  for (const [kind, w] of RARE_WEIGHTS) {
+    roll -= w;
+    if (roll <= 0) return kind;
+  }
+  return RARE_WEIGHTS[0][0];
+}
+
+export const RARE_WEIGHTS: [RareKind, number][] = [
+  ["rocket", 55],
+  ["diamond", 30],
+  ["crown", 15],
+];
+/** Hadiah tiap jenis: NOS (0..1 dari NOS_MAX) + skor + teks popup. */
+export const RARE_REWARD: Record<RareKind, { nos: number; score: number; title: string; sub: string }> = {
+  rocket: { nos: 1, score: 500, title: "ROCKET LANGKA!", sub: "NOS LANGSUNG PENUH" },
+  diamond: { nos: 0.5, score: 2000, title: "BERLIAN LANGKA!", sub: "SKOR +2000" },
+  crown: { nos: 1, score: 1500, title: "MAHKOTA LANGKA!", sub: "JACKPOT! NOS PENUH +1500" },
+};
+/** Warna kilatan sinar tiap jenis (dipakai view). */
+export const RARE_FLASH_RGB: Record<RareKind, [number, number, number]> = {
+  rocket: [1, 0.86, 0.42],
+  diamond: [0.45, 0.88, 1],
+  crown: [1, 0.72, 0.32],
+};
 /** Roket langka pertama muncul ~120 m setelah start (biar pemain cepat lihat itemnya). */
 export const ROCKET_FIRST_S = 120;
 /** Skor bonus sekali ambil roket. */
@@ -560,12 +593,13 @@ class Engine {
   jumpBuffer = 0;
   nosCans: { id: number; s: number; lane: number; taken: boolean; wx: number; wy: number; wz: number; phase: number }[] = [];
   /** Item LANGKA: roket NOS berkilau sinar. Jarang muncul, sekali ambil NOS penuh. */
-  rockets: { id: number; s: number; lane: number; taken: boolean; wx: number; wy: number; wz: number; phase: number }[] = [];
+  rockets: { id: number; s: number; lane: number; taken: boolean; kind: RareKind; wx: number; wy: number; wz: number; phase: number }[] = [];
   /** statistik: jumlah roket yang sudah diambil (untuk uji & pencapaian) */
   rocketTaken = 0;
   /** kilatan sinar saat roket diambil (0 = tidak ada) */
   rareFlash = 0;
   rareFlashPos: Vec3 = [0, 0, 0];
+  rareFlashRGB: [number, number, number] = [1, 0.86, 0.42];
   nextNosS = 0;
   /** jarak (s) tempat roket langka berikutnya muncul */
   nextRocketS = 0;
@@ -701,6 +735,7 @@ class Engine {
     this.rockets = [];
     this.rocketTaken = 0;
     this.rareFlash = 0;
+    this.rareFlashRGB = [1, 0.86, 0.42];
     this.nextNosS = this.distance + 70;
     this.cycleIndex = 0;
     this.nextRoadworkS = this.distance + 120 + rand(0, 60);
@@ -3154,7 +3189,7 @@ class Engine {
         this.nextRocketS = x + 12;
       } else {
         track.frame(x, LANE_LAT[lane], 0, tmpV);
-        this.rockets.push({ id: this.nextId++, s: x, lane, taken: false, wx: tmpV.x, wy: tmpV.y, wz: tmpV.z, phase: Math.random() * 6 });
+        this.rockets.push({ id: this.nextId++, s: x, lane, taken: false, kind: pickRareKind(), wx: tmpV.x, wy: tmpV.y, wz: tmpV.z, phase: Math.random() * 6 });
         this.listVersion++;
         this.nextRocketS = x + rand(ROCKET_GAP[0], ROCKET_GAP[1]);
       }
@@ -3499,18 +3534,21 @@ class Engine {
    * Ambil item LANGKA (roket): NOS langsung penuh, bonus skor besar, kilatan sinar
    * (raylight) + cincin emas, dan getaran kecil di kamera biar terasa "berharga".
    */
-  private collectRocket(r: { taken: boolean; wx: number; wy: number; wz: number }) {
+  private collectRocket(r: { taken: boolean; kind: RareKind; wx: number; wy: number; wz: number }) {
+    const reward = RARE_REWARD[r.kind] ?? RARE_REWARD.rocket;
+    const rgb = RARE_FLASH_RGB[r.kind] ?? RARE_FLASH_RGB.rocket;
     r.taken = true;
     this.rocketTaken++;
-    this.trickScore += ROCKET_SCORE;
-    this.addNos(NOS_MAX); // langsung penuh
+    this.trickScore += reward.score;
+    this.addNos(NOS_MAX * reward.nos);
     this.rareFlash = RARE_FLASH_T;
     this.rareFlashPos = [r.wx, r.wy, r.wz];
+    this.rareFlashRGB = [rgb[0], rgb[1], rgb[2]];
     this.punch = Math.max(this.punch, 0.22);
-    this.spawnPulse(r.wx, r.wy + 0.5, r.wz, { max: 0.55, r0: 0.6, r1: 4.2, color: [1, 0.82, 0.28] });
+    this.spawnPulse(r.wx, r.wy + 0.5, r.wz, { max: 0.55, r0: 0.6, r1: 4.2, color: [rgb[0], rgb[1], rgb[2]] });
     this.emitWorld("pow", r.wx, r.wy + 0.6, r.wz, r.wy, 14, 0, 0);
     this.emitWorld("spark", r.wx, r.wy + 0.5, r.wz, r.wy, 18, 0, 0);
-    useUI.getState().addPopup("ROCKET LANGKA!", "#ffc93c", "NOS LANGSUNG PENUH");
+    useUI.getState().addPopup(reward.title, r.kind === "diamond" ? "#4fd8ff" : "#ffc93c", reward.sub);
     sfx.rare();
   }
 

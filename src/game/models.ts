@@ -1343,6 +1343,61 @@ export function rocketParts(): Part[] {
   ];
 }
 
+/** Item LANGKA #2: berlian raksasa (biru-cyan) — hadiah skor paling gede. */
+export function diamondParts(): Part[] {
+  const cyan = "#4fd8ff";
+  const cyanDark = "#1899c9";
+  const white = "#eaf9ff";
+  const gold = "#ffc93c";
+  return [
+    // alas emas kecil
+    { x: 0, y: 0.03, z: 0, w: 0.34, h: 0.06, d: 0.34, color: gold },
+    { x: 0, y: 0.08, z: 0, w: 0.24, h: 0.05, d: 0.24, color: "#d69a12" },
+    // badan berlian: piramida bertingkat (atas -> bawah)
+    { x: 0, y: 0.86, z: 0, w: 0.08, h: 0.1, d: 0.08, color: white },
+    { x: 0, y: 0.74, z: 0, w: 0.16, h: 0.14, d: 0.16, color: cyan },
+    { x: 0, y: 0.58, z: 0, w: 0.26, h: 0.18, d: 0.26, color: cyan },
+    { x: 0, y: 0.38, z: 0, w: 0.34, h: 0.22, d: 0.34, color: cyan },
+    { x: 0, y: 0.22, z: 0, w: 0.28, h: 0.14, d: 0.28, color: cyanDark },
+    // kilap / facet terang
+    { x: 0.09, y: 0.6, z: 0.13, w: 0.08, h: 0.24, d: 0.04, color: white },
+    { x: -0.13, y: 0.42, z: -0.09, w: 0.05, h: 0.18, d: 0.05, color: white },
+    { x: 0, y: 0.44, z: -0.18, w: 0.1, h: 0.1, d: 0.02, color: "#bdf1ff" },
+  ];
+}
+
+/** Item LANGKA #3 (paling jarang): mahkota emas — jackpot NOS + skor. */
+export function crownParts(): Part[] {
+  const white = "#eaf9ff";
+  const gold = "#ffc93c";
+  const goldDark = "#d69a12";
+  const red = "#e63946";
+  const purple = "#7b3ff2";
+  const gem = "#ff5ea8";
+  return [
+    // bantalan mahkota
+    { x: 0, y: 0.1, z: 0, w: 0.46, h: 0.2, d: 0.46, color: gold },
+    { x: 0, y: 0.22, z: 0, w: 0.42, h: 0.06, d: 0.42, color: goldDark },
+    { x: 0, y: 0.05, z: 0, w: 0.42, h: 0.08, d: 0.42, color: purple }, // kain ungu
+    // 4 gigi mahkota
+    { x: 0, y: 0.42, z: 0, w: 0.1, h: 0.32, d: 0.1, color: gold },
+    { x: 0.19, y: 0.36, z: 0, w: 0.1, h: 0.24, d: 0.1, color: goldDark },
+    { x: -0.19, y: 0.36, z: 0, w: 0.1, h: 0.24, d: 0.1, color: goldDark },
+    { x: 0, y: 0.36, z: 0.19, w: 0.1, h: 0.24, d: 0.1, color: goldDark },
+    { x: 0, y: 0.36, z: -0.19, w: 0.1, h: 0.24, d: 0.1, color: goldDark },
+    // bola-bola di ujung gigi
+    { x: 0, y: 0.62, z: 0, w: 0.09, h: 0.09, d: 0.09, color: "#fff3c4" },
+    { x: 0.19, y: 0.52, z: 0, w: 0.08, h: 0.08, d: 0.08, color: white },
+    { x: -0.19, y: 0.52, z: 0, w: 0.08, h: 0.08, d: 0.08, color: white },
+    { x: 0, y: 0.52, z: 0.19, w: 0.08, h: 0.08, d: 0.08, color: red },
+    { x: 0, y: 0.52, z: -0.19, w: 0.08, h: 0.08, d: 0.08, color: red },
+    // permata di ikat pinggang mahkota
+    { x: 0, y: 0.11, z: 0.24, w: 0.14, h: 0.14, d: 0.03, color: gem },
+    { x: 0.24, y: 0.11, z: 0, w: 0.03, h: 0.14, d: 0.14, color: gem },
+    { x: -0.24, y: 0.11, z: 0, w: 0.03, h: 0.14, d: 0.14, color: gem },
+  ];
+}
+
 /** Nitro canister pickup: blue bottle with a yellow "N" band and a red valve. */
 export function nosCanParts(): Part[] {
   const blue = "#1e88e5";
