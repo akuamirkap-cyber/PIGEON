@@ -1302,6 +1302,47 @@ export function crossingCarParts(variant: number): Part[] {
 
 /* ---------- NOS ---------- */
 
+/**
+ * ROCKET — item LANGKA (jarang muncul). Bentuknya roket emas-ungu-putih dengan jendela
+ * biru, sirip emas, dan moncong merah; nyalanya menyala di bagian bawah.
+ * Dipakai pick-up `engine.rockets`: sekali ambil langsung NOS penuh + skor besar.
+ */
+export function rocketParts(): Part[] {
+  const white = "#f4f6fa";
+  const gold = "#ffc93c";
+  const goldDark = "#d69a12";
+  const purple = "#7b3ff2";
+  const red = "#e63946";
+  const dark = "#2b2f38";
+  return [
+    // ---- nozzle + nyala ----
+    { x: 0, y: 0.06, z: 0, w: 0.2, h: 0.12, d: 0.2, color: dark },
+    { x: 0, y: 0.16, z: 0, w: 0.14, h: 0.12, d: 0.14, color: "#ff8c1a" },
+    { x: 0, y: 0.25, z: 0, w: 0.09, h: 0.12, d: 0.09, color: "#ffe066" },
+    // ---- sirip emas (4 arah) ----
+    { x: 0, y: 0.34, z: 0.19, w: 0.06, h: 0.3, d: 0.22, color: gold },
+    { x: 0, y: 0.34, z: -0.19, w: 0.06, h: 0.3, d: 0.22, color: gold },
+    { x: 0.19, y: 0.34, z: 0, w: 0.22, h: 0.3, d: 0.06, color: gold },
+    { x: -0.19, y: 0.34, z: 0, w: 0.22, h: 0.3, d: 0.06, color: gold },
+    // ---- badan roket ----
+    { x: 0, y: 0.62, z: 0, w: 0.3, h: 0.46, d: 0.3, color: white },
+    { x: 0, y: 0.46, z: 0, w: 0.33, h: 0.08, d: 0.33, color: goldDark }, // ring bawah
+    { x: 0, y: 0.62, z: 0, w: 0.31, h: 0.1, d: 0.31, color: purple }, // pita ungu
+    { x: 0, y: 0.78, z: 0, w: 0.31, h: 0.04, d: 0.31, color: gold }, // garis emas
+    // jendela kokpit
+    { x: 0.16, y: 0.66, z: 0, w: 0.04, h: 0.14, d: 0.14, color: "#65d6ff" },
+    { x: 0.17, y: 0.66, z: 0.02, w: 0.02, h: 0.06, d: 0.05, color: "#eaf9ff" },
+    // ---- moncong meruncing ke atas (merah + emas) ----
+    { x: 0, y: 0.9, z: 0, w: 0.3, h: 0.1, d: 0.3, color: red },
+    { x: 0, y: 0.99, z: 0, w: 0.22, h: 0.09, d: 0.22, color: red },
+    { x: 0, y: 1.06, z: 0, w: 0.14, h: 0.08, d: 0.14, color: red },
+    { x: 0, y: 1.126, z: 0, w: 0.07, h: 0.07, d: 0.07, color: gold },
+    // bintang emas kecil di badan (tanda item berharga)
+    { x: 0, y: 0.7, z: -0.16, w: 0.14, h: 0.14, d: 0.03, color: gold },
+    { x: 0, y: 0.7, z: -0.17, w: 0.05, h: 0.05, d: 0.02, color: "#fff3c4" },
+  ];
+}
+
 /** Nitro canister pickup: blue bottle with a yellow "N" band and a red valve. */
 export function nosCanParts(): Part[] {
   const blue = "#1e88e5";

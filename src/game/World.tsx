@@ -51,6 +51,7 @@ import {
   puddleParts,
   OVERPASS_H,
   nosCanParts,
+  rocketParts,
   sakuraParts,
   stoneLanternParts,
   petalParts,
@@ -80,6 +81,7 @@ import {
   catRagdollFlyingParts,
 } from "./models";
 import { useUI } from "./store";
+import { getRayTexture } from "./rays";
 import {
   engine,
   track,
@@ -92,6 +94,7 @@ import {
   type Chunk,
   type Crossing,
   crossCarH,
+  RARE_FLASH_T,
   type Intersection,
   type CrossTrafficCar,
   type Decor,
@@ -1051,6 +1054,155 @@ function NosCans() {
   );
 }
 
+/* ---------- Item LANGKA: ROKET NOS + kilatan sinar (raylight) ---------- */
+const RARE_TINT = "#ffc93c";
+
+function Rockets() {
+  const { camera } = useThree();
+  const seen = useRef(-1);
+  const [, force] = useReducer((x: number) => x + 1, 0);
+  const geo = useMemo(() => getGeometry("rocket", rocketParts), []);
+  const rayTex = useMemo(() => getRayTexture(), []);
+  const rayMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: rayTex,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }),
+    [rayTex],
+  );
+  const ringMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: RARE_TINT, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }),
+    [],
+  );
+  useEffect(() => () => {
+    rayMat.dispose();
+    ringMat.dispose();
+  }, [rayMat, ringMat]);
+
+  const refs = useRef(new Map<number, THREE.Group>());
+  const rays = useRef(new Map<number, THREE.Mesh>());
+  useFrame(() => {
+    if (engine.listVersion !== seen.current) {
+      seen.current = engine.listVersion;
+      force();
+    }
+    const t = engine.time;
+    for (const r of engine.rockets) {
+      const g = refs.current.get(r.id);
+      if (!g) continue;
+      g.visible = !r.taken;
+      g.position.set(r.wx, r.wy + 0.42 + Math.sin(t * 2.2 + r.phase) * 0.12, r.wz);
+      // mengambang & berputar pelan, seperti barang berharga
+      g.rotation.y = t * 1.4 + r.phase;
+      const ray = rays.current.get(r.id);
+      if (ray) {
+        ray.quaternion.copy(camera.quaternion); // billboard: selalu menghadap kamera
+        ray.rotateZ(t * 0.35 + r.phase);
+        const pulse = 1 + 0.16 * Math.sin(t * 5.5 + r.phase);
+        ray.scale.setScalar(pulse);
+        (ray.material as THREE.MeshBasicMaterial).opacity = 0.72 + 0.22 * Math.sin(t * 6.3 + r.phase);
+      }
+    }
+  });
+
+  return (
+    <>
+      {engine.rockets.map((r) => (
+        <group
+          key={r.id}
+          ref={(g) => {
+            if (g) refs.current.set(r.id, g);
+            else refs.current.delete(r.id);
+          }}
+        >
+          {/* sinar di belakang roket (dulu -> sekarang: roket terlihat "bersinar") */}
+          <mesh
+            ref={(m) => {
+              if (m) rays.current.set(r.id, m);
+              else rays.current.delete(r.id);
+            }}
+            material={rayMat}
+            renderOrder={-1}
+          >
+            <planeGeometry args={[3.1, 3.1]} />
+          </mesh>
+          {/* piringan cahaya di jalan */}
+          <mesh material={ringMat} rotation-x={-Math.PI / 2} position={[0, -0.4, 0]}>
+            <ringGeometry args={[0.42, 0.62, 24]} />
+          </mesh>
+          <mesh geometry={geo} material={voxelMaterial} castShadow />
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** Kilatan sinar besar tepat saat roket diambil (mengembang lalu memudar). */
+function RareFlash() {
+  const { camera } = useThree();
+  const group = useRef<THREE.Group>(null);
+  const rays = useRef<THREE.Mesh>(null);
+  const pillar = useRef<THREE.Mesh>(null);
+  const rayTex = useMemo(() => getRayTexture(), []);
+  const rayMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ map: rayTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
+    [rayTex],
+  );
+  const pillarMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: "#fff3c4",
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }),
+    [],
+  );
+  useEffect(() => () => {
+    rayMat.dispose();
+    pillarMat.dispose();
+  }, [rayMat, pillarMat]);
+
+  useFrame(() => {
+    const g = group.current;
+    if (!g) return;
+    const f = engine.rareFlash;
+    g.visible = f > 0;
+    if (f <= 0) return;
+    const k = 1 - f / RARE_FLASH_T; // 0 -> 1 seiring waktu
+    const [x, y, z] = engine.rareFlashPos;
+    g.position.set(x, y + 0.55, z);
+    if (rays.current) {
+      rays.current.quaternion.copy(camera.quaternion);
+      rays.current.rotateZ(k * 1.6);
+      rays.current.scale.setScalar(2.2 + 5.5 * k);
+      rayMat.opacity = Math.max(0, 1 - k) * 0.95;
+    }
+    if (pillar.current) {
+      pillar.current.quaternion.copy(camera.quaternion);
+      pillar.current.scale.set(1 - 0.25 * k, 2.4 + 3.4 * k, 1);
+      pillarMat.opacity = Math.max(0, 1 - k) * 0.42;
+    }
+  });
+
+  return (
+    <group ref={group} visible={false}>
+      <mesh ref={rays} material={rayMat} />
+      <mesh ref={pillar} material={pillarMat}>
+        <planeGeometry args={[0.55, 1.6]} />
+      </mesh>
+    </group>
+  );
+}
+
 /* ---------- Bread (instanced) ---------- */
 const MAX_BREAD = 140;
 const tmpObj = new THREE.Object3D();
@@ -1207,6 +1359,8 @@ export function World() {
       <Puddles />
       <Petals />
       <NosCans />
+      <Rockets />
+      <RareFlash />
       <RoadSigns />
       <OverpassCars />
       <Movers />

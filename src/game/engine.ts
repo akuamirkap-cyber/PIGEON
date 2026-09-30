@@ -86,6 +86,14 @@ export const NOS_SPEED_MULT = 1.75;
 export const NOS_PER_BREAD = 6;
 export const NOS_PER_TRICK = 10;
 export const NOS_CAN_S = 50;
+/** Jarak antar-item LANGKA (roket NOS): jarang, rata-rata ~1 tiap 270 m. */
+export const ROCKET_GAP: [number, number] = [200, 340];
+/** Roket langka pertama muncul ~120 m setelah start (biar pemain cepat lihat itemnya). */
+export const ROCKET_FIRST_S = 120;
+/** Skor bonus sekali ambil roket. */
+export const ROCKET_SCORE = 500;
+/** Berapa lama kilatan sinar (raylight) bertahan setelah roket diambil. */
+export const RARE_FLASH_T = 0.9;
 // SPRINT: SHIFT / boost button. Each press advances speed (+40 -> +50 -> +70...), resets a 2s timer.
 // If not pressed within 2s, speed smoothly decays back to normal ("perlahan").
 // The kicking swing animation remains smooth and natural ("ayunanya jangan dicepetin ttp smooth").
@@ -551,7 +559,16 @@ class Engine {
   /** Responsive jump buffer (seconds) to jump the exact millisecond wheels touch the asphalt */
   jumpBuffer = 0;
   nosCans: { id: number; s: number; lane: number; taken: boolean; wx: number; wy: number; wz: number; phase: number }[] = [];
+  /** Item LANGKA: roket NOS berkilau sinar. Jarang muncul, sekali ambil NOS penuh. */
+  rockets: { id: number; s: number; lane: number; taken: boolean; wx: number; wy: number; wz: number; phase: number }[] = [];
+  /** statistik: jumlah roket yang sudah diambil (untuk uji & pencapaian) */
+  rocketTaken = 0;
+  /** kilatan sinar saat roket diambil (0 = tidak ada) */
+  rareFlash = 0;
+  rareFlashPos: Vec3 = [0, 0, 0];
   nextNosS = 0;
+  /** jarak (s) tempat roket langka berikutnya muncul */
+  nextRocketS = 0;
 
   nextRoadworkS = 0;
   nextOverpassS = 0;
@@ -681,6 +698,9 @@ class Engine {
     this.nosT = 0;
     this.nosFlame = 0;
     this.nosCans = [];
+    this.rockets = [];
+    this.rocketTaken = 0;
+    this.rareFlash = 0;
     this.nextNosS = this.distance + 70;
     this.cycleIndex = 0;
     this.nextRoadworkS = this.distance + 120 + rand(0, 60);
@@ -690,6 +710,7 @@ class Engine {
     this.wet = 0;
     this.nextCrossingS = START_S + FIRST_CROSSING_M;
     this.nextIntersectionS = START_S + 68;
+    this.nextRocketS = START_S + ROCKET_FIRST_S; // roket pertama muncul agak awal biar pemain lihat itemnya
     this.particles = [];
     this.reserved = [];
     this.nextChunkS = 0;
@@ -1400,6 +1421,8 @@ class Engine {
     track.sample(this.distance, this.center);
     this.shake = Math.max(0, this.shake - dt * 2.5);
     this.punch = Math.max(0, this.punch - dt * 3.4);
+    // kilatan sinar roket langka mereda dalam RARE_FLASH_T detik
+    this.rareFlash = Math.max(0, this.rareFlash - dt);
 
     // world generation
     track.ensure(this.distance + 240);
@@ -1952,6 +1975,13 @@ class Engine {
       this.addNos(NOS_MAX * 0.5);
       this.emitWorld("spark", c.wx, c.wy + 0.4, c.wz, c.wy, 10, 0, 0);
       sfx.nosPickup();
+    }
+
+    // item LANGKA: ROCKET — sekali ambil langsung NOS penuh + skor besar + kilatan sinar
+    for (const r of this.rockets) {
+      if (r.taken) continue;
+      if (Math.abs(r.s - d) > 1.0 || Math.abs(LANE_LAT[r.lane] - p.lat) > 1.05 || p.h > 1.7) continue;
+      this.collectRocket(r);
     }
 
     // puddles: safe, just a splash (and a wet trail)
@@ -3084,6 +3114,24 @@ class Engine {
     return n * 3.0 + 2;
   }
 
+  /**
+   * Jalur yang bebas rintangan & kendaraan di sekitar jarak `s` — dipakai item langka biar
+   * roketnya benar-benar bisa diambil (bukan muncul di dalam barrier atau di jalur mobil datang).
+   * Kembalikan -1 kalau semua jalur sedang penuh.
+   */
+  private clearLaneNear(s: number): number {
+    const lanes = [1, 0, 2]; // tengah dulu (paling gampang diambil), lalu pinggir
+    for (const lane of lanes) {
+      const blocked =
+        this.obstacles.some((o) => o.kind !== "ramp" && o.kind !== "rail" && o.lane === lane && Math.abs(o.s - s) < 6) ||
+        this.movers.some((m) => m.kind !== "pedestrian" && Math.abs(m.lane - lane) < 0.5 && Math.abs(m.s - s) < 12) ||
+        this.crossCars.some((cc) => Math.abs(cc.s - s) < 8) ||
+        this.reserved.some((r) => r.lane === lane && s > r.from - 2 && s < r.until + 2);
+      if (!blocked) return lane;
+    }
+    return -1;
+  }
+
   private spawnGroup() {
     const t = clamp((this.speed / this.speedMult - START_SPEED) / (MAX_SPEED - START_SPEED), 0, 1);
     const x = this.nextObstacleS;
@@ -3094,6 +3142,22 @@ class Engine {
       this.nosCans.push({ id: this.nextId++, s: x, lane, taken: false, wx: tmpV.x, wy: tmpV.y, wz: tmpV.z, phase: Math.random() * 6 });
       this.listVersion++;
       this.nextNosS = x + NOS_CAN_S + rand(0, 30);
+    }
+    // ---- item LANGKA: roket NOS (jarang, dan selalu di jalur yang bebas rintangan) ----
+    if (x >= this.nextRocketS) {
+      const tooCloseToSpecial =
+        this.crossings.some((c) => Math.abs(c.s - x) < 14) ||
+        this.intersections.some((it) => Math.abs(it.s - x) < 16);
+      const lane = this.clearLaneNear(x);
+      if (tooCloseToSpecial || lane < 0) {
+        // tempatnya tidak aman: coba lagi beberapa meter kemudian
+        this.nextRocketS = x + 12;
+      } else {
+        track.frame(x, LANE_LAT[lane], 0, tmpV);
+        this.rockets.push({ id: this.nextId++, s: x, lane, taken: false, wx: tmpV.x, wy: tmpV.y, wz: tmpV.z, phase: Math.random() * 6 });
+        this.listVersion++;
+        this.nextRocketS = x + rand(ROCKET_GAP[0], ROCKET_GAP[1]);
+      }
     }
     if (x >= this.nextRoadworkS && !this.crossings.some((c) => Math.abs(c.s - x) < 40)) {
       const len = this.spawnRoadworks(x, t);
@@ -3353,6 +3417,10 @@ class Engine {
       this.nosCans = this.nosCans.filter((c) => c.s > d - 14);
       changed = true;
     }
+    if (this.rockets.length && this.rockets[0].s < d - 16) {
+      this.rockets = this.rockets.filter((r) => r.s > d - 16);
+      changed = true;
+    }
     if (this.roadSigns.length && this.roadSigns[0].variant < d - 30) {
       this.roadSigns.shift();
       changed = true;
@@ -3425,6 +3493,25 @@ class Engine {
       cb: opts.color[2],
     });
     if (this.pulses.length > 8) this.pulses.splice(0, this.pulses.length - 8);
+  }
+
+  /**
+   * Ambil item LANGKA (roket): NOS langsung penuh, bonus skor besar, kilatan sinar
+   * (raylight) + cincin emas, dan getaran kecil di kamera biar terasa "berharga".
+   */
+  private collectRocket(r: { taken: boolean; wx: number; wy: number; wz: number }) {
+    r.taken = true;
+    this.rocketTaken++;
+    this.trickScore += ROCKET_SCORE;
+    this.addNos(NOS_MAX); // langsung penuh
+    this.rareFlash = RARE_FLASH_T;
+    this.rareFlashPos = [r.wx, r.wy, r.wz];
+    this.punch = Math.max(this.punch, 0.22);
+    this.spawnPulse(r.wx, r.wy + 0.5, r.wz, { max: 0.55, r0: 0.6, r1: 4.2, color: [1, 0.82, 0.28] });
+    this.emitWorld("pow", r.wx, r.wy + 0.6, r.wz, r.wy, 14, 0, 0);
+    this.emitWorld("spark", r.wx, r.wy + 0.5, r.wz, r.wy, 18, 0, 0);
+    useUI.getState().addPopup("ROCKET LANGKA!", "#ffc93c", "NOS LANGSUNG PENUH");
+    sfx.rare();
   }
 
   private updatePulses(dt: number) {

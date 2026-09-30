@@ -163,6 +163,14 @@ export const sfx = {
     noise(0.28, 0.12, 2000);
     tone(280, 0.28, "triangle", { to: 760, vol: 0.18, attack: 0.02 });
   },
+  /** Item LANGKA (roket): chime naik berkilau + whoosh kecil. */
+  rare: () => {
+    tone(523, 0.09, "triangle", { vol: 0.32, attack: 0.005 });
+    tone(784, 0.09, "triangle", { vol: 0.3, delay: 0.07 });
+    tone(1046, 0.14, "triangle", { vol: 0.3, delay: 0.14 });
+    tone(1568, 0.22, "sine", { vol: 0.24, delay: 0.21 });
+    noise(0.5, 0.1, 3200);
+  },
   nosPickup: () => {
     tone(440, 0.06, "triangle", { vol: 0.3 });
     tone(660, 0.06, "triangle", { vol: 0.3, delay: 0.06 });
