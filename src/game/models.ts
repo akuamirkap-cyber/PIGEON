@@ -3043,71 +3043,69 @@ export function avenueLampParts(): Part[] {
 export function scrambleRoadParts(): Part[] {
   const asphalt = "#3b4152";
   const asphaltDark = "#343a4a";
-  const zebra = "#dde2ec"; // cat marka biasa (lit) — TIDAK glow, supaya tidak ikut bloom
+  const zebra = "#e4e8ef";
   const parts: Part[] = [];
-  const XW = 13.4; // lebar cross-street raksasa
-  const XH = XW / 2;
+  const avenueW = 13.4;
 
-  // 1. Hamparan aspal junction menutupi SELURUH avenue (median ikut dipaving — plaza scramble)
-  parts.push({ x: 0, y: 0.016, z: 0, w: XW, h: 0.024, d: 8.0, color: asphalt });
-  parts.push({ x: 0, y: 0.016, z: 8.65, w: XW, h: 0.024, d: 7.35, color: asphalt });
-  parts.push({ x: 0, y: 0.09, z: 4.35, w: XW, h: 0.175, d: 1.6, color: asphaltDark }); // median dipaving rata
-  // bekas jejak ban menyilang
-  parts.push({ x: -3.4, y: 0.02, z: 0, w: 1.6, h: 0.026, d: 7.6, color: asphaltDark });
-  parts.push({ x: 3.4, y: 0.02, z: 0, w: 1.6, h: 0.026, d: 7.6, color: asphaltDark });
+  // A single, level intersection apron: two carriageways and a paved-over median.
+  parts.push({ x: 0, y: 0.016, z: 0, w: avenueW, h: 0.024, d: 8.0, color: asphalt });
+  parts.push({ x: 0, y: 0.016, z: 8.65, w: avenueW, h: 0.024, d: 7.35, color: asphalt });
+  parts.push({ x: 0, y: 0.09, z: 4.35, w: avenueW, h: 0.175, d: 1.6, color: asphaltDark });
 
-  // 2. Cross-street raksasa dua sisi (ditinggikan menimpa trotoar seperti perempatan biasa)
-  for (const [z0, z1] of [
-    [-30, -4.0],
-    [12.3, 30],
-  ] as const) {
+  // Cross streets on all four corners; keep the curb edges straight and uncluttered.
+  for (const [z0, z1] of [[-30, -4.0], [12.3, 30]] as const) {
     const mid = (z0 + z1) / 2;
-    parts.push({ x: 0, y: 0.145, z: mid, w: XW, h: 0.06, d: z1 - z0, color: asphalt });
-    // marka tengah cross street
-    parts.push({ x: 0, y: 0.18, z: mid, w: 0.14, h: 0.012, d: (z1 - z0) * 0.86, color: "#e9e9e9" });
+    parts.push({ x: 0, y: 0.145, z: mid, w: avenueW, h: 0.06, d: z1 - z0, color: asphalt });
   }
 
-  // 3. ZEBRA menyeberangi avenue di kedua tepi junction (pita lebar 2.5 m, garis
-  //    memanjang searah laju mobil = sumbu x, berulang searah langkah pejalan = z)
-  for (const bx of [-XH + 1.6, XH - 1.6]) {
-    for (let z = -3.2; z <= 12.0; z += 0.9) {
+  // Two crisp, evenly spaced zebra bands across the six-lane avenue.
+  for (const x of [-5.0, 5.0]) {
+    for (let z = -3.4; z <= 12.1; z += 0.95) {
       const onMedian = z > 3.4 && z < 5.3;
-      parts.push({ x: bx, y: onMedian ? 0.19 : 0.04, z, w: 2.5, h: 0.02, d: 0.48, color: zebra });
+      parts.push({ x, y: onMedian ? 0.19 : 0.04, z, w: 2.25, h: 0.022, d: 0.46, color: zebra });
     }
   }
 
-  // 4. ZEBRA menyeberangi cross-street di kedua sisi (garis memanjang searah laju = z)
-  for (const bz of [-5.4, 13.7]) {
-    for (let x = -XH + 1.2; x <= XH - 1.2; x += 0.85) {
-      parts.push({ x, y: 0.19, z: bz, w: 0.46, h: 0.02, d: 2.2, color: zebra });
+  // Matching zebra crossings on the north/south side streets.
+  for (const z of [-5.4, 13.7]) {
+    for (let x = -5.5; x <= 5.5; x += 0.9) {
+      parts.push({ x, y: 0.19, z, w: 0.44, h: 0.022, d: 2.0, color: zebra });
     }
   }
 
-  // 5. ZEBRA DIAGONAL X — tanda tangan Shibuya Scramble!
-  // Garis-garisnya TEGAK LURUS arah jalan pejalan (desain zebra yang benar).
-  const dA = { x0: -4.9, z0: -2.4, x1: 4.9, z1: 10.2 }; // diagonal /
-  const dB = { x0: -4.9, z0: 10.2, x1: 4.9, z1: -2.4 }; // diagonal \
-  const ND = 17;
-  for (const dg of [dA, dB]) {
-    const dx = dg.x1 - dg.x0;
-    const dz = dg.z1 - dg.z0;
-    const ry = Math.atan2(dx, dz); // sumbu-w garis jadi tegak lurus arah jalan
-    for (let i = 1; i < ND - 1; i++) {
-      const t = i / (ND - 1);
-      const x = dg.x0 + t * dx;
-      const z = dg.z0 + t * dz;
-      const y = z > 3.4 && z < 5.3 ? 0.19 : 0.045;
-      parts.push({ x, y, z, w: 2.4, h: 0.02, d: 0.5, ry, color: zebra });
+  // Signature diagonal scramble paths, confined to the center so they do not pile onto the straight zebras.
+  const diagonals = [
+    { x0: -2.8, z0: -2.6, x1: 2.8, z1: 10.2 },
+    { x0: -2.8, z0: 10.2, x1: 2.8, z1: -2.6 },
+  ];
+  const stripeCount = 13;
+  for (let d = 0; d < diagonals.length; d++) {
+    const line = diagonals[d];
+    const dx = line.x1 - line.x0;
+    const dz = line.z1 - line.z0;
+    const ry = Math.atan2(dx, dz);
+    for (let i = 1; i < stripeCount - 1; i++) {
+      const t = i / (stripeCount - 1);
+      // Leave a small clean center tile where the two diagonal routes meet; no z-fighting pile-up.
+      if (t > 0.44 && t < 0.56) continue;
+      const x = line.x0 + t * dx;
+      const z = line.z0 + t * dz;
+      const onMedian = z > 3.4 && z < 5.3;
+      const y = (onMedian ? 0.19 : 0.04) + d * 0.003;
+      parts.push({ x, y, z, w: 1.7, h: 0.022, d: 0.42, ry, color: zebra });
     }
   }
 
-  // 6. Garis henti tebal di jalur pemain & jalur lawan
-  parts.push({ x: -XH - 0.35, y: 0.04, z: 0, w: 0.4, h: 0.018, d: 7.4, color: zebra });
-  parts.push({ x: XH + 0.35, y: 0.04, z: 8.6, w: 0.4, h: 0.018, d: 7.2, color: zebra });
+  // Bold stop bars frame the junction and make the approach geometry easy to read.
+  for (const x of [-6.45, 6.45]) {
+    for (const [z, width] of [[0, 7.0], [8.65, 7.0]] as const) {
+      const onMedian = z > 3.4 && z < 5.3;
+      parts.push({ x, y: onMedian ? 0.19 : 0.04, z, w: 0.16, h: 0.022, d: width, color: zebra });
+    }
+  }
 
   return parts;
 }
-
 
 /* ---------- Lampu kendaraan malam hari (overlay glow, hanya dirender saat mode malam) ---------- */
 

@@ -275,6 +275,10 @@ export interface Mover {
   spin: number;
   hitT: number;
   hitRagdoll?: boolean;
+  /** batas lateral rute pejalan kaki, supaya penyeberang Shibuya tidak melewati mesin/pagar trotoar */
+  crossingEdge?: number;
+  /** perempatan tempat penyeberang menunggu lampu merah dan menahan arus kendaraan sampai aman */
+  signalIntersectionId?: number;
   /** pejalan kaki lansia (kakek/nenek) — jalannya lambat, bungkuk, bawa tongkat */
   elderly?: boolean;
   /** timer asap knalpot untuk kendaraan yang sedang jalan */
@@ -364,11 +368,29 @@ export interface Intersection {
   spawnTimer1: number;
   spawnTimer2: number;
   trafficTimer: number;
+  /** scramble signal begins its pedestrian phase as the player approaches, not while still far away */
+  signalStarted?: boolean;
   lightState: "green" | "yellow" | "red";
   /** Shibuya Scramble Crossing: perempatan raksasa selebar avenue dengan zebra diagonal & kerumunan */
   scramble?: boolean;
   /** cross-street LEBAR 6 jalur (kadang muncul di semua mode biar perempatan tidak sempit) */
   wide?: boolean;
+}
+
+/** Center-of-car position that keeps its nose just behind the painted scramble stop bars. */
+export const TRAFFIC_STOP_LINE_OFFSET = 8.2;
+
+/** Smooth approach policy for the Shibuya through-traffic: green passes, red/yellow stop at the bar. */
+export function trafficSignalApproach(
+  carS: number,
+  intersectionS: number,
+  lightState: Intersection["lightState"],
+): { targetK: number; stopLineS: number | null } {
+  if (lightState === "green") return { targetK: 1, stopLineS: null };
+  const stopLineS = intersectionS + TRAFFIC_STOP_LINE_OFFSET;
+  const remaining = carS - stopLineS;
+  if (remaining < -0.001 || remaining >= 24) return { targetK: 1, stopLineS: null };
+  return { targetK: clamp(remaining / 12, 0, 1), stopLineS };
 }
 
 export interface CrossTrafficCar {
@@ -2381,7 +2403,11 @@ class Engine {
       } else if (m.kind === "pedestrian") {
         if (m.phase === "wait") {
           m.delay -= dt;
-          if (m.delay <= 0) m.phase = "hop"; // walking
+          const signal = m.signalIntersectionId == null
+            ? undefined
+            : this.intersections.find((inter) => inter.id === m.signalIntersectionId);
+          // Scramble pedestrians wait at the curb until the vehicle light is fully red.
+          if (m.delay <= 0 && (!signal || signal.lightState === "red")) m.phase = "hop";
         } else if (m.phase === "hop") {
           // PENYEBERANG HATI-HATI: kalau merpati melaju mendekat, tunggu dulu di tepi
           // jalan (tengok kanan-kiri); kalau terlanjur di jalur main, buru-buru menepi.
@@ -2399,7 +2425,7 @@ class Engine {
           } else {
             m.h = Math.max(0, m.h - dt * 0.3); // berdiri tenang menunggu
           }
-          if (Math.abs(m.lat) > 7.2) remove = true;
+          if (Math.abs(m.lat) > (m.crossingEdge ?? 7.2) + 0.45) remove = true;
         }
         if (m.s < d - 16) remove = true;
       } else if (m.kind === "car" || m.kind === "motorcycle") {
@@ -2616,11 +2642,33 @@ class Engine {
     const t = clamp((this.speed / this.speedMult - START_SPEED) / (MAX_SPEED - START_SPEED), 0, 1);
     for (const inter of this.intersections) {
       inter.trafficTimer += dt;
-      // Cycle traffic light colors: green -> yellow -> red
-      const phase = Math.floor(inter.trafficTimer * 0.7) % 6;
-      inter.lightState = phase < 3 ? "green" : phase === 3 ? "yellow" : "red";
-
       const dist = inter.s - d;
+      let scheduledLight: Intersection["lightState"];
+      if (inter.scramble) {
+        // Start the long scramble-red phase on approach, so it is visible and usable before the intersection passes.
+        if (!inter.signalStarted && dist < 70) {
+          inter.signalStarted = true;
+          inter.trafficTimer = 0;
+        }
+        if (!inter.signalStarted) scheduledLight = "green";
+        else {
+          const cycle = inter.trafficTimer % 30;
+          scheduledLight = cycle < 10 ? "red" : cycle < 25 ? "green" : "yellow";
+        }
+      } else {
+        const phase = Math.floor(inter.trafficTimer * 0.7) % 6;
+        scheduledLight = phase < 3 ? "green" : phase === 3 ? "yellow" : "red";
+      }
+      const pedestrianInJunction = this.movers.some(
+        (m) => m.kind === "pedestrian" && m.signalIntersectionId === inter.id && m.phase === "hop",
+      );
+      const crossTrafficInJunction = this.crossCars.some(
+        (car) => car.intersectionId === inter.id && Math.abs(car.lat) < 12,
+      );
+      inter.lightState = pedestrianInJunction || crossTrafficInJunction ? "red" : scheduledLight;
+
+      // Scramble junctions are pedestrian-only during their long red phase; no cross traffic is spawned there.
+      if (inter.scramble) continue;
       // Approach window: spawn cars that will cross the road right as player arrives
       if (this.phase === "playing" && dist > -18 && dist < 70) {
         inter.spawnTimer1 -= dt;
@@ -2666,15 +2714,20 @@ class Engine {
     for (let i = this.crossCars.length - 1; i >= 0; i--) {
       const cc = this.crossCars[i];
 
-      // Jalur lintas tidak boleh menembus lalu lintas jalan utama: kalau ada mobil/motor
-      // (bukan pemain, biar bahaya T-bone tetap ada) yang sedang di/dekat perempatan,
-      // mobil penyeberang berhenti menunggu di tepi jalan.
+      // Cross-street cars get their turn only when the avenue is red, and never while pedestrians occupy the junction.
+      // Brake early at the curb so a green avenue light cannot leave a car sitting in a live lane.
+      const inter = this.intersections.find((it) => it.id === cc.intersectionId);
+      const pedestriansCrossing = this.movers.some(
+        (m) => m.kind === "pedestrian" && m.signalIntersectionId === cc.intersectionId && m.phase === "hop",
+      );
+      const waitForSignal = !!inter && (inter.lightState !== "red" || pedestriansCrossing);
+      const waitForRoadTraffic = this.movers.some(
+        (m) => (m.kind === "car" || m.kind === "motorcycle") && Math.abs(m.s - cc.s) < 5.5,
+      );
       const yielding =
         Math.abs(cc.lat) > CROSS_DECK_LAT + 1.4 &&
-        Math.abs(cc.lat) < 12 &&
-        this.movers.some(
-          (m) => (m.kind === "car" || m.kind === "motorcycle") && Math.abs(m.s - cc.s) < 5.5,
-        );
+        Math.abs(cc.lat) < 18 &&
+        (waitForSignal || waitForRoadTraffic);
       cc.waiting = yielding;
 
       // rem / gas halus, jadi mobil tidak berhenti mendadak di bibir perempatan
@@ -2730,6 +2783,7 @@ class Engine {
       spawnTimer1: rand(0.2, 0.8),
       spawnTimer2: rand(0.7, 1.4),
       trafficTimer: rand(0, 6),
+      signalStarted: false,
       lightState: "green",
       scramble,
       wide,
@@ -2744,6 +2798,7 @@ class Engine {
         const px = s - 3.5 + i * 1.8 + rand(-0.4, 0.4);
         const m = this.newMover("pedestrian", px, -1, -dir * 6.8);
         m.dir = dir;
+        m.signalIntersectionId = inter.id;
         m.speed = rand(1.7, 2.4);
         // gelombang scramble ala Shibuya asli: banyak salaryman berjas pulang kantor
         m.variant = Math.random() < 0.4 ? randInt(5, 7) : randInt(0, 4);
@@ -2758,6 +2813,8 @@ class Engine {
     const half = scramble ? 11 : wide ? 10.5 : 8.5;
     this.obstacles = this.obstacles.filter((o) => o.s < s - half || o.s > s + half);
     this.breads = this.breads.filter((b) => b.s < s - (half - 1) || b.s > s + (half - 1));
+    this.nosCans = this.nosCans.filter((c) => c.s < s - half - 8 || c.s > s + half + 8);
+    this.rockets = this.rockets.filter((r) => r.s < s - half - 8 || r.s > s + half + 8);
     this.puddles = this.puddles.filter((pu) => pu.s < s - half || pu.s > s + half);
     this.listVersion++;
     return inter;
@@ -2801,6 +2858,8 @@ class Engine {
     const hi = X + 10;
     this.obstacles = this.obstacles.filter((o) => o.s < lo || o.s > hi);
     this.breads = this.breads.filter((b) => b.s < lo || b.s > hi);
+    this.nosCans = this.nosCans.filter((c) => c.s < lo - 8 || c.s > hi + 8);
+    this.rockets = this.rockets.filter((r) => r.s < lo - 8 || r.s > hi + 8);
     this.puddles = this.puddles.filter((pu) => pu.s < lo || pu.s > hi);
     this.movers = this.movers.filter((m) => m.kind !== "chicken" || m.s < lo || m.s > hi);
     const lanes = [0, 1, 2].sort(() => Math.random() - 0.5);
@@ -2977,16 +3036,7 @@ class Engine {
       }
       if (id % 2 === 1 && !nearCrossing(6)) add("lamp", 6, 4.35, 0.16);
 
-      // 6. Opposite carriageway: slow-and-go traffic — KADANG 2x lebih ramai (jam kota)
-      const busyTraffic = Math.random() < 0.4;
-      for (const ln of [6.2, 8.6, 11.0]) {
-        const lx = rand(1.5, 10.5);
-        if (Math.random() < (busyTraffic ? 0.62 : 0.42) && !nearCrossing(lx)) add("jam_car", lx, ln, 0.02, randInt(0, 4));
-        if (busyTraffic) {
-          const lx2 = lx > 6 ? lx - rand(3.4, 4.6) : lx + rand(3.4, 4.6);
-          if (Math.random() < 0.6 && !nearCrossing(lx2)) add("jam_car", lx2, ln, 0.02, randInt(0, 4));
-        }
-      }
+      // 6. Opposite carriageway traffic is animated in World.tsx (not parked car decorations).
 
       // 7. Buzzing sidewalks BOTH sides: neon signboards, vending machines, mamachari, trees
       if (Math.random() < 0.75) add("neon_sign", rand(1.5, 10.5), -4.4, 0.12, randInt(0, 2));
@@ -2996,8 +3046,8 @@ class Engine {
       if (Math.random() < 0.45) add("mamachari", rand(2, 10), -4.55, 0.12, randInt(0, 3));
       if (Math.random() < 0.35) add("mamachari", rand(2, 10), 12.85, 0.12, randInt(0, 3));
       // sidewalk street trees (Japanese avenues are green even under the neon)
-      if (Math.random() < 0.55) add("tree", rand(1.5, 10.5), rand(-6.7, -7.3), 0.12, randInt(0, 2));
-      if (Math.random() < 0.5) add("tree", rand(1.5, 10.5), rand(14.9, 15.5), 0.12, randInt(0, 2));
+      if (Math.random() < 0.55) add("tree", rand(1.5, 10.5), rand(-7.45, -7.75), 0.12, randInt(0, 2));
+      if (Math.random() < 0.5) add("tree", rand(1.5, 10.5), rand(15.75, 15.9), 0.12, randInt(0, 2));
 
       // 8. Lampu jalan rapat: tiap chunk di KEDUA trotoar + lampu avenue dua kepala di median
       add("lamp", id % 2 === 0 ? 3 : 9, -4.3, 0.06);
@@ -3121,13 +3171,14 @@ class Engine {
 
   private isNearObstacle(s: number, lane: number, extraBuffer = 5.0): boolean {
     for (const o of this.obstacles) {
-      if (o.lane === lane) {
-        const half = obstacleHalf(o);
-        if (Math.abs(o.s - s) < half + extraBuffer) return true;
-      }
+      const laneGap = Math.abs(o.lane - lane);
+      const buffer = laneGap === 0 ? extraBuffer : laneGap === 1 ? 2.6 : 0;
+      if (buffer > 0 && Math.abs(o.s - s) < obstacleHalf(o) + buffer) return true;
     }
     for (const m of this.movers) {
-      if (m.lane === lane && Math.abs(m.s - s) < extraBuffer + 2.0) return true;
+      const laneGap = Math.abs(m.lane - lane);
+      const buffer = laneGap === 0 ? extraBuffer + 2.0 : laneGap === 1 ? 2.6 : 0;
+      if (buffer > 0 && Math.abs(m.s - s) < buffer) return true;
     }
     if (this.laneReserved(lane, s)) return true;
     return false;
@@ -3135,9 +3186,19 @@ class Engine {
 
   private isNearBread(s: number, lane: number, extraBuffer = 5.0): boolean {
     for (const b of this.breads) {
-      if (b.lane === lane && Math.abs(b.s - s) < extraBuffer) return true;
+      const laneGap = Math.abs(b.lane - lane);
+      const buffer = laneGap === 0 ? extraBuffer : laneGap === 1 ? Math.min(extraBuffer, 3.0) : 0;
+      if (buffer > 0 && Math.abs(b.s - s) < buffer) return true;
     }
     return false;
+  }
+
+  /** Pickups always get a clear runway; later obstacle patterns must respect this reservation too. */
+  private isNearBonusItem(s: number, lane: number, buffer = 8.0): boolean {
+    return (
+      this.nosCans.some((c) => !c.taken && c.lane === lane && Math.abs(c.s - s) < buffer) ||
+      this.rockets.some((r) => !r.taken && r.lane === lane && Math.abs(r.s - s) < buffer)
+    );
   }
 
   private addObstacle(kind: ObstacleKind, s: number, lane: number, force = false, half?: number, variant?: number) {
@@ -3146,8 +3207,10 @@ class Engine {
     if (this.intersections.some((it) => Math.abs(it.s - s) < (it.scramble ? 11 : it.wide ? 10.5 : 8.5))) return;
     if (!force && this.laneReserved(lane, s)) return;
     const hLen = half ?? OBSTACLE_DEFS[kind].halfLen;
-    // Guaranteed safety: Never spawn an obstacle near bread in the same lane (fair play, zero manipulation)
-    if (!force && this.isNearBread(s, lane, hLen + 5.0)) return;
+    // Jangan pernah menutup roti / bonus dengan obstacle, termasuk obstacle yang datang dari pola berikutnya.
+    if (this.isNearBonusItem(s, lane, hLen + 8.0)) return;
+    // Bread lines must stay readable; don't place hazards in their immediate approach/landing space.
+    if (this.isNearBread(s, lane, hLen + 5.0)) return;
     track.frame(s, LANE_LAT[lane], 0, tmpV);
     track.quat(s, tmpQ);
     const catVariant = kind === "car" && Math.random() < 0.48 ? randInt(0, 3) : undefined;
@@ -3168,20 +3231,22 @@ class Engine {
     this.listVersion++;
   }
   private addBread(s: number, lane: number, h: number) {
-    // Check if this bread is on a rail (grindable bread) or ramp air jump
-    const isRailBread = h > 0.8 && this.obstacles.some((o) => o.kind === "rail" && o.lane === lane && Math.abs(o.s - s) <= obstacleHalf(o) + 0.3);
-    const isRampBread = h > 0.8 && this.obstacles.some((o) => o.kind === "ramp" && o.lane === lane && s > o.s && s < o.s + 12);
-    // If not intentional rail/ramp air bread, ensure at least 5m clearance from any obstacle or mover in that lane
-    if (!isRailBread && !isRampBread && this.isNearObstacle(s, lane, 5.0)) {
-      return; // Do NOT place bread anywhere near obstacles!
-    }
+    // Roti tidak pernah ditempelkan ke rel/ramp: collectible harus terbaca dan punya ruang mendarat.
+    if (this.isNearObstacle(s, lane, 5.5) || this.isNearBonusItem(s, lane, 4.0)) return;
     track.frame(s, LANE_LAT[lane], h, tmpV);
     this.breads.push({ id: this.nextId++, s, lane, h, taken: false, phase: Math.random() * Math.PI * 2, wx: tmpV.x, wy: tmpV.y, wz: tmpV.z });
   }
   private breadLine(s: number, lane: number, n = 5, h = 0.5) {
+    // Entire row is either clear or omitted; never leave a broken trail tangled with a hazard.
+    for (let i = 0; i < n; i++) {
+      if (this.isNearObstacle(s + i, lane, 5.5) || this.isNearBonusItem(s + i, lane, 4.0)) return;
+    }
     for (let i = 0; i < n; i++) this.addBread(s + i * 1.0, lane, h);
   }
   private breadArc(s: number, lane: number) {
+    for (let k = -3; k <= 3; k++) {
+      if (this.isNearObstacle(s + k * 0.75, lane, 5.5)) return;
+    }
     for (let k = -3; k <= 3; k++) this.addBread(s + k * 0.75, lane, 0.5 + 1.35 * (1 - (k * k) / 9));
   }
   private otherLane(exclude: number[]) {
@@ -3212,7 +3277,7 @@ class Engine {
       hitT: 0,
     };
   }
-  private spawnOncoming(meetS: number, lane: number, t: number) {
+  private spawnOncoming(meetS: number, lane: number, t: number, allowCompanion = true) {
     const d = this.distance;
     const v = rand(3.2, 4.4) + 1.4 * t;
     const est = Math.max(this.speed, 6);
@@ -3225,7 +3290,7 @@ class Engine {
     // 1 dari 3 lalu lintas datang adalah motor (kadang berboncengan dua motor beruntun)
     if (Math.random() < 0.34) {
       this.spawnMotorcycle(s0, lane, v);
-      if (t > 0.35 && Math.random() < 0.35) this.spawnMotorcycle(s0 + 2.4, this.otherLane([lane]), v * rand(0.92, 1.06));
+      if (allowCompanion && t > 0.35 && Math.random() < 0.35) this.spawnMotorcycle(s0 + 2.4, this.otherLane([lane]), v * rand(0.92, 1.06));
       this.reserved.push({ lane, from: meetS - 7, until: s0 + 6 });
       return;
     }
@@ -3234,6 +3299,20 @@ class Engine {
     this.movers.push(m);
     this.reserved.push({ lane, from: meetS - 7, until: s0 + 6 });
     this.moverVersion++;
+  }
+
+  /**
+   * Busy Shibuya wave on the three lanes the player uses. Cars arrive one at a time
+   * in a shuffled lane order, leaving two clear choices at every encounter.
+   */
+  private spawnShibuyaTrafficWave(meetS: number, t: number): number {
+    const firstLane = randInt(0, 2);
+    const lanes = [firstLane, (firstLane + 1) % 3, (firstLane + 2) % 3];
+    const headway = 12;
+    for (let i = 0; i < lanes.length; i++) {
+      this.spawnOncoming(meetS + i * headway, lanes[i], t, false);
+    }
+    return headway * (lanes.length - 1) + 8;
   }
 
   /** Motor dari arah depan: badan lebih kecil, sedikit lebih cepat dari mobil. */
@@ -3267,7 +3346,7 @@ class Engine {
     for (let i = 0; i < 3; i++) this.addObstacle("cone", x + 1.5 + i * ((len - 3) / 2), lane, true);
     this.reserved.push({ lane, from: x - 1, until: x + len + 1 });
     const other = this.otherLane([lane]);
-    this.breadLine(x + 1, other, 6, 0.5);
+    this.breadLine(x + len + 4, other, 6, 0.5);
     this.addPuddle(x + len / 2, this.otherLane([lane, other]));
     // Open bread lane 'other' is kept completely clear of obstacles!
     this.listVersion++;
@@ -3278,12 +3357,22 @@ class Engine {
     const n = 1 + (Math.random() < 0.5 ? 1 : 0) + (t > 0.4 && Math.random() < 0.4 ? 1 : 0);
     const est = Math.max(this.speed, START_SPEED);
     const d = this.distance;
+    // Shibuya walkers start at the curb and cross only the live carriageway, not sidewalk fixtures.
+    const edge = track.mode === "shibuya" ? 4.15 : 6.8;
     // kadang yang menyeberang adalah kakek/nenek bertongkat (jalannya lambat)
     const elderIndex = Math.random() < 0.42 ? randInt(0, n - 1) : -1;
     for (let i = 0; i < n; i++) {
       const dir = Math.random() < 0.5 ? 1 : -1;
-      const m = this.newMover("pedestrian", x + i * 3.0, -1, -dir * 6.8);
+      const pedestrianS = x + i * 3.0;
+      const m = this.newMover("pedestrian", pedestrianS, -1, -dir * edge);
       m.dir = dir;
+      m.crossingEdge = edge;
+      if (track.mode === "shibuya") {
+        const signal = this.intersections
+          .filter((inter) => Math.abs(inter.s - pedestrianS) < 16)
+          .sort((a, b) => Math.abs(a.s - pedestrianS) - Math.abs(b.s - pedestrianS))[0];
+        if (signal) m.signalIntersectionId = signal.id;
+      }
       const elderly = i === elderIndex;
       m.elderly = elderly;
       m.speed = elderly ? rand(0.85, 1.25) : rand(1.6, 2.3);
@@ -3292,7 +3381,7 @@ class Engine {
       // time the walk so they are on the road when the player arrives
       // (lansia jalannya lambat, jadi mereka lebih lama ADA di tengah jalan)
       const eta = (x + i * 3.0 - d) / est;
-      const walk = (6.8 - 1.2) / m.speed;
+      const walk = (edge - 1.2) / m.speed;
       m.delay = Math.max(0.1, eta - walk + rand(-0.6, 0.6));
       this.movers.push(m);
     }
@@ -3307,11 +3396,17 @@ class Engine {
    */
   private clearLaneNear(s: number): number {
     const lanes = [1, 0, 2]; // tengah dulu (paling gampang diambil), lalu pinggir
+    const inIntersection = this.intersections.some((it) => Math.abs(it.s - s) < 14);
+    const atRailCrossing = this.crossings.some((cr) => Math.abs(cr.s - s) < 14);
+    if (inIntersection || atRailCrossing) return -1;
     for (const lane of lanes) {
       const blocked =
-        this.obstacles.some((o) => o.kind !== "ramp" && o.kind !== "rail" && o.lane === lane && Math.abs(o.s - s) < 6) ||
+        // Termasuk ramp dan rail: bonus tidak boleh berada tepat di atas / di belakang obstacle.
+        this.obstacles.some((o) => o.lane === lane && Math.abs(o.s - s) < obstacleHalf(o) + 9) ||
         this.movers.some((m) => m.kind !== "pedestrian" && Math.abs(m.lane - lane) < 0.5 && Math.abs(m.s - s) < 12) ||
         this.crossCars.some((cc) => Math.abs(cc.s - s) < 8) ||
+        this.breads.some((b) => !b.taken && b.lane === lane && Math.abs(b.s - s) < 7) ||
+        this.isNearBonusItem(s, lane, 7) ||
         this.reserved.some((r) => r.lane === lane && s > r.from - 2 && s < r.until + 2);
       if (!blocked) return lane;
     }
@@ -3323,11 +3418,16 @@ class Engine {
     const x = this.nextObstacleS;
     const d = this.distance;
     if (x >= this.nextNosS) {
-      const lane = randInt(0, 2);
-      track.frame(x, LANE_LAT[lane], 0, tmpV);
-      this.nosCans.push({ id: this.nextId++, s: x, lane, taken: false, wx: tmpV.x, wy: tmpV.y, wz: tmpV.z, phase: Math.random() * 6 });
-      this.listVersion++;
-      this.nextNosS = x + NOS_CAN_S + rand(0, 30);
+      const lane = this.clearLaneNear(x);
+      if (lane >= 0) {
+        track.frame(x, LANE_LAT[lane], 0, tmpV);
+        this.nosCans.push({ id: this.nextId++, s: x, lane, taken: false, wx: tmpV.x, wy: tmpV.y, wz: tmpV.z, phase: Math.random() * 6 });
+        this.listVersion++;
+        this.nextNosS = x + NOS_CAN_S + rand(0, 30);
+      } else {
+        // Coba lagi sedikit lebih depan; jangan paksa NOS muncul di obstacle/perempatan.
+        this.nextNosS = x + 12;
+      }
     }
     // ---- item LANGKA: roket NOS (jarang, dan selalu di jalur yang bebas rintangan) ----
     if (x >= this.nextRocketS) {
@@ -3360,7 +3460,7 @@ class Engine {
       ["ramp", 2.2],
       ["rail", 2.2],
       ["bread", 1.6],
-      ["oncoming", 2.2 + 2.4 * t],
+      ["oncoming", track.mode === "shibuya" ? 8 + 4.6 * t : 2.2 + 2.4 * t],
       ["chickens", 2.6 + 1.0 * t],
       ["cats", 2.4 + 1.0 * t],
       ["pedestrians", (track.mode === "shibuya" ? 3.6 : 2.2) + 1.2 * t], // Shibuya crowds!
@@ -3400,7 +3500,7 @@ class Engine {
         this.addObstacle(kind, x, lane);
         const freeLane = this.otherLane([lane]);
         const rr = Math.random();
-        if (rr < 0.6) this.breadLine(x - 2, freeLane);
+        if (rr < 0.6) this.breadLine(x + 8, freeLane);
         len = OBSTACLE_DEFS[kind].halfLen * 2;
         break;
       }
@@ -3412,10 +3512,10 @@ class Engine {
           const l2 = freeLane;
           this.addObstacle(pick(SMALL_JUMPABLES), x + 4, l2);
           const safeLane = this.otherLane([lane, l2]);
-          this.breadLine(x - 2, safeLane);
+          this.breadLine(x + 8, safeLane);
           len = 5;
         } else {
-          if (Math.random() < 0.6) this.breadLine(x - 2, freeLane);
+          if (Math.random() < 0.6) this.breadLine(x + 8, freeLane);
           len = 3.4;
         }
         break;
@@ -3428,7 +3528,7 @@ class Engine {
           const kind = twoCars ? "car" : Math.random() < 0.45 ? "car" : pick(JUMPABLES);
           this.addObstacle(kind, x, l);
         }
-        this.breadLine(x - 2, free);
+        this.breadLine(x + 8, free);
         len = 3.4;
         break;
       }
@@ -3487,13 +3587,6 @@ class Engine {
         const cx = x + half;
         const variant = L >= 18 && Math.random() < 0.4 ? 1 : 0;
         this.addObstacle("rail", cx, lane, false, half, variant);
-        const n = Math.max(4, Math.floor(L / 1.5));
-        for (let i = 0; i < n; i++) {
-          const bs = cx - half + 1.2 + i * ((L - 2.4) / Math.max(1, n - 1));
-          const rel = (bs - cx) / half;
-          const hKink = variant === 1 ? (rel < -0.2 ? 0.4 : rel < 0.2 ? (0.4 * (0.2 - rel)) / 0.4 : 0) : 0;
-          this.addBread(bs, lane, RAIL_H + 0.55 + hKink);
-        }
         if (L >= 12 && t > 0.3 && Math.random() < 0.6) {
           const l2 = this.otherLane([lane]);
           const L2 = pick([7, 12]);
@@ -3515,17 +3608,22 @@ class Engine {
         break;
       }
       case "oncoming": {
+        if (track.mode === "shibuya") {
+          // Spread the encounters across all playable lanes with a clear lane at each car's position.
+          len = this.spawnShibuyaTrafficWave(x, t);
+          break;
+        }
         const lane = randInt(0, 2);
         this.spawnOncoming(x, lane, t);
         if (t > 0.5 && Math.random() < 0.4) {
           const l2 = this.otherLane([lane]);
           this.spawnOncoming(x + 10, l2, t);
           const safeLane = this.otherLane([lane, l2]);
-          this.breadLine(x - 2, safeLane);
+          this.breadLine(x + 8, safeLane);
           len = 18;
         } else {
           const safeLane = this.otherLane([lane]);
-          if (Math.random() < 0.6) this.breadLine(x - 2, safeLane);
+          if (Math.random() < 0.6) this.breadLine(x + 8, safeLane);
           len = 8;
         }
         break;

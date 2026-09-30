@@ -111,6 +111,7 @@ import {
   type Chunk,
   type Crossing,
   crossCarH,
+  trafficSignalApproach,
   RARE_FLASH_T,
   type Intersection,
   type CrossTrafficCar,
@@ -423,30 +424,30 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
         if (isElder) {
           // jalan pelan & hati-hati: langkah kecil, badan agak bungkuk, tongkat menap
           const step = Math.sin(m.hopT * 6.4);
-          legL.rotation.set(step * 0.36, 0, 0);
-          legR.rotation.set(-step * 0.3, 0, 0);
-          armL.rotation.set(-step * 0.22, 0, 0);
-          armR.rotation.set(0.16 + Math.abs(step) * 0.12, 0, 0);
+          legL.rotation.set(0, 0, step * 0.36);
+          legR.rotation.set(0, 0, -step * 0.3);
+          armL.rotation.set(0, 0, -step * 0.22);
+          armR.rotation.set(0, 0, 0.16 + Math.abs(step) * 0.12);
           headG.rotation.set(0.1, Math.sin(m.hopT * 3.2) * 0.12, Math.sin(m.hopT * 12.8) * 0.02);
-          torso.rotation.x = 0.17; // bungkuk ke depan
+          torso.rotation.set(0, 0, 0.17); // bungkuk ke depan pada sumbu gerak
           inner.position.y = PED_LIFT - 0.014 - Math.abs(step) * 0.008;
         } else {
           const swing = Math.sin(m.hopT * 10);
-          legL.rotation.set(swing * 0.42, 0, 0);
-          legR.rotation.set(-swing * 0.42, 0, 0);
-          armL.rotation.set(-swing * 0.32, 0, 0);
-          armR.rotation.set(swing * 0.32, 0, 0);
+          legL.rotation.set(0, 0, swing * 0.42);
+          legR.rotation.set(0, 0, -swing * 0.42);
+          armL.rotation.set(0, 0, -swing * 0.32);
+          armR.rotation.set(0, 0, swing * 0.32);
           headG.rotation.set(0, 0, Math.sin(m.hopT * 20) * 0.03);
-          torso.rotation.x = 0.04; // sedikit condong seperti orang jalan sungguhan
+          torso.rotation.set(0, 0, 0.04); // sedikit condong ke arah jalan
           inner.position.y = PED_LIFT + Math.abs(Math.sin(m.hopT * 10)) * 0.022;
         }
       } else {
         legL.rotation.set(0, 0, 0);
         legR.rotation.set(0, 0, 0);
         armL.rotation.set(0, 0, 0);
-        armR.rotation.set(isElder ? 0.16 : 0, 0, 0);
-        headG.rotation.set(isElder ? 0.1 : 0, 0, 0);
-        torso.rotation.x = isElder ? 0.17 : 0;
+        armR.rotation.set(0, 0, isElder ? 0.16 : 0);
+        headG.rotation.set(0, isElder ? 0.1 : 0, 0);
+        torso.rotation.set(0, 0, isElder ? 0.17 : 0);
       }
       if (accRef.current) {
         accRef.current.rotation.set(0, 0, 0);
@@ -886,13 +887,16 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
   const legRGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-R`, () => pedestrianLegParts(variant, -1, false)), [pedKey, variant]);
   const seed = useMemo(() => {
     const slot = -4.6 + (idx + 0.5) * (9.2 / 9); // tiap penyeberang punya "jalur" x sendiri
+    const dirU = (idx % 2 === 0 ? 1 : -1) as 1 | -1;
     return {
       slot,
       x: slot + (Math.random() - 0.5) * 0.5,
-      diag: (Math.random() - 0.5) * 2.2, // drift diagonal kecil (tidak melintasi slot tetangga)
-      u: Math.random(),
-      dirU: (Math.random() < 0.5 ? 1 : -1) as 1 | -1,
+      diag: (Math.random() - 0.5) * 1.2, // drift diagonal kecil, tetap di jalur masing-masing
+      u: dirU > 0 ? 0 : 1,
+      dirU,
       rate: 0.11 + Math.random() * 0.07, // kecepatan menyeberang (u/detik)
+      cooldown: 0,
+      waitingForRed: true,
       t0: Math.random() * 20,
     };
   }, [idx]);
@@ -901,17 +905,33 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
     const inner = innerRef.current;
     if (!root || !inner) return;
     const dt = Math.min(dtRaw, 0.05);
-    seed.u += seed.dirU * seed.rate * dt;
-    if (seed.u > 1) {
+    if (seed.cooldown > 0) {
+      seed.cooldown -= dt;
+      root.visible = false;
+      if (seed.cooldown > 0) return;
+      // Sudah sampai tujuan: jeda di luar layar, lalu mulai perjalanan baru ke arah yang sama.
+      seed.u = seed.dirU > 0 ? 0 : 1;
+      seed.x = seed.slot + (Math.random() - 0.5) * 0.5;
+      seed.diag = (Math.random() - 0.5) * 1.2;
+      seed.waitingForRed = true;
+    }
+    root.visible = true;
+    const waitingAtLight = seed.waitingForRed && inter.lightState !== "red";
+    if (seed.waitingForRed && !waitingAtLight) seed.waitingForRed = false;
+    if (!waitingAtLight) seed.u += seed.dirU * seed.rate * dt;
+    if (seed.dirU > 0 && seed.u >= 1) {
       seed.u = 1;
-      seed.dirU = -1;
-      seed.x = seed.slot + (Math.random() - 0.5) * 0.5;
-      seed.diag = (Math.random() - 0.5) * 2.2;
-    } else if (seed.u < 0) {
+      seed.cooldown = 2.0 + (idx % 3) * 0.55;
+      seed.waitingForRed = true;
+      root.visible = false;
+      return;
+    }
+    if (seed.dirU < 0 && seed.u <= 0) {
       seed.u = 0;
-      seed.dirU = 1;
-      seed.x = seed.slot + (Math.random() - 0.5) * 0.5;
-      seed.diag = (Math.random() - 0.5) * 2.2;
+      seed.cooldown = 2.0 + (idx % 3) * 0.55;
+      seed.waitingForRed = true;
+      root.visible = false;
+      return;
     }
     const lat = 4.2 + seed.u * 11.0; // median (4.2) -> trotoar seberang (15.2)
     const sPos = inter.s + seed.x + seed.diag * seed.u;
@@ -922,15 +942,15 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
     inner.rotation.y = seed.dirU > 0 ? -Math.PI / 2 : Math.PI / 2;
     const scl = PED_SCALE * (kid ? 0.62 : 1);
     inner.scale.setScalar(scl);
-    const walkSpeed = seed.rate * 11.0; // ~m/s dari laju u
+    const walkSpeed = waitingAtLight ? 0 : seed.rate * 11.0; // ~m/s dari laju u
     seed.t0 += dt * (walkSpeed / (0.62 * scl)) * Math.PI;
     const t = seed.t0;
-    const swing = Math.sin(t) * 0.4;
-    if (legLRef.current) legLRef.current.rotation.x = swing;
-    if (legRRef.current) legRRef.current.rotation.x = -swing;
-    if (armLRef.current) armLRef.current.rotation.x = -swing * 0.55;
-    if (armRRef.current) armRRef.current.rotation.x = swing * 0.55;
-    inner.position.y = PED_LIFT + Math.abs(Math.sin(t)) * 0.018;
+    const swing = waitingAtLight ? 0 : Math.sin(t) * 0.4;
+    if (legLRef.current) legLRef.current.rotation.z = swing;
+    if (legRRef.current) legRRef.current.rotation.z = -swing;
+    if (armLRef.current) armLRef.current.rotation.z = -swing * 0.55;
+    if (armRRef.current) armRRef.current.rotation.z = swing * 0.55;
+    inner.position.y = PED_LIFT + (waitingAtLight ? 0 : Math.abs(Math.sin(t)) * 0.018);
   });
   return (
     <group ref={rootRef}>
@@ -957,7 +977,7 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
   );
 });
 
-const IntersectionView = memo(function IntersectionView({ inter }: { inter: Intersection }) {
+const IntersectionView = memo(function IntersectionView({ inter, lightState }: { inter: Intersection; lightState: Intersection["lightState"] }) {
   const isShibuya = useUI((s) => s.trackMode) === "shibuya";
   const wide = !!inter.wide;
   const roadGeo = useMemo(
@@ -977,7 +997,7 @@ const IntersectionView = memo(function IntersectionView({ inter }: { inter: Inte
     return [v.x, v.y, v.z] as [number, number, number];
   }, [inter]);
 
-  const tlGeo = inter.lightState === "green" ? tlGeoGreen : inter.lightState === "yellow" ? tlGeoYellow : tlGeoRed;
+  const tlGeo = lightState === "green" ? tlGeoGreen : lightState === "yellow" ? tlGeoYellow : tlGeoRed;
   const cornerX = inter.scramble ? 7.2 : wide ? 7.0 : 4.6;
   const pair = (g: { lit: THREE.BufferGeometry; glow: THREE.BufferGeometry | null }, pos: [number, number, number], ry: number, key: string) => (
     <group key={key} position={pos} rotation-y={ry}>
@@ -1000,29 +1020,33 @@ const IntersectionView = memo(function IntersectionView({ inter }: { inter: Inte
         )}
         {/* Traffic light posts at the corner sidewalk curbs */}
         {[-cornerX, cornerX].map((x) =>
-          [-4.8, 4.8].map((z) => (
+          (isShibuya ? [-4.8, 13.1] : [-4.8, 4.8]).map((z) => (
             <mesh
               key={`${x}-${z}`}
               geometry={tlGeo}
               material={voxelMaterial}
-              position={[x, 0, z]}
+              position={[x, isShibuya && z > 10 ? 0.18 : 0, z]}
               rotation-y={z > 0 ? 0 : Math.PI}
               castShadow
             />
           ))
         )}
-        {/* Shibuya: sepasang lampu lalu lintas lagi di sudut seberang avenue */}
-        {isShibuya &&
-          [-cornerX, cornerX].map((x) => (
-            <mesh key={`far-${x}`} geometry={tlGeo} material={voxelMaterial} position={[x, 0.18, 13.1]} rotation-y={0} castShadow />
-          ))}
-        {/* 🚸 Rambu lalu lintas di SEMUA perempatan: rambu penyeberangan + STOP (止まれ) di sudut */}
-        {pair(pedSignGeo, [-cornerX - 0.7, 0.18, -4.5], 0, "ps1")}
-        {pair(pedSignGeo, [cornerX + 0.7, 0.18, 4.6], Math.PI, "ps2")}
-        {pair(stopGeo, [cornerX + 0.6, 0.18, -4.5], Math.PI / 2, "st1")}
-        {pair(stopGeo, [-cornerX - 0.6, 0.18, 4.6], -Math.PI / 2, "st2")}
-        {isShibuya && pair(pedSignGeo, [cornerX + 0.7, 0.18, 12.9], Math.PI, "ps3")}
-        {isShibuya && pair(stopGeo, [-cornerX - 0.6, 0.18, 12.9], -Math.PI / 2, "st3")}
+        {/* Rambu disederhanakan di scramble agar marka dan pejalan kaki tetap jadi fokus. */}
+        {inter.scramble ? (
+          <>
+            {pair(pedSignGeo, [-cornerX - 0.7, 0.18, -4.5], 0, "scramble-ps1")}
+            {pair(pedSignGeo, [cornerX + 0.7, 0.18, 12.9], Math.PI, "scramble-ps2")}
+          </>
+        ) : (
+          <>
+            {pair(pedSignGeo, [-cornerX - 0.7, 0.18, -4.5], 0, "ps1")}
+            {pair(pedSignGeo, [cornerX + 0.7, 0.18, 4.6], Math.PI, "ps2")}
+            {pair(stopGeo, [cornerX + 0.6, 0.18, -4.5], Math.PI / 2, "st1")}
+            {pair(stopGeo, [-cornerX - 0.6, 0.18, 4.6], -Math.PI / 2, "st2")}
+            {isShibuya && pair(pedSignGeo, [cornerX + 0.7, 0.18, 12.9], Math.PI, "ps3")}
+            {isShibuya && pair(stopGeo, [-cornerX - 0.6, 0.18, 12.9], -Math.PI / 2, "st3")}
+          </>
+        )}
       </group>
       {/* ⚠️ Perempatan warning signs placed ahead on both sides of the road */}
       <mesh geometry={signGeo} material={voxelMaterial} position={inter.signPos} rotation-y={inter.signRotY} castShadow />
@@ -1035,9 +1059,17 @@ const IntersectionView = memo(function IntersectionView({ inter }: { inter: Inte
 
 function Intersections() {
   const seen = useRef(-1);
+  const seenLights = useRef(new Map<number, Intersection["lightState"]>());
   const [, force] = useReducer((x: number) => x + 1, 0);
   useFrame(() => {
-    if (engine.listVersion !== seen.current) {
+    let lightChanged = false;
+    for (const inter of engine.intersections) {
+      if (seenLights.current.get(inter.id) !== inter.lightState) {
+        seenLights.current.set(inter.id, inter.lightState);
+        lightChanged = true;
+      }
+    }
+    if (engine.listVersion !== seen.current || lightChanged) {
       seen.current = engine.listVersion;
       force();
     }
@@ -1045,8 +1077,116 @@ function Intersections() {
   return (
     <>
       {engine.intersections.map((inter) => (
-        <IntersectionView key={inter.id} inter={inter} />
+        <IntersectionView key={inter.id} inter={inter} lightState={inter.lightState} />
       ))}
+    </>
+  );
+}
+
+interface ShibuyaFlowCar {
+  id: number;
+  lat: number;
+  s: number;
+  speed: number;
+  speedK: number;
+  variant: number;
+}
+
+/** Arus padat di 3 jalur seberang median; berhenti di garis henti saat lampu merah/kuning. */
+function ShibuyaTraffic() {
+  const trackMode = useUI((s) => s.trackMode);
+  const cars = useMemo<ShibuyaFlowCar[]>(() => {
+    const lanes = [6.2, 8.6, 11.0];
+    return Array.from({ length: 24 }, (_, id) => {
+      const lane = Math.floor(id / 8);
+      const slot = id % 8;
+      return {
+        id,
+        lat: lanes[lane],
+        s: engine.distance + 10 + slot * 13 + lane * 3 + (Math.random() - 0.5) * 4,
+        speed: 5.8 + Math.random() * 2.2,
+        speedK: 1,
+        variant: (id * 3 + lane) % 5,
+      };
+    });
+  }, []);
+  const refs = useRef<(THREE.Group | null)[]>([]);
+  const lastDistance = useRef(engine.distance);
+
+  useFrame((_, dtRaw) => {
+    const currentDistance = engine.distance;
+    if (currentDistance < lastDistance.current - 1) {
+      // A restart/track switch rewinds the road coordinates; keep traffic positions in that same frame.
+      const rewind = currentDistance - lastDistance.current;
+      for (const car of cars) car.s += rewind;
+    }
+    lastDistance.current = currentDistance;
+    if (trackMode !== "shibuya") return;
+    const dt = Math.min(dtRaw, 0.05);
+    // Process the car at the front of each lane first, so followers can keep a safe gap.
+    const ordered = [...cars].sort((a, b) => a.s - b.s);
+    for (const car of ordered) {
+      const root = refs.current[car.id];
+      if (!root) continue;
+
+      let targetK = 1;
+      let stopLineS: number | null = null;
+      const upcoming = engine.intersections
+        .filter((inter) => car.s >= inter.s + 6 && car.s - inter.s < 80)
+        .sort((a, b) => b.s - a.s)[0];
+      if (upcoming) {
+        const approach = trafficSignalApproach(car.s, upcoming.s, upcoming.lightState);
+        stopLineS = approach.stopLineS;
+        targetK = Math.min(targetK, approach.targetK);
+      }
+
+      const leader = cars
+        .filter((other) => other !== car && Math.abs(other.lat - car.lat) < 0.1 && other.s < car.s)
+        .sort((a, b) => b.s - a.s)[0];
+      if (leader) {
+        const gap = car.s - leader.s;
+        if (gap < 14) targetK = Math.min(targetK, leader.speedK, Math.max(0, Math.min(1, (gap - 7) / 7)));
+      }
+
+      const braking = targetK < car.speedK;
+      car.speedK += (targetK - car.speedK) * (1 - Math.exp(-dt * (braking ? 5.5 : 2.0)));
+      car.s -= car.speed * car.speedK * dt;
+      if (stopLineS !== null && car.s < stopLineS) {
+        car.s = stopLineS;
+        car.speedK = 0;
+      }
+      if (leader && car.s < leader.s + 7) {
+        car.s = leader.s + 7;
+        car.speedK = Math.min(car.speedK, leader.speedK);
+      }
+      if (car.s - engine.distance < -24) {
+        car.s = engine.distance + 108 + Math.random() * 12;
+        car.speedK = 1;
+      }
+
+      // Sedan/bus models face local -x and travel toward the intersection along -s.
+      track.frame(car.s, car.lat, 0.03, root.position);
+      track.quat(car.s, root.quaternion);
+    }
+  });
+
+  if (trackMode !== "shibuya") return null;
+  return (
+    <>
+      {cars.map((car) => {
+        const geo = getGeometryPair(`shibuya-flow-car-${car.variant}`, () => jamCarParts(car.variant));
+        return (
+          <group
+            key={car.id}
+            ref={(group) => {
+              refs.current[car.id] = group;
+            }}
+          >
+            <mesh geometry={geo.lit} material={voxelMaterial} castShadow receiveShadow />
+            {geo.glow && <mesh geometry={geo.glow} material={glowMaterial} />}
+          </group>
+        );
+      })}
     </>
   );
 }
@@ -1582,25 +1722,23 @@ function Particles() {
 interface Walker {
   s: number;
   lat: number;
+  side: 1 | -1;
   dir: 1 | -1;
   speed: number;
   t0: number;
   seeded: boolean;
 }
 
-const CROWD_N = 24;
+const CROWD_N = 72;
 const CROWD_KINDS: ("adult" | "suit" | "kid" | "elder")[] = ["adult", "suit", "kid", "adult", "elder", "suit", "adult", "kid", "suit", "adult", "suit", "kid"];
 
 /** Pilih posisi trotoar. Arus dipisah per arah (kebiasaan Jepang: jalur kiri),
  *  jadi orang berpapasan di band berbeda dan tidak saling menembus. */
-function crowdLat(dir: 1 | -1): number {
-  if (Math.random() < 0.62) {
-    // trotoar dekat (lebar 4.2 m): koridor bebas dekorasi ada di antara
-    // vending/curb (−4.8) dan barisan pohon (−6.7..−7.3)
-    return dir > 0 ? -(5.5 + Math.random() * 0.9) : -(4.55 + Math.random() * 0.7);
-  }
-  // trotoar seberang: koridor antara neon/vending (13.0–13.4) dan pohon (14.9–15.5)
-  return dir > 0 ? 13.55 + Math.random() * 0.55 : 14.2 + Math.random() * 0.6;
+function crowdLat(side: 1 | -1, dir: 1 | -1): number {
+  // Each sidewalk has two opposing flow lanes, both clear of vending machines, bikes, and tree trunks.
+  const jitter = (Math.random() - 0.5) * (side < 0 ? 0.2 : 0.12);
+  if (side < 0) return (dir > 0 ? -5.72 : -6.45) + jitter;
+  return (dir > 0 ? 14.38 : 15.08) + jitter;
 }
 
 type WalkerKind = "adult" | "elder" | "suit" | "kid";
@@ -1636,17 +1774,17 @@ const AmbientWalker = memo(function AmbientWalker({ w, all, variant, kind }: { w
     const dt = Math.min(dtRaw, 0.05);
     const dist = engine.distance;
 
-    // jalan menyusuri trotoar; daur ulang keluar jendela pandang -> muncul lagi di depan
+    // Setiap trotoar punya dua arah; arah dan jalur tetap saat pejalan kaki didaur ulang.
     if (!w.seeded) {
       w.seeded = true;
-      w.s = dist + 4 + Math.random() * 88;
-      w.lat = crowdLat(w.dir);
+      w.s = dist - 16 + Math.random() * 112;
+      w.lat = crowdLat(w.side, w.dir);
     }
-    // JAGA JARAK: jangan menembus orang di depan yang searah & satu band
+    // JAGA JARAK: jangan menembus orang di depan pada jalur dan arah yang sama.
     let v = w.speed;
     for (const o of all) {
-      if (o === w || !o.seeded || o.dir !== w.dir) continue;
-      if (Math.sign(o.lat) !== Math.sign(w.lat) || Math.abs(o.lat - w.lat) > 0.55) continue;
+      if (o === w || !o.seeded || o.side !== w.side || o.dir !== w.dir) continue;
+      if (Math.abs(o.lat - w.lat) > 0.35) continue;
       const gap = (o.s - w.s) * w.dir;
       if (gap > 0 && gap < 0.85) {
         v = Math.min(v, o.speed * 0.92);
@@ -1654,14 +1792,11 @@ const AmbientWalker = memo(function AmbientWalker({ w, all, variant, kind }: { w
       }
     }
     w.s += w.dir * v * dt;
-    const rel = w.s - dist;
-    if (rel < -18 || rel > 96) {
-      w.s = dist + 8 + Math.random() * 82;
-      w.dir = Math.random() < 0.5 ? 1 : -1;
-      w.lat = crowdLat(w.dir);
-      w.speed = (elderly ? 0.55 : kid ? 0.75 : 0.9) + Math.random() * (elderly ? 0.35 : kid ? 0.85 : 1.0);
-      w.t0 = Math.random() * 20;
-    }
+    let rel = w.s - dist;
+    // Loop jauh di luar layar tanpa berbalik arah atau berpindah jalur menembus dekorasi.
+    if (w.dir > 0 && rel > 96) w.s -= 112;
+    else if (w.dir < 0 && rel < -18) w.s += 112;
+    rel = w.s - dist;
 
     track.frame(w.s, w.lat, 0.13, root.position);
     track.quat(w.s, root.quaternion);
@@ -1676,10 +1811,11 @@ const AmbientWalker = memo(function AmbientWalker({ w, all, variant, kind }: { w
     const t = w.t0;
     const amp = v < 0.02 ? 0 : elderly ? 0.26 : kid ? 0.5 : 0.4;
     const swing = Math.sin(t) * amp;
-    if (legLRef.current) legLRef.current.rotation.x = swing;
-    if (legRRef.current) legRRef.current.rotation.x = -swing;
-    if (armLRef.current) armLRef.current.rotation.x = suit ? 0.1 : -swing * 0.55; // lengan pengempit tas tetap rapat
-    if (armRRef.current) armRRef.current.rotation.x = elderly ? 0.16 : swing * 0.55;
+    // Model menghadap sumbu +x, jadi ayunan kaki/lengan maju-mundur harus pada sumbu z (bukan x).
+    if (legLRef.current) legLRef.current.rotation.z = swing;
+    if (legRRef.current) legRRef.current.rotation.z = -swing;
+    if (armLRef.current) armLRef.current.rotation.z = suit ? 0.1 : -swing * 0.55; // lengan pengempit tas tetap rapat
+    if (armRRef.current) armRRef.current.rotation.z = elderly ? 0.16 : swing * 0.55;
     if (headRef.current) headRef.current.rotation.y = Math.sin(engine.time * 0.9 + w.s) * 0.18;
     inner.position.y = PED_LIFT + (amp > 0 ? Math.abs(Math.sin(t)) * 0.018 : 0);
   });
@@ -1716,14 +1852,20 @@ function ShibuyaCrowd() {
   const trackMode = useUI((s) => s.trackMode);
   const walkers = useMemo<Walker[]>(
     () =>
-      Array.from({ length: CROWD_N }, (_, i) => ({
-        s: 0,
-        lat: 0,
-        dir: (i % 2 === 0 ? 1 : -1) as 1 | -1,
-        speed: 0.9 + Math.random() * 1.0,
-        t0: Math.random() * 20,
-        seeded: false,
-      })),
+      Array.from({ length: CROWD_N }, (_, i) => {
+        const kind = CROWD_KINDS[i % CROWD_KINDS.length];
+        const elderly = kind === "elder";
+        const kid = kind === "kid";
+        return {
+          s: 0,
+          lat: 0,
+          side: (Math.floor(i / 2) % 2 === 0 ? -1 : 1) as 1 | -1,
+          dir: (i % 2 === 0 ? 1 : -1) as 1 | -1,
+          speed: elderly ? 0.75 + Math.random() * 0.3 : kid ? 1.3 + Math.random() * 0.65 : 1.3 + Math.random() * 0.8,
+          t0: Math.random() * 20,
+          seeded: false,
+        };
+      }),
     [],
   );
   useEffect(() => {
@@ -1772,6 +1914,7 @@ export function World() {
       <RareFlash />
       <RoadSigns />
       <OverpassCars />
+      <ShibuyaTraffic />
       <Movers />
       <ShibuyaCrowd />
       <Breads />
