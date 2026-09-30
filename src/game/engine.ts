@@ -275,6 +275,27 @@ export function trainCovers(tr: Train, lat: number) {
   return lat >= Math.min(tr.head, tail) && lat <= Math.max(tr.head, tail);
 }
 
+/**
+ * Jarak jalur jalan lintas dari titik tengah perempatan (jalur kiri masing-masing arah).
+ * 2.0 = tepat di tengah panah jalur yang dicat di dek jalan lintas (lihat intersectionRoadParts).
+ */
+export const CROSS_LANE_OFFSET = 2.0;
+
+/** Tinggi DEK jalan lintas di perempatan (atas aspal: 0.145 + 0.06/2). Roda mobil penyeberang menapak di sini. */
+export const CROSS_DECK_H = 0.175;
+/** Lebar jalur lintas: dek jalan lintas mulai di |lat| 4.0 (lihat intersectionRoadParts di models.ts). */
+export const CROSS_DECK_LAT = 4.0;
+
+/**
+ * Tinggi mobil penyeberang di perempatan:
+ * rata dengan jalan utama saat melintasi perempatan, lalu naik mulus ke dek jalan lintas.
+ */
+export function crossCarH(lat: number): number {
+  const a = Math.abs(lat);
+  if (a >= CROSS_DECK_LAT + 0.2) return CROSS_DECK_H;
+  return Math.max(0, (a - (CROSS_DECK_LAT - 0.6)) / 0.8) * CROSS_DECK_H;
+}
+
 export interface Intersection {
   id: number;
   s: number;
@@ -302,6 +323,8 @@ export interface CrossTrafficCar {
   hitRagdoll?: boolean;
   /** timer asap knalpot */
   smokeT?: number;
+  /** sedang menunggu di tepi perempatan (ada kendaraan jalan utama lewat) */
+  waiting?: boolean;
 }
 
 export type { TrickKind } from "./tricks";
@@ -2490,13 +2513,14 @@ class Engine {
         inter.spawnTimer1 -= dt;
         if (inter.spawnTimer1 <= 0) {
           inter.spawnTimer1 = rand(1.3, 2.1) - t * 0.35;
-          this.spawnCrossCar(inter.id, inter.s - 1.8, -25, 1, 8.5 + rand(0, 2.5) + t * 2);
+          // Jalur kiri (Jepang/Indonesia): yang melaju ke +lat memakai jalur +s (sisi kiri jalannya)
+          this.spawnCrossCar(inter.id, inter.s + CROSS_LANE_OFFSET, -25, 1, 8.5 + rand(0, 2.5) + t * 2);
         }
 
         inter.spawnTimer2 -= dt;
         if (inter.spawnTimer2 <= 0) {
           inter.spawnTimer2 = rand(1.4, 2.2) - t * 0.35;
-          this.spawnCrossCar(inter.id, inter.s + 1.8, 25, -1, 8.5 + rand(0, 2.5) + t * 2);
+          this.spawnCrossCar(inter.id, inter.s - CROSS_LANE_OFFSET, 25, -1, 8.5 + rand(0, 2.5) + t * 2);
         }
       }
     }
@@ -2523,7 +2547,19 @@ class Engine {
     let changed = false;
     for (let i = this.crossCars.length - 1; i >= 0; i--) {
       const cc = this.crossCars[i];
-      cc.lat += cc.dir * cc.speed * dt;
+
+      // Jalur lintas tidak boleh menembus lalu lintas jalan utama: kalau ada mobil/motor
+      // (bukan pemain, biar bahaya T-bone tetap ada) yang sedang di/dekat perempatan,
+      // mobil penyeberang berhenti menunggu di tepi jalan.
+      const yielding =
+        Math.abs(cc.lat) > CROSS_DECK_LAT + 1.4 &&
+        Math.abs(cc.lat) < 12 &&
+        this.movers.some(
+          (m) => (m.kind === "car" || m.kind === "motorcycle") && Math.abs(m.s - cc.s) < 5.5,
+        );
+      cc.waiting = yielding;
+
+      if (!yielding) cc.lat += cc.dir * cc.speed * dt;
 
       // asap knalpot mobil yang menyeberang di perempatan
       cc.smokeT = (cc.smokeT ?? 0) - dt;

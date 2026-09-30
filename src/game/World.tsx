@@ -91,6 +91,7 @@ import {
   OBSTACLE_DEFS,
   type Chunk,
   type Crossing,
+  crossCarH,
   type Intersection,
   type CrossTrafficCar,
   type Decor,
@@ -598,7 +599,10 @@ function Movers() {
           const inner = g.children[0];
           inner.position.set(0, 0, 0);
           if (inner.children[0]) inner.children[0].position.set(0, 0, 0);
-          inner.rotation.set(0, 0, 0);
+          // PENTING: kendaraan dari arah depan harus menghadap KITA (yaw = pi).
+          // Dulu baris ini menimpa yaw-nya jadi 0, sehingga mobil & motor melaju mundur
+          // (moncong + pengendaranya membelakangi pemain).
+          inner.rotation.set(0, Math.PI, 0);
           const sq = (m.squash || 0) * 0.14;
           inner.scale.set(1 + sq * 0.35, 1 - sq, 1 + sq * 0.35);
           inner.position.y = Math.sin(t * 18 + m.variant) * 0.015 - sq * 0.25;
@@ -870,7 +874,7 @@ const CrossCarView = memo(function CrossCarView({ cc }: { cc: CrossTrafficCar })
     const root = rootRef.current;
     const inner = innerRef.current;
     if (!root || !inner) return;
-    const h = Math.abs(cc.lat) > 4.2 ? 0.145 : Math.max(0, (Math.abs(cc.lat) - 3.4) / 0.8) * 0.145;
+    const h = crossCarH(cc.lat);
     track.frame(cc.s, cc.lat, h, root.position);
     track.quat(cc.s, root.quaternion);
     // Face lateral travel direction:

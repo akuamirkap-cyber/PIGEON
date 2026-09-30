@@ -55,12 +55,33 @@ Kalau WebGL mati, ikon SVG cadangan (`PigeonIcon`) juga sudah mengenal tiap spes
 4. Tambah cabang ikon di `PigeonIcon.tsx` (cadangan bila thumbnail 3D gagal).
 5. Jalankan `npx esbuild test/characters.ts --bundle --platform=node --outfile=/tmp/characters.cjs && node /tmp/characters.cjs`.
 
-## 4. Verifikasi
+## 4. Arah hadap kendaraan dari arah depan & jalur perempatan
+
+**Bug yang diperbaiki:** di `World.tsx` (komponen `Movers`), cabang animasi `car || motorcycle`
+memanggil `inner.rotation.set(0, 0, 0)` tiap frame. Baris itu **menimpa yaw π** yang dipasang
+`<group rotation-y={innerRot}>`, jadi mobil & motor dari arah depan selama ini melaju **mundur**
+(moncong + pengendaranya membelakangi pemain). Sekarang yaw dijaga:
+`inner.rotation.set(0, Math.PI, 0)` → moncong motor, pengendara, dan visor helm menghadap pemain.
+Diuji pakai vektor rig: `dot(moncong, arah pemain) = −1.000`.
+
+**Jalur (lane) di perempatan:**
+- Mobil penyeberang sekarang memakai **jalur kiri** masing-masing arah
+  (`CROSS_LANE_OFFSET = 2.0`, tepat di tengah panah jalur yang dicat di dek jalan lintas):
+  yang melaju ke `+lat` di jalur `+s`, yang ke `−lat` di jalur `−s` — tidak ada dua arah di jalur yang sama.
+- Rodanya **menapak dek jalan lintas** (`crossCarH()`: rata di jalan utama, naik mulus ke `0.175 m`
+  deck aspal, bukan lagi 0.145 yang bikin roda terbenam 3 cm).
+- Penyeberang **tidak menembus** lalu lintas jalan utama: kalau ada mobil/motor di/dekat perempatan
+  mereka berhenti menunggu di tepi (`waiting`), lalu jalan lagi saat bebas. Pemain **tidak** dihitung,
+  jadi bahaya T-bone + HOOD JUMP tetap ada. Kendaraan yang sudah di tengah perempatan tidak berhenti mendadak.
+
+## 5. Verifikasi
 
 ```bash
 ./node_modules/.bin/tsc --noEmit                     # bersih
 npx esbuild test/animalSize.ts --bundle --platform=node --outfile=/tmp/a.cjs && node /tmp/a.cjs   # 32/32
 npx esbuild test/newFeatures.ts --bundle --platform=node --outfile=/tmp/n.cjs && node /tmp/n.cjs  # 36/36
 npx esbuild test/characters.ts --bundle --platform=node --outfile=/tmp/c.cjs && node /tmp/c.cjs   # 82/82
+npx esbuild test/traffic.ts --bundle --platform=node --outfile=/tmp/t.cjs && node /tmp/t.cjs      # 25/25
+# catatan: test/traffic.ts membaca src/game/World.tsx, jalankan dari root repo
 npx vite build                                       # sukses
 ```
