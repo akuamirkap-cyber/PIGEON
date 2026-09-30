@@ -286,7 +286,8 @@ const ObstacleView = memo(function ObstacleView({ o }: { o: Obstacle }) {
 });
 
 /* ---------- Movers: oncoming cars, crossing chickens & pedestrians ---------- */
-const PED_SCALE = 1.8;
+const PED_SCALE = 1.26; // semua orang dikecilkan 30% (dulu 1.8)
+const PED_LIFT = 0.98 * (PED_SCALE / 1.8); // tinggi angkat model agar kaki tetap menapak
 /* CAT_SCALE / CHICKEN_SCALE (ukuran hewan, sudah termasuk boost 1.7x & 1.2x)
    diimpor dari engine.ts supaya hitbox di sana selalu sinkron dengan model di sini. */
 
@@ -389,7 +390,7 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
       }
     } else {
       // ---- NATURAL WALKING / WAITING ANIMATION ----
-      inner.position.set(0, 0.98, 0);
+      inner.position.set(0, PED_LIFT, 0);
       inner.rotation.set(0, m.dir > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
       inner.scale.setScalar(PED_SCALE);
       torso.position.set(0, 0, 0);
@@ -404,7 +405,7 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
           armR.rotation.set(0.16 + Math.abs(step) * 0.12, 0, 0);
           headG.rotation.set(0.1, Math.sin(m.hopT * 3.2) * 0.12, Math.sin(m.hopT * 12.8) * 0.02);
           torso.rotation.x = 0.17; // bungkuk ke depan
-          inner.position.y = 0.96 - Math.abs(step) * 0.012;
+          inner.position.y = PED_LIFT - 0.014 - Math.abs(step) * 0.008;
         } else {
           const swing = Math.sin(m.hopT * 10);
           legL.rotation.set(swing * 0.55, 0, 0);
@@ -413,7 +414,7 @@ const PedestrianMover = memo(function PedestrianMover({ m }: { m: Mover }) {
           armR.rotation.set(swing * 0.45, 0, 0);
           headG.rotation.set(0, 0, Math.sin(m.hopT * 20) * 0.04);
           torso.rotation.x = 0;
-          inner.position.y = 0.98 + Math.abs(Math.sin(m.hopT * 10)) * 0.05;
+          inner.position.y = PED_LIFT + Math.abs(Math.sin(m.hopT * 10)) * 0.035;
         }
       } else {
         legL.rotation.set(0, 0, 0);
@@ -1377,6 +1378,137 @@ function Particles() {
 }
 
 /* ---------- World root ---------- */
+
+/* ---------- Shibuya ambient sidewalk crowd: orang berseliweran, murni visual (tanpa tabrakan) ---------- */
+interface Walker {
+  s: number;
+  lat: number;
+  dir: 1 | -1;
+  speed: number;
+  t0: number;
+  seeded: boolean;
+}
+
+const CROWD_N = 24;
+
+/** Pilih posisi trotoar: mayoritas di sisi dekat gedung (dekat kamera), sisanya di seberang avenue. */
+function crowdLat(): number {
+  return Math.random() < 0.62 ? -(4.5 + Math.random() * 1.8) : 12.8 + Math.random() * 2.1;
+}
+
+const AmbientWalker = memo(function AmbientWalker({ w, variant, elderly }: { w: Walker; variant: number; elderly: boolean }) {
+  const rootRef = useRef<THREE.Group>(null);
+  const innerRef = useRef<THREE.Group>(null);
+  const armLRef = useRef<THREE.Group>(null);
+  const armRRef = useRef<THREE.Group>(null);
+  const legLRef = useRef<THREE.Group>(null);
+  const legRRef = useRef<THREE.Group>(null);
+  const headRef = useRef<THREE.Group>(null);
+
+  // pakai cache geometri yang sama dengan pedestrian penyeberang (hemat memori)
+  const pedKey = `${variant % 5}${elderly ? "-old" : ""}`;
+  const headGeo = useMemo(() => getGeometry(`ped-head-${pedKey}-normal`, () => pedestrianHeadParts(variant, false, elderly)), [pedKey, variant, elderly]);
+  const torsoGeo = useMemo(() => getGeometry(`ped-torso-${pedKey}`, () => pedestrianTorsoParts(variant, elderly)), [pedKey, variant, elderly]);
+  const armLGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-L`, () => pedestrianArmParts(variant, 1, elderly, false)), [pedKey, variant, elderly]);
+  const armRGeo = useMemo(() => getGeometry(`ped-arm-${pedKey}-R`, () => pedestrianArmParts(variant, -1, elderly, elderly)), [pedKey, variant, elderly]);
+  const legLGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-L`, () => pedestrianLegParts(variant, 1, elderly)), [pedKey, variant, elderly]);
+  const legRGeo = useMemo(() => getGeometry(`ped-leg-${pedKey}-R`, () => pedestrianLegParts(variant, -1, elderly)), [pedKey, variant, elderly]);
+  const caneGeo = useMemo(() => (elderly ? getGeometry("ped-cane", caneParts) : null), [elderly]);
+
+  useFrame((_, dtRaw) => {
+    const root = rootRef.current;
+    const inner = innerRef.current;
+    if (!root || !inner) return;
+    const dt = Math.min(dtRaw, 0.05);
+    const dist = engine.distance;
+
+    // jalan menyusuri trotoar; daur ulang keluar jendela pandang -> muncul lagi di depan
+    if (!w.seeded) {
+      w.seeded = true;
+      w.s = dist + 4 + Math.random() * 88;
+      w.lat = crowdLat();
+    }
+    w.s += w.dir * w.speed * dt;
+    const rel = w.s - dist;
+    if (rel < -18 || rel > 96) {
+      w.s = dist + 8 + Math.random() * 82;
+      w.lat = crowdLat();
+      w.dir = Math.random() < 0.5 ? 1 : -1;
+      w.speed = (elderly ? 0.55 : 0.9) + Math.random() * (elderly ? 0.35 : 1.0);
+      w.t0 = Math.random() * 20;
+    }
+
+    track.frame(w.s, w.lat, 0.13, root.position);
+    track.quat(w.s, root.quaternion);
+    inner.rotation.y = w.dir > 0 ? 0 : Math.PI;
+    inner.scale.setScalar(PED_SCALE);
+
+    // animasi jalan natural (langkah, ayunan tangan, bob halus)
+    const t = engine.time * (elderly ? 4.6 : 7.5) * (0.6 + w.speed * 0.45) + w.t0;
+    const swing = Math.sin(t) * (elderly ? 0.3 : 0.5);
+    if (legLRef.current) legLRef.current.rotation.x = swing;
+    if (legRRef.current) legRRef.current.rotation.x = -swing;
+    if (armLRef.current) armLRef.current.rotation.x = -swing * 0.8;
+    if (armRRef.current) armRRef.current.rotation.x = elderly ? 0.16 : swing * 0.8;
+    if (headRef.current) headRef.current.rotation.y = Math.sin(t * 0.23) * 0.22;
+    inner.position.y = PED_LIFT + Math.abs(Math.sin(t)) * 0.028;
+  });
+
+  return (
+    <group ref={rootRef}>
+      <group ref={innerRef}>
+        <mesh geometry={torsoGeo} material={voxelMaterial} />
+        <group ref={headRef} position={[0, 0.34, 0]}>
+          <mesh geometry={headGeo} material={voxelMaterial} />
+        </group>
+        <group ref={armLRef} position={[0, 0.27, 0.34]}>
+          <mesh geometry={armLGeo} material={voxelMaterial} />
+        </group>
+        <group ref={armRRef} position={[0, 0.27, -0.34]}>
+          <mesh geometry={armRGeo} material={voxelMaterial} />
+          {caneGeo && <mesh geometry={caneGeo} material={voxelMaterial} position={[0.02, CANE_GRIP_Y, 0]} />}
+        </group>
+        <group ref={legLRef} position={[0, -0.34, 0.11]}>
+          <mesh geometry={legLGeo} material={voxelMaterial} />
+        </group>
+        <group ref={legRRef} position={[0, -0.34, -0.11]}>
+          <mesh geometry={legRGeo} material={voxelMaterial} />
+        </group>
+      </group>
+    </group>
+  );
+});
+
+/** Kerumunan Shibuya: banyak orang lalu-lalang di trotoar samping gedung — hidup tapi tidak
+ *  mengganggu gameplay (tidak ada collision; penyeberang jalan tetap sistem mover biasa). */
+function ShibuyaCrowd() {
+  const trackMode = useUI((s) => s.trackMode);
+  const walkers = useMemo<Walker[]>(
+    () =>
+      Array.from({ length: CROWD_N }, (_, i) => ({
+        s: 0,
+        lat: 0,
+        dir: (i % 2 === 0 ? 1 : -1) as 1 | -1,
+        speed: 0.9 + Math.random() * 1.0,
+        t0: Math.random() * 20,
+        seeded: false,
+      })),
+    [],
+  );
+  useEffect(() => {
+    // ganti track/reset -> sebar ulang di depan kamera
+    for (const w of walkers) w.seeded = false;
+  }, [trackMode, walkers]);
+  if (trackMode !== "shibuya") return null;
+  return (
+    <>
+      {walkers.map((w, i) => (
+        <AmbientWalker key={i} w={w} variant={i % 5} elderly={i % 9 === 4} />
+      ))}
+    </>
+  );
+}
+
 export function World() {
   const seen = useRef(-1);
   const [, force] = useReducer((x: number) => x + 1, 0);
@@ -1408,6 +1540,7 @@ export function World() {
       <RoadSigns />
       <OverpassCars />
       <Movers />
+      <ShibuyaCrowd />
       <Breads />
       <Particles />
       <Pulses />

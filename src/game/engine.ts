@@ -1946,9 +1946,9 @@ class Engine {
         return;
       }
       if (m.kind === "pedestrian") {
-        if (Math.abs(m.s - d) > 0.55 + PLAYER_HALF) continue;
-        if (Math.abs(m.lat - p.lat) > 0.95) continue;
-        if (p.h >= 3.2) continue; // 1.8x tall: you can't ollie over people, go around
+        if (Math.abs(m.s - d) > 0.45 + PLAYER_HALF) continue;
+        if (Math.abs(m.lat - p.lat) > 0.75) continue;
+        if (p.h >= 2.4) continue; // orangnya 30% lebih kecil sekarang; tetap terlalu tinggi buat di-ollie, hindari saja
         this.hitPedestrian(m);
         this.crash("pedestrian", { hardness: 0.75, side: m.lat >= p.lat ? -1 : 1 });
         return;
@@ -2061,8 +2061,8 @@ class Engine {
     const r = makeRagdoll(
       m.s,
       m.lat,
-      m.h + (m.kind === "pedestrian" ? 1.0 : 0.25 * animalBoost),
-      m.kind === "pedestrian" ? 0.6 : 0.22 * animalBoost
+      m.h + (m.kind === "pedestrian" ? 0.7 : 0.25 * animalBoost),
+      m.kind === "pedestrian" ? 0.42 : 0.22 * animalBoost
     );
     if (isAnimal) {
       // MENTAL ala kartun: hewan dilontarkan tinggi, jauh, dan muter-muter kocak.
