@@ -310,19 +310,31 @@ export interface BuildingSpec {
   night?: boolean;
   /** accent neon hue used for trims / vertical sign when night */
   neon?: string;
+  /** zakkyo-biru: how many stacked company signboards climb the facade (0 = none) */
+  signStack?: number;
+  /** big glowing video screen across the mid floors */
+  screen?: boolean;
+  /** glowing advertising panel on stilts above the roof */
+  roofBillboard?: boolean;
+  /** tiered setback top for a distinctive Tokyo silhouette */
+  tiered?: boolean;
 }
 
 /** Neon hues used across the Shibuya night city (signs, windows, billboards). */
 export const NEON_COLORS = ["#ff2d95", "#00e5ff", "#ffe93b", "#7cff4f", "#ff7a1a", "#b388ff", "#ff4d6d", "#4dffdf"];
 
-/** Dark facades for night towers (dark glass / concrete under neon light). */
-const NIGHT_FACADES = ["#232839", "#1d2230", "#2a2f45", "#20263a", "#262b3f", "#1a1f2e"];
+/** Lightbox colours of real Japanese company signboards (izakaya, karaoke, clinics, pachinko…). */
+export const SIGN_COLORS = ["#ffffff", "#ffd23f", "#ff5a5f", "#37c86b", "#2f9bff", "#ff8a3d", "#ff5fa2", "#19d3c5", "#fff3c4"];
+
+/** Night facades: dark glass towers mixed with the tan/white-tile buildings every Japanese street has. */
+const NIGHT_FACADES = ["#232839", "#1d2230", "#2a2f45", "#20263a", "#3a4051", "#454a5c", "#4b4a44", "#52586a"];
 
 export function makeShibuyaTowerSpec(w: number): BuildingSpec {
   const neon = NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)];
+  const floors = 5 + Math.floor(Math.random() * 5); // 5..9 floors: a proper neon canyon
   return {
     w,
-    floors: 5 + Math.floor(Math.random() * 5), // 5..9 floors: a proper neon canyon
+    floors,
     color: NIGHT_FACADES[Math.floor(Math.random() * NIGHT_FACADES.length)],
     roof: "#171b28",
     awning: false,
@@ -331,6 +343,10 @@ export function makeShibuyaTowerSpec(w: number): BuildingSpec {
     cols: Math.max(2, Math.floor(w / 1.5)),
     night: true,
     neon,
+    signStack: Math.random() < 0.85 ? 3 + Math.floor(Math.random() * (floors - 2)) : 0,
+    screen: Math.random() < 0.35,
+    roofBillboard: Math.random() < 0.5,
+    tiered: floors >= 7 && Math.random() < 0.55,
   };
 }
 
@@ -362,7 +378,8 @@ export function buildingParts(s: BuildingSpec): Part[] {
   const winW = 0.6;
   const spacing = s.w / s.cols;
   if (s.night) {
-    // Shibuya Night tower: dark glass, nearly every window glowing in warm/neon hues
+    // Shibuya Night zakkyo-biru: dark glass / tile facade, windows glowing warm,
+    // company signboards stacked all the way up (the classic Japanese high-street look)
     const winColors = ["#ffe9a3", "#ffd166", s.neon ?? "#00e5ff", "#9be8ff", "#ffe9a3", "#fff3c4"];
     for (let f = 0; f < s.floors; f++) {
       for (let c = 0; c < s.cols; c++) {
@@ -370,7 +387,6 @@ export function buildingParts(s: BuildingSpec): Part[] {
         if (f === 0 && c === Math.floor(s.cols / 2)) {
           // glowing lobby entrance
           parts.push({ x, y: 0.95, z: 0.04, w: 1.0, h: 1.35, d: 0.1, color: "#ffe9a3" });
-          parts.push({ x, y: 1.72, z: 0.08, w: 1.2, h: 0.14, d: 0.14, color: s.neon ?? "#ff2d95" });
           continue;
         }
         const seed = (f * 7 + c * 3) % 10;
@@ -379,18 +395,75 @@ export function buildingParts(s: BuildingSpec): Part[] {
         parts.push({ x, y: 0.5 + f * floorH + 0.75, z: 0.04, w: winW, h: 0.72, d: 0.1, color: lit ? wc : "#141824" });
       }
     }
-    // rooftop neon trim + red aircraft warning beacon on tall towers
-    parts.push({ x: 0, y: h + 0.3, z: 0.02, w: s.w + 0.1, h: 0.1, d: 0.1, color: s.neon ?? "#ff2d95" });
-    if (s.floors >= 6) {
-      parts.push({ x: 0, y: h + 1.1, z: -depth / 2, w: 0.12, h: 1.4, d: 0.12, color: "#39404f" });
-      parts.push({ x: 0, y: h + 1.9, z: -depth / 2, w: 0.22, h: 0.22, d: 0.22, color: "#ff1f3d" });
+    // glowing storefront fascia band above the ground floor (shop name lightbox)
+    const fascia = SIGN_COLORS[Math.abs(Math.round(s.w * 7 + s.floors * 3)) % SIGN_COLORS.length];
+    parts.push({ x: 0, y: 1.78, z: 0.14, w: s.w * 0.92, h: 0.5, d: 0.16, color: fascia });
+    parts.push({ x: -s.w * 0.12, y: 1.78, z: 0.24, w: s.w * 0.42, h: 0.22, d: 0.03, color: "#1f2430" });
+
+    // ZAKKYO SIGN STACK: protruding lit company signboards climbing the left edge floor by floor
+    const nSigns = Math.min(s.signStack ?? 0, s.floors - 1);
+    if (nSigns > 0) {
+      const sxL = -s.w / 2 + 0.55;
+      // steel rail carrying the boxes
+      parts.push({ x: sxL, y: 1.4 + (nSigns * floorH) / 2, z: 0.28, w: 0.12, h: nSigns * floorH + 0.4, d: 0.12, color: "#2b3040" });
+      for (let i = 0; i < nSigns; i++) {
+        const sy = 1.85 + i * floorH;
+        const sc = SIGN_COLORS[(i * 3 + Math.abs(Math.round(s.w * 11))) % SIGN_COLORS.length];
+        parts.push({ x: sxL, y: sy, z: 0.34, w: 1.0, h: 0.78, d: 0.22, color: sc });
+        // dark "lettering" bar so each box reads as a real signboard, not a lamp
+        parts.push({ x: sxL, y: sy + (i % 2 ? 0.12 : -0.1), z: 0.46, w: 0.68, h: 0.2, d: 0.03, color: i % 3 === 0 ? "#c02434" : "#1f2430" });
+      }
     }
-    // vertical kanji neon sign strip down the facade
+
+    // big glowing video screen across the mid floors of some towers
+    if (s.screen && s.floors >= 5) {
+      const scW = s.w * 0.62;
+      const scH = floorH * 2.1;
+      const scY = 0.5 + 2.4 * floorH + scH / 2;
+      parts.push({ x: s.w * 0.08, y: scY, z: 0.12, w: scW + 0.24, h: scH + 0.24, d: 0.12, color: "#10131e" });
+      parts.push({ x: s.w * 0.08, y: scY, z: 0.2, w: scW, h: scH, d: 0.06, color: s.neon ?? "#00e5ff" });
+      parts.push({ x: s.w * 0.08 - scW * 0.18, y: scY + scH * 0.22, z: 0.25, w: scW * 0.5, h: 0.26, d: 0.03, color: "#ffffff" });
+      parts.push({ x: s.w * 0.08 + scW * 0.2, y: scY - scH * 0.24, z: 0.25, w: scW * 0.34, h: 0.2, d: 0.03, color: "#1f2430" });
+    }
+
+    // vertical kanji neon sign strip down the right edge
     const sx = s.w / 2 - 0.35;
     parts.push({ x: sx, y: h * 0.55, z: 0.22, w: 0.5, h: h * 0.62, d: 0.14, color: "#10131e" });
     const glyphN = Math.max(3, Math.floor((h * 0.62) / 0.8));
     for (let i = 0; i < glyphN; i++) {
       parts.push({ x: sx, y: h * 0.55 + h * 0.27 - i * 0.8, z: 0.31, w: 0.34, h: 0.4, d: 0.03, color: i % 2 ? "#ffffff" : (s.neon ?? "#00e5ff") });
+    }
+
+    // TIERED SETBACK TOP: stepped penthouse floors give each tower its own silhouette
+    if (s.tiered) {
+      const t1w = s.w * 0.68;
+      parts.push({ x: -s.w * 0.1, y: h + 0.75, z: -depth / 2, w: t1w, h: 1.3, d: depth * 0.8, color: s.color });
+      for (let c = 0; c < Math.max(2, Math.floor(t1w / 1.4)); c++) {
+        const x = -s.w * 0.1 - t1w / 2 + (t1w / Math.max(2, Math.floor(t1w / 1.4))) * (c + 0.5);
+        if ((c * 5 + s.floors) % 3 !== 0) parts.push({ x, y: h + 0.8, z: -depth / 2 + depth * 0.4 + 0.04, w: 0.5, h: 0.6, d: 0.08, color: "#ffe9a3" });
+      }
+      parts.push({ x: -s.w * 0.1, y: h + 1.5, z: -depth / 2, w: t1w + 0.2, h: 0.16, d: depth * 0.8 + 0.2, color: s.roof });
+      parts.push({ x: -s.w * 0.16, y: h + 2.0, z: -depth / 2, w: t1w * 0.5, h: 0.85, d: depth * 0.55, color: s.color });
+      parts.push({ x: -s.w * 0.16, y: h + 2.5, z: -depth / 2, w: t1w * 0.5 + 0.2, h: 0.14, d: depth * 0.55 + 0.2, color: s.roof });
+    }
+
+    // ROOFTOP BILLBOARD on stilts — the glowing crown of Japanese high streets
+    if (s.roofBillboard) {
+      const bw = s.w * 0.8;
+      const by = h + (s.tiered ? 3.4 : 1.6);
+      const bc = SIGN_COLORS[(Math.abs(Math.round(s.w * 13)) + 4) % SIGN_COLORS.length];
+      parts.push({ x: -bw * 0.35, y: by - 0.7, z: -depth / 2, w: 0.14, h: 1.4, d: 0.14, color: "#2b3040" });
+      parts.push({ x: bw * 0.35, y: by - 0.7, z: -depth / 2, w: 0.14, h: 1.4, d: 0.14, color: "#2b3040" });
+      parts.push({ x: 0, y: by + 0.55, z: -depth / 2, w: bw, h: 1.35, d: 0.2, color: bc });
+      parts.push({ x: -bw * 0.12, y: by + 0.62, z: -depth / 2 + 0.14, w: bw * 0.55, h: 0.34, d: 0.03, color: bc === "#ffffff" ? "#c02434" : "#ffffff" });
+      parts.push({ x: bw * 0.28, y: by + 0.3, z: -depth / 2 + 0.14, w: bw * 0.22, h: 0.22, d: 0.03, color: "#1f2430" });
+    } else {
+      // rooftop neon trim + red aircraft warning beacon on tall towers
+      parts.push({ x: 0, y: h + 0.3, z: 0.02, w: s.w + 0.1, h: 0.1, d: 0.1, color: s.neon ?? "#ff2d95" });
+      if (s.floors >= 6) {
+        parts.push({ x: 0, y: h + 1.1, z: -depth / 2, w: 0.12, h: 1.4, d: 0.12, color: "#39404f" });
+        parts.push({ x: 0, y: h + 1.9, z: -depth / 2, w: 0.22, h: 0.22, d: 0.22, color: "#ff1f3d" });
+      }
     }
   } else {
     for (let f = 0; f < s.floors; f++) {
@@ -2446,6 +2519,95 @@ export function billboardParts(variant: number): Part[] {
   parts.push({ x: 0, y: y0 - 0.12, z: 0.28, w: W * 0.9, h: 0.08, d: 0.35, color: steel });
   parts.push({ x: -W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4" });
   parts.push({ x: W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4" });
+  return parts;
+}
+
+/** Slow-and-go night traffic on the opposite carriageway: sedans, a taxi and a city bus,
+ *  built FACING -x so they read as oncoming (headlights toward the player). Purely decorative. */
+export function jamCarParts(variant: number): Part[] {
+  const v = ((variant % 5) + 5) % 5;
+  const glass = "#7fb6de";
+  const tire = "#22242a";
+  if (v === 4) {
+    // green city bus (Toei style) with a row of warm lit windows
+    const body = "#3f7d5a";
+    const parts: Part[] = [
+      { x: 0, y: 1.05, z: 0, w: 5.4, h: 1.7, d: 1.7, color: body },
+      { x: 0, y: 0.35, z: 0, w: 5.4, h: 0.3, d: 1.7, color: "#2c5940" },
+      { x: -2.72, y: 1.2, z: 0, w: 0.06, h: 0.9, d: 1.5, color: glass }, // front glass (-x!)
+      { x: 2.72, y: 1.2, z: 0, w: 0.06, h: 0.8, d: 1.5, color: "#28323c" },
+      { x: -2.74, y: 0.62, z: 0.55, w: 0.06, h: 0.2, d: 0.34, color: "#fffbe6" }, // headlights
+      { x: -2.74, y: 0.62, z: -0.55, w: 0.06, h: 0.2, d: 0.34, color: "#fffbe6" },
+      { x: 2.74, y: 0.62, z: 0.55, w: 0.06, h: 0.18, d: 0.3, color: "#ff2a2a" }, // taillights
+      { x: 2.74, y: 0.62, z: -0.55, w: 0.06, h: 0.18, d: 0.3, color: "#ff2a2a" },
+      { x: -2.7, y: 1.95, z: 0, w: 0.5, h: 0.24, d: 1.2, color: "#ffd23f" }, // route sign box
+    ];
+    for (let i = 0; i < 5; i++) {
+      parts.push({ x: -1.7 + i * 0.95, y: 1.35, z: 0.86, w: 0.7, h: 0.5, d: 0.04, color: "#ffe9a3" });
+      parts.push({ x: -1.7 + i * 0.95, y: 1.35, z: -0.86, w: 0.7, h: 0.5, d: 0.04, color: "#ffe9a3" });
+    }
+    for (const wx of [-1.9, 1.9]) {
+      parts.push({ x: wx, y: 0.32, z: 0.8, w: 0.62, h: 0.62, d: 0.24, color: tire });
+      parts.push({ x: wx, y: 0.32, z: -0.8, w: 0.62, h: 0.62, d: 0.24, color: tire });
+    }
+    return parts;
+  }
+  // sedans / taxi — compact voxel car mirrored to face -x
+  const bodies = ["#d7dbe2", "#2f3a4c", "#8c2f3b", "#f2c230"]; // white, dark blue, red, TAXI yellow
+  const body = bodies[v];
+  const parts: Part[] = [
+    { x: 0, y: 0.42, z: 0, w: 3.25, h: 0.36, d: 1.6, color: body },
+    { x: -1.05, y: 0.68, z: 0, w: 1.15, h: 0.22, d: 1.5, color: body }, // hood toward -x
+    { x: -1.64, y: 0.52, z: 0, w: 0.04, h: 0.18, d: 0.85, color: "#1f2229" }, // grille
+    { x: -1.64, y: 0.64, z: 0.52, w: 0.06, h: 0.18, d: 0.32, color: "#fffbe6" }, // headlights ON
+    { x: -1.64, y: 0.64, z: -0.52, w: 0.06, h: 0.18, d: 0.32, color: "#fffbe6" },
+    { x: 0.22, y: 1.15, z: 0, w: 1.55, h: 0.56, d: 1.36, color: body }, // cabin
+    { x: -0.58, y: 1.12, z: 0, w: 0.12, h: 0.44, d: 1.2, color: glass },
+    { x: 1.02, y: 1.12, z: 0, w: 0.1, h: 0.42, d: 1.2, color: glass },
+    { x: 0.22, y: 1.15, z: 0.69, w: 1.25, h: 0.38, d: 0.04, color: glass },
+    { x: 0.22, y: 1.15, z: -0.69, w: 1.25, h: 0.38, d: 0.04, color: glass },
+    { x: 1.28, y: 0.68, z: 0, w: 0.65, h: 0.22, d: 1.5, color: body }, // trunk toward +x
+    { x: 1.64, y: 0.64, z: 0.52, w: 0.06, h: 0.16, d: 0.3, color: "#ff2a2a" }, // brake lights ON
+    { x: 1.64, y: 0.64, z: -0.52, w: 0.06, h: 0.16, d: 0.3, color: "#ff2a2a" },
+  ];
+  if (v === 3) parts.push({ x: 0.22, y: 1.55, z: 0, w: 0.5, h: 0.2, d: 0.4, color: "#ffe9a3" }); // taxi roof lamp
+  for (const wx of [-1.0, 1.0]) {
+    parts.push({ x: wx, y: 0.29, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: tire });
+    parts.push({ x: wx, y: 0.29, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: tire });
+  }
+  return parts;
+}
+
+/** Shibuya landmark: silver cylindrical fashion tower (109-style) with a glowing crown sign. */
+export function tower109Parts(): Part[] {
+  const tile = "#8f95a3";
+  const tileDark = "#767c8b";
+  const parts: Part[] = [
+    // cylinder approximated by a plus-shaped voxel core (reads round from the road)
+    { x: 0, y: 5.4, z: -2.6, w: 4.6, h: 10.8, d: 3.2, color: tile },
+    { x: 0, y: 5.4, z: -2.6, w: 3.2, h: 10.8, d: 4.6, color: tile },
+    { x: 0, y: 5.4, z: -2.6, w: 4.0, h: 10.8, d: 4.0, color: tileDark },
+    // deep foundation
+    { x: 0, y: -0.95, z: -2.6, w: 4.8, h: 2.5, d: 4.8, color: "#5c616e" },
+  ];
+  // ribbon windows wrapping every floor
+  for (let f = 0; f < 7; f++) {
+    const y = 1.5 + f * 1.35;
+    const lit = f % 3 !== 1;
+    parts.push({ x: 0, y, z: -0.72, w: 3.4, h: 0.6, d: 0.08, color: lit ? "#ffe9a3" : "#1a1f2e" });
+    parts.push({ x: 0, y, z: -4.48, w: 3.4, h: 0.6, d: 0.08, color: lit ? "#9be8ff" : "#1a1f2e" });
+  }
+  // glowing entrance
+  parts.push({ x: 0, y: 1.0, z: -0.66, w: 2.2, h: 1.6, d: 0.12, color: "#fff3c4" });
+  // crown: dark band + silver cap + the iconic glowing sign panel
+  parts.push({ x: 0, y: 11.1, z: -2.6, w: 4.9, h: 0.6, d: 4.9, color: "#2b3040" });
+  parts.push({ x: 0, y: 11.65, z: -2.6, w: 4.3, h: 0.5, d: 4.3, color: tile });
+  parts.push({ x: 0, y: 11.15, z: -0.12, w: 2.6, h: 0.5, d: 0.1, color: "#f4f6fa" });
+  parts.push({ x: -0.55, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434" }); // 1
+  parts.push({ x: 0.0, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434" }); // 0
+  parts.push({ x: 0.55, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434" }); // 9
+  // red beacon
+  parts.push({ x: 0, y: 12.2, z: -2.6, w: 0.2, h: 0.5, d: 0.2, color: "#ff1f3d" });
   return parts;
 }
 

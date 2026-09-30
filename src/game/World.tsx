@@ -76,6 +76,8 @@ import {
   konbiniShopParts,
   neonSignboardParts,
   billboardParts,
+  jamCarParts,
+  tower109Parts,
   tougeRouteSignParts,
   tougeStreetlampParts,
   momijiLeafParts,
@@ -163,6 +165,10 @@ const DecorView = memo(function DecorView({ d }: { d: Decor }) {
         return getGeometry("touge-lamp", tougeStreetlampParts);
       case "billboard":
         return getGeometry(`billboard-${d.variant % 3}`, () => billboardParts(d.variant));
+      case "jam_car":
+        return getGeometry(`jam-car-${d.variant % 5}`, () => jamCarParts(d.variant));
+      case "tower109":
+        return getGeometry("tower109", tower109Parts);
     }
   }, [d]);
   useEffect(() => {

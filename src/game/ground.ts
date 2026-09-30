@@ -19,17 +19,22 @@ const G2 = "#84c645";
 function stripsFor(kind: "street" | "park" | "haruna" | "shibuya"): Strip[] {
   if (kind === "shibuya") {
     return [
-      // Night asphalt with a faint neon sheen
+      // GRAND 6-LANE AVENUE — the camera & gameplay stay on the near 3 lanes;
+      // beyond a tree-lined centre median runs the opposite 3-lane carriageway.
+      // playable carriageway (3 lanes)
       { lat0: -3.75, lat1: 3.75, top: 0, colors: ["#343a4c"], skirt: false },
-      // pale granite curbs catching the shop light
+      // near curb + granite sidewalk + plaza under the towers
       { lat0: -4.0, lat1: -3.7, top: 0.14, colors: ["#9aa2b5"], skirt: true },
-      { lat0: 3.7, lat1: 4.0, top: 0.14, colors: ["#9aa2b5"], skirt: true },
-      // dark granite sidewalks (Hachiko plaza tiles)
       { lat0: -7.0, lat1: -4.0, top: 0.12, colors: ["#5b6178", "#525871"], skirt: true },
-      { lat0: 4.0, lat1: 5.7, top: 0.12, colors: ["#5b6178", "#525871"], skirt: true },
-      // outer plaza blocks under the towers
       { lat0: -24, lat1: -7.0, top: 0.1, colors: ["#3d4257", "#444a61"], skirt: true },
-      { lat0: 5.7, lat1: 22, top: 0.1, colors: ["#3d4257", "#444a61"], skirt: true },
+      // raised centre median (street trees & lamps live here)
+      { lat0: 3.7, lat1: 5.0, top: 0.16, colors: ["#4b5169", "#454b62"], skirt: true },
+      // opposite carriageway (3 more lanes)
+      { lat0: 5.0, lat1: 12.3, top: 0, colors: ["#31374a"], skirt: false },
+      // far curb + sidewalk + plaza
+      { lat0: 12.3, lat1: 12.6, top: 0.14, colors: ["#9aa2b5"], skirt: true },
+      { lat0: 12.6, lat1: 15.4, top: 0.12, colors: ["#5b6178", "#525871"], skirt: true },
+      { lat0: 15.4, lat1: 26, top: 0.1, colors: ["#3d4257", "#444a61"], skirt: true },
     ];
   }
   if (kind === "haruna") {
@@ -242,13 +247,28 @@ export function buildGroundGeometry(track: Track, s0: number, len: number, kind:
       }
     }
   } else {
-    // lane dashes (Tokyo City)
+    // lane dashes (Tokyo City / Shibuya playable lanes)
     for (let sc = s0 + 1; sc < s0 + len; sc += 2) {
       const a = sampleAt(sc - 0.5);
       const b = sampleAt(sc + 0.5);
       const n: P = [a.ux, a.uy, a.uz];
       quad(a, b, -1.27, -1.13, 0.008, n, white);
       quad(a, b, 1.13, 1.27, 0.008, n, white);
+      if (kind === "shibuya") {
+        // opposite carriageway lane dividers (3 lanes: 5.0..12.3)
+        quad(a, b, 7.36, 7.5, 0.008, n, white);
+        quad(a, b, 9.8, 9.94, 0.008, n, white);
+      }
+    }
+    if (kind === "shibuya") {
+      // solid white edge lines hugging the median & the far curb
+      for (let sc = s0; sc < s0 + len; sc += 1) {
+        const a = sampleAt(sc);
+        const b = sampleAt(sc + 1);
+        const n: P = [a.ux, a.uy, a.uz];
+        quad(a, b, 5.12, 5.26, 0.008, n, white);
+        quad(a, b, 12.04, 12.18, 0.008, n, white);
+      }
     }
     // sidewalk seams (dark grout lines on Shibuya's night granite, warm concrete by day)
     const seam = shade(kind === "shibuya" ? "#454b62" : "#cbc6ba", 1);
@@ -257,7 +277,8 @@ export function buildGroundGeometry(track: Track, s0: number, len: number, kind:
       const b = sampleAt(s + 0.03);
       const n: P = [a.ux, a.uy, a.uz];
       quad(a, b, -7, -4, 0.126, n, seam);
-      quad(a, b, 4, 5.7, 0.126, n, seam);
+      if (kind === "shibuya") quad(a, b, 12.6, 15.4, 0.126, n, seam);
+      else quad(a, b, 4, 5.7, 0.126, n, seam);
     }
   }
 

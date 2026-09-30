@@ -229,7 +229,9 @@ export type DecorKind =
   | "neon_sign"
   | "touge_sign"
   | "touge_lamp"
-  | "billboard";
+  | "billboard"
+  | "jam_car"
+  | "tower109";
 export interface Decor {
   kind: DecorKind;
   pos: Vec3;
@@ -2878,40 +2880,64 @@ class Engine {
     }
 
     if (isShibuya) {
-      // ---- SHIBUYA NIGHT: neon canyon of glowing towers, video billboards & buzzing sidewalks ----
-      // 1. Front row of tall neon towers lining BOTH sides of the street (dense, almost no gaps)
+      // ---- SHIBUYA NIGHT: a grand 6-lane avenue. Gameplay & camera stay on the near 3 lanes;
+      // ---- past the tree-lined median runs the opposite carriageway packed with slow traffic,
+      // ---- and both frontages are walls of sign-stacked zakkyo towers. ----
       const towerLot = (lx: number, lat: number, dy: number) => {
         const r = Math.random();
         if (r < 0.72) add("building", lx, lat, dy, 0, makeShibuyaTowerSpec(rand(5.2, 6.8)));
         else if (r < 0.86) add("konbini", lx, lat, dy, 0); // glowing 24h konbini between towers
         else add("ramen", lx, lat, dy, 0); // late-night ramen bar
       };
+      // 1. Near frontage: dense tower wall right on the playable sidewalk
       towerLot(3, -6.75, 0.1);
       towerLot(9, -6.75, 0.1);
-      if (Math.random() < 0.8) towerLot(rand(2.5, 9.5), 9.4, -0.1);
+      // far frontage across all 6 lanes (bigger footprint reads well from a distance)
+      if (Math.random() < 0.85) towerLot(rand(2.5, 9.5), 18.6, -0.14);
 
-      // 2. Second skyline row: taller towers looming behind the first (reads above the rooflines)
-      add("building", rand(2, 6), -13.5, -0.15, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
-      if (Math.random() < 0.7) add("building", rand(6, 10), 14.5, -0.2, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
+      // 2. Landmark: the silver 109-style cylinder tower rises above the near skyline
+      if (id % 21 === 7) add("tower109", 6, -12.6, -0.12);
 
-      // 3. Giant glowing video billboards on scaffolds (the Shibuya trademark)
+      // 3. Second skyline row: taller towers looming behind the first
+      if (id % 21 !== 7) add("building", rand(2, 6), -13.5, -0.15, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
+      if (Math.random() < 0.7) add("building", rand(6, 10), 24.5, -0.28, 0, makeShibuyaTowerSpec(rand(6.5, 8.5)));
+
+      // 4. Giant glowing video billboards on scaffolds (the Shibuya trademark)
       if (id % 3 === 0) add("billboard", rand(3, 9), -7.6, 0.05, randInt(0, 2));
-      if (id % 4 === 2) add("billboard", rand(3, 9), 10.2, -0.08, randInt(0, 2));
+      if (id % 4 === 2) add("billboard", rand(3, 9), 16.4, -0.06, randInt(0, 2));
 
-      // 4. Buzzing sidewalk life: neon signboards, vending machines, parked mamachari
+      // railway crossings span the whole avenue — keep the median & opposite lanes clear there
+      const nearCrossing = (lx: number) => {
+        const sAbs = s0 + lx;
+        return this.crossings.some((cr) => Math.abs(cr.s - sAbs) < 9) || Math.abs(sAbs - this.nextCrossingS) < 9;
+      };
+
+      // 5. Tree-lined centre median: zelkova street trees + lamps down the avenue
+      for (const lx of [2.5 + rand(-0.6, 0.6), 8.5 + rand(-0.6, 0.6)]) {
+        if (!nearCrossing(lx)) add("tree", lx, 4.35, 0.16, randInt(0, 2));
+      }
+      if (id % 2 === 1 && !nearCrossing(6)) add("lamp", 6, 4.35, 0.16);
+
+      // 6. Opposite carriageway: slow-and-go night traffic (headlights toward the player)
+      for (const ln of [6.2, 8.6, 11.0]) {
+        const lx = rand(1.5, 10.5);
+        if (Math.random() < 0.42 && !nearCrossing(lx)) add("jam_car", lx, ln, 0.02, randInt(0, 4));
+      }
+
+      // 7. Buzzing sidewalks BOTH sides: neon signboards, vending machines, mamachari, trees
       if (Math.random() < 0.75) add("neon_sign", rand(1.5, 10.5), -4.4, 0.12, randInt(0, 2));
-      if (Math.random() < 0.5) add("neon_sign", rand(1.5, 10.5), 4.4, 0.12, randInt(0, 2));
+      if (Math.random() < 0.55) add("neon_sign", rand(1.5, 10.5), 13.0, 0.12, randInt(0, 2));
       if (Math.random() < 0.7) add("vending", rand(2, 10), -4.8, 0.12, randInt(0, 3));
-      if (Math.random() < 0.45) add("vending", rand(2, 10), 4.8, 0.12, randInt(0, 3));
+      if (Math.random() < 0.45) add("vending", rand(2, 10), 13.4, 0.12, randInt(0, 3));
       if (Math.random() < 0.45) add("mamachari", rand(2, 10), -4.55, 0.12, randInt(0, 3));
-      if (Math.random() < 0.3) add("mamachari", rand(2, 10), 4.55, 0.12, randInt(0, 3));
+      if (Math.random() < 0.35) add("mamachari", rand(2, 10), 12.85, 0.12, randInt(0, 3));
+      // sidewalk street trees (Japanese avenues are green even under the neon)
+      if (Math.random() < 0.55) add("tree", rand(1.5, 10.5), rand(-5.3, -5.7), 0.12, randInt(0, 2));
+      if (Math.random() < 0.5) add("tree", rand(1.5, 10.5), rand(13.9, 14.6), 0.12, randInt(0, 2));
 
-      // 5. Street lamps every chunk on alternating sides — the road itself stays bright
+      // 8. Street lamps every chunk — the playable lanes stay bright
       if (id % 2 === 0) add("lamp", 6, -4.3, 0.06);
-      else add("lamp", 6, 4.35, 0.06);
-
-      // 6. The odd lone street tree catching the neon glow
-      if (Math.random() < 0.22) add("tree", rand(1.5, 10.5), rand(-5.1, -5.4), 0.12, randInt(0, 2));
+      if (id % 3 === 1) add("lamp", 3, 12.55, 0.14);
 
       this.chunks.push({ id, s0, kind: "shibuya", decor });
       this.listVersion++;
@@ -3257,7 +3283,7 @@ class Engine {
       ["oncoming", 2.2 + 2.4 * t],
       ["chickens", 2.6 + 1.0 * t],
       ["cats", 2.4 + 1.0 * t],
-      ["pedestrians", 2.2 + 1.2 * t],
+      ["pedestrians", (track.mode === "shibuya" ? 3.6 : 2.2) + 1.2 * t], // Shibuya crowds!
       ["puddles", 1.8],
     ];
     const cr = this.crossings.find((c) => !c.placed);
