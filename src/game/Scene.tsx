@@ -222,10 +222,11 @@ function Lights() {
   });
   return (
     <>
-      {/* Shibuya Night: cool moonlight + violet city bounce so the neon pops without going pitch black */}
-      <hemisphereLight args={night ? ["#aab6ff", "#2c3052", 1.0] : ["#ffffff", "#b0c4d8", 1.7]} />
-      <ambientLight intensity={night ? 0.55 : 0.2} color={night ? "#8a93ff" : "#ffffff"} />
-      <directionalLight ref={light} position={[-2, 25, 4.5]} intensity={night ? 1.15 : 2.1} color={night ? "#c3ccff" : "#ffffff"} castShadow />
+      {/* Shibuya Night: bright "city that never sleeps" ambience — the sky stays dark but streets
+          and facades are washed by warm shop light + violet sky bounce, and every sign self-glows */}
+      <hemisphereLight args={night ? ["#b9c1ff", "#3a3f63", 1.35] : ["#ffffff", "#b0c4d8", 1.7]} />
+      <ambientLight intensity={night ? 0.72 : 0.2} color={night ? "#a7aeff" : "#ffffff"} />
+      <directionalLight ref={light} position={[-2, 25, 4.5]} intensity={night ? 1.45 : 2.1} color={night ? "#d7ddff" : "#ffffff"} castShadow />
       <primitive object={target} />
     </>
   );
@@ -239,7 +240,7 @@ function Loop() {
 /** Sky dome + distant haze so the curved horizon fades nicely. */
 const SKY_DAY = { top: "#2f86dc", mid: "#cbe6f8", bot: "#e2f1fb" };
 // Shibuya Night: deep indigo zenith melting into a violet-magenta city glow at the horizon
-const SKY_NIGHT = { top: "#070a20", mid: "#4a2d78", bot: "#221c44" };
+const SKY_NIGHT = { top: "#0a0e2c", mid: "#5b3a92", bot: "#2c2456" };
 function Sky() {
   const night = useUI((s) => s.trackMode) === "shibuya";
   const mat = useMemo(() => {

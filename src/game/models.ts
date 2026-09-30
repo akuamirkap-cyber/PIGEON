@@ -386,18 +386,18 @@ export function buildingParts(s: BuildingSpec): Part[] {
         const x = -s.w / 2 + spacing * (c + 0.5);
         if (f === 0 && c === Math.floor(s.cols / 2)) {
           // glowing lobby entrance
-          parts.push({ x, y: 0.95, z: 0.04, w: 1.0, h: 1.35, d: 0.1, color: "#ffe9a3" });
+          parts.push({ x, y: 0.95, z: 0.04, w: 1.0, h: 1.35, d: 0.1, color: "#ffe9a3", glow: true });
           continue;
         }
         const seed = (f * 7 + c * 3) % 10;
         const lit = seed / 10 < s.lit;
         const wc = winColors[(f * 5 + c * 2) % winColors.length];
-        parts.push({ x, y: 0.5 + f * floorH + 0.75, z: 0.04, w: winW, h: 0.72, d: 0.1, color: lit ? wc : "#141824" });
+        parts.push({ x, y: 0.5 + f * floorH + 0.75, z: 0.04, w: winW, h: 0.72, d: 0.1, color: lit ? wc : "#141824", glow: lit });
       }
     }
     // glowing storefront fascia band above the ground floor (shop name lightbox)
     const fascia = SIGN_COLORS[Math.abs(Math.round(s.w * 7 + s.floors * 3)) % SIGN_COLORS.length];
-    parts.push({ x: 0, y: 1.78, z: 0.14, w: s.w * 0.92, h: 0.5, d: 0.16, color: fascia });
+    parts.push({ x: 0, y: 1.78, z: 0.14, w: s.w * 0.92, h: 0.5, d: 0.16, color: fascia, glow: true });
     parts.push({ x: -s.w * 0.12, y: 1.78, z: 0.24, w: s.w * 0.42, h: 0.22, d: 0.03, color: "#1f2430" });
 
     // ZAKKYO SIGN STACK: protruding lit company signboards climbing the left edge floor by floor
@@ -409,7 +409,7 @@ export function buildingParts(s: BuildingSpec): Part[] {
       for (let i = 0; i < nSigns; i++) {
         const sy = 1.85 + i * floorH;
         const sc = SIGN_COLORS[(i * 3 + Math.abs(Math.round(s.w * 11))) % SIGN_COLORS.length];
-        parts.push({ x: sxL, y: sy, z: 0.34, w: 1.0, h: 0.78, d: 0.22, color: sc });
+        parts.push({ x: sxL, y: sy, z: 0.34, w: 1.0, h: 0.78, d: 0.22, color: sc, glow: true });
         // dark "lettering" bar so each box reads as a real signboard, not a lamp
         parts.push({ x: sxL, y: sy + (i % 2 ? 0.12 : -0.1), z: 0.46, w: 0.68, h: 0.2, d: 0.03, color: i % 3 === 0 ? "#c02434" : "#1f2430" });
       }
@@ -421,8 +421,8 @@ export function buildingParts(s: BuildingSpec): Part[] {
       const scH = floorH * 2.1;
       const scY = 0.5 + 2.4 * floorH + scH / 2;
       parts.push({ x: s.w * 0.08, y: scY, z: 0.12, w: scW + 0.24, h: scH + 0.24, d: 0.12, color: "#10131e" });
-      parts.push({ x: s.w * 0.08, y: scY, z: 0.2, w: scW, h: scH, d: 0.06, color: s.neon ?? "#00e5ff" });
-      parts.push({ x: s.w * 0.08 - scW * 0.18, y: scY + scH * 0.22, z: 0.25, w: scW * 0.5, h: 0.26, d: 0.03, color: "#ffffff" });
+      parts.push({ x: s.w * 0.08, y: scY, z: 0.2, w: scW, h: scH, d: 0.06, color: s.neon ?? "#00e5ff", glow: true });
+      parts.push({ x: s.w * 0.08 - scW * 0.18, y: scY + scH * 0.22, z: 0.25, w: scW * 0.5, h: 0.26, d: 0.03, color: "#ffffff", glow: true });
       parts.push({ x: s.w * 0.08 + scW * 0.2, y: scY - scH * 0.24, z: 0.25, w: scW * 0.34, h: 0.2, d: 0.03, color: "#1f2430" });
     }
 
@@ -431,7 +431,7 @@ export function buildingParts(s: BuildingSpec): Part[] {
     parts.push({ x: sx, y: h * 0.55, z: 0.22, w: 0.5, h: h * 0.62, d: 0.14, color: "#10131e" });
     const glyphN = Math.max(3, Math.floor((h * 0.62) / 0.8));
     for (let i = 0; i < glyphN; i++) {
-      parts.push({ x: sx, y: h * 0.55 + h * 0.27 - i * 0.8, z: 0.31, w: 0.34, h: 0.4, d: 0.03, color: i % 2 ? "#ffffff" : (s.neon ?? "#00e5ff") });
+      parts.push({ x: sx, y: h * 0.55 + h * 0.27 - i * 0.8, z: 0.31, w: 0.34, h: 0.4, d: 0.03, color: i % 2 ? "#ffffff" : (s.neon ?? "#00e5ff"), glow: true });
     }
 
     // TIERED SETBACK TOP: stepped penthouse floors give each tower its own silhouette
@@ -440,7 +440,7 @@ export function buildingParts(s: BuildingSpec): Part[] {
       parts.push({ x: -s.w * 0.1, y: h + 0.75, z: -depth / 2, w: t1w, h: 1.3, d: depth * 0.8, color: s.color });
       for (let c = 0; c < Math.max(2, Math.floor(t1w / 1.4)); c++) {
         const x = -s.w * 0.1 - t1w / 2 + (t1w / Math.max(2, Math.floor(t1w / 1.4))) * (c + 0.5);
-        if ((c * 5 + s.floors) % 3 !== 0) parts.push({ x, y: h + 0.8, z: -depth / 2 + depth * 0.4 + 0.04, w: 0.5, h: 0.6, d: 0.08, color: "#ffe9a3" });
+        if ((c * 5 + s.floors) % 3 !== 0) parts.push({ x, y: h + 0.8, z: -depth / 2 + depth * 0.4 + 0.04, w: 0.5, h: 0.6, d: 0.08, color: "#ffe9a3", glow: true });
       }
       parts.push({ x: -s.w * 0.1, y: h + 1.5, z: -depth / 2, w: t1w + 0.2, h: 0.16, d: depth * 0.8 + 0.2, color: s.roof });
       parts.push({ x: -s.w * 0.16, y: h + 2.0, z: -depth / 2, w: t1w * 0.5, h: 0.85, d: depth * 0.55, color: s.color });
@@ -454,15 +454,15 @@ export function buildingParts(s: BuildingSpec): Part[] {
       const bc = SIGN_COLORS[(Math.abs(Math.round(s.w * 13)) + 4) % SIGN_COLORS.length];
       parts.push({ x: -bw * 0.35, y: by - 0.7, z: -depth / 2, w: 0.14, h: 1.4, d: 0.14, color: "#2b3040" });
       parts.push({ x: bw * 0.35, y: by - 0.7, z: -depth / 2, w: 0.14, h: 1.4, d: 0.14, color: "#2b3040" });
-      parts.push({ x: 0, y: by + 0.55, z: -depth / 2, w: bw, h: 1.35, d: 0.2, color: bc });
-      parts.push({ x: -bw * 0.12, y: by + 0.62, z: -depth / 2 + 0.14, w: bw * 0.55, h: 0.34, d: 0.03, color: bc === "#ffffff" ? "#c02434" : "#ffffff" });
+      parts.push({ x: 0, y: by + 0.55, z: -depth / 2, w: bw, h: 1.35, d: 0.2, color: bc, glow: true });
+      parts.push({ x: -bw * 0.12, y: by + 0.62, z: -depth / 2 + 0.14, w: bw * 0.55, h: 0.34, d: 0.03, color: bc === "#ffffff" ? "#c02434" : "#ffffff", glow: true });
       parts.push({ x: bw * 0.28, y: by + 0.3, z: -depth / 2 + 0.14, w: bw * 0.22, h: 0.22, d: 0.03, color: "#1f2430" });
     } else {
       // rooftop neon trim + red aircraft warning beacon on tall towers
-      parts.push({ x: 0, y: h + 0.3, z: 0.02, w: s.w + 0.1, h: 0.1, d: 0.1, color: s.neon ?? "#ff2d95" });
+      parts.push({ x: 0, y: h + 0.3, z: 0.02, w: s.w + 0.1, h: 0.1, d: 0.1, color: s.neon ?? "#ff2d95", glow: true });
       if (s.floors >= 6) {
         parts.push({ x: 0, y: h + 1.1, z: -depth / 2, w: 0.12, h: 1.4, d: 0.12, color: "#39404f" });
-        parts.push({ x: 0, y: h + 1.9, z: -depth / 2, w: 0.22, h: 0.22, d: 0.22, color: "#ff1f3d" });
+        parts.push({ x: 0, y: h + 1.9, z: -depth / 2, w: 0.22, h: 0.22, d: 0.22, color: "#ff1f3d", glow: true });
       }
     }
   } else {
@@ -533,7 +533,7 @@ export function lampParts(): Part[] {
     { x: 0, y: 0.1, z: 0, w: 0.4, h: 0.2, d: 0.4, color: "#3f444c" },
     { x: 0, y: 1.7, z: 0, w: 0.16, h: 3.2, d: 0.16, color: "#4a4f57" },
     { x: 0, y: 3.3, z: 0.4, w: 0.14, h: 0.14, d: 0.9, color: "#4a4f57" },
-    { x: 0, y: 3.15, z: 0.85, w: 0.4, h: 0.22, d: 0.4, color: "#fff2b0" },
+    { x: 0, y: 3.15, z: 0.85, w: 0.4, h: 0.22, d: 0.4, color: "#fff2b0", glow: true },
     { x: 0, y: 3.3, z: 0.85, w: 0.46, h: 0.1, d: 0.46, color: "#4a4f57" },
   ];
 }
@@ -1706,8 +1706,8 @@ export function ramenShopParts(): Part[] {
     { x: 0, y: 0.9, z: 0.03, w: W, h: 1.8, d: 0.08, color: WOOD }, // wooden ground floor front
     // sliding door + big kitchen window
     { x: -1.4, y: 0.95, z: 0.09, w: 1.2, h: 1.7, d: 0.05, color: "#3b2a1a" },
-    { x: -1.4, y: 1.05, z: 0.12, w: 1.0, h: 1.2, d: 0.03, color: "#ffd98a" }, // warm light inside
-    { x: 0.9, y: 1.15, z: 0.09, w: 2.2, h: 1.0, d: 0.05, color: "#ffd98a" },
+    { x: -1.4, y: 1.05, z: 0.12, w: 1.0, h: 1.2, d: 0.03, color: "#ffd98a", glow: true }, // warm light inside
+    { x: 0.9, y: 1.15, z: 0.09, w: 2.2, h: 1.0, d: 0.05, color: "#ffd98a", glow: true },
     { x: 0.9, y: 1.15, z: 0.12, w: 2.3, h: 0.06, d: 0.03, color: WOOD_D },
     { x: 0.9, y: 1.15, z: 0.12, w: 0.06, h: 1.0, d: 0.03, color: WOOD_D },
     // counter with steaming bowls
@@ -1715,7 +1715,7 @@ export function ramenShopParts(): Part[] {
     { x: 0.4, y: 0.86, z: 0.12, w: 0.22, h: 0.12, d: 0.06, color: "#ffffff" },
     { x: 1.2, y: 0.86, z: 0.12, w: 0.22, h: 0.12, d: 0.06, color: "#ffffff" },
     // signboard 「ラーメン」 (chunky glyph blocks) on a red board above the noren
-    { x: 0, y: 2.25, z: 0.12, w: W - 0.6, h: 0.6, d: 0.1, color: "#c1121f" },
+    { x: 0, y: 2.25, z: 0.12, w: W - 0.6, h: 0.6, d: 0.1, color: "#c1121f", glow: true },
     { x: -1.6, y: 2.25, z: 0.18, w: 0.12, h: 0.4, d: 0.02, color: "#ffffff" },
     { x: -1.42, y: 2.4, z: 0.18, w: 0.3, h: 0.08, d: 0.02, color: "#ffffff" },
     { x: -0.9, y: 2.25, z: 0.18, w: 0.3, h: 0.08, d: 0.02, color: "#ffffff" },
@@ -2426,16 +2426,16 @@ export function konbiniShopParts(): Part[] {
     // Roof parapet
     { x: 0, y: 3.8, z: -2.0, w: 7.0, h: 0.2, d: 4.2, color: "#cbd5e1" },
     // Iconic Konbini 3-Stripe Fascia Header
-    { x: 0, y: 3.25, z: 0.04, w: 6.8, h: 0.85, d: 0.14, color: "#ffffff" },
-    { x: 0, y: 3.48, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#10b981" }, // Green stripe
-    { x: 0, y: 3.32, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#f97316" }, // Orange stripe
-    { x: 0, y: 3.16, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#ef4444" }, // Red stripe
+    { x: 0, y: 3.25, z: 0.04, w: 6.8, h: 0.85, d: 0.14, color: "#ffffff", glow: true },
+    { x: 0, y: 3.48, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#10b981", glow: true }, // Green stripe
+    { x: 0, y: 3.32, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#f97316", glow: true }, // Orange stripe
+    { x: 0, y: 3.16, z: 0.11, w: 6.7, h: 0.12, d: 0.04, color: "#ef4444", glow: true }, // Red stripe
     // Illuminated "24h" logo box
     { x: -2.4, y: 3.32, z: 0.14, w: 0.7, h: 0.45, d: 0.06, color: "#0284c7" },
-    { x: -2.4, y: 3.32, z: 0.17, w: 0.5, h: 0.3, d: 0.02, color: "#ffffff" },
+    { x: -2.4, y: 3.32, z: 0.17, w: 0.5, h: 0.3, d: 0.02, color: "#ffffff", glow: true },
     // Large glass front windows (left & right)
-    { x: -1.75, y: 1.4, z: 0.02, w: 2.8, h: 2.2, d: 0.08, color: glass },
-    { x: 2.1, y: 1.4, z: 0.02, w: 2.1, h: 2.2, d: 0.08, color: glass },
+    { x: -1.75, y: 1.4, z: 0.02, w: 2.8, h: 2.2, d: 0.08, color: glass, glow: true },
+    { x: 2.1, y: 1.4, z: 0.02, w: 2.1, h: 2.2, d: 0.08, color: glass, glow: true },
     // Window mullions / dark metal framing
     { x: -1.75, y: 2.5, z: 0.05, w: 2.85, h: 0.08, d: 0.06, color: frame },
     { x: -1.75, y: 0.3, z: 0.05, w: 2.85, h: 0.08, d: 0.06, color: frame },
@@ -2462,8 +2462,8 @@ export function neonSignboardParts(variant: number): Part[] {
     // Red glowing Ramen / Izakaya lantern sign
     return [
       { x: 0, y: 0.4, z: 0, w: 0.45, h: 0.8, d: 0.45, color: "#334155" }, // metal frame
-      { x: 0, y: 0.85, z: 0, w: 0.38, h: 0.7, d: 0.38, color: "#dc2626" }, // glowing red body
-      { x: 0, y: 0.85, z: 0.2, w: 0.26, h: 0.5, d: 0.02, color: "#fef08a" }, // illuminated kanji face
+      { x: 0, y: 0.85, z: 0, w: 0.38, h: 0.7, d: 0.38, color: "#dc2626", glow: true }, // glowing red body
+      { x: 0, y: 0.85, z: 0.2, w: 0.26, h: 0.5, d: 0.02, color: "#fef08a", glow: true }, // illuminated kanji face
       { x: 0, y: 1.22, z: 0, w: 0.42, h: 0.08, d: 0.42, color: "#1e293b" }, // cap
     ];
   }
@@ -2471,9 +2471,9 @@ export function neonSignboardParts(variant: number): Part[] {
   return [
     { x: 0, y: 0.1, z: 0, w: 0.45, h: 0.2, d: 0.4, color: "#1e293b" }, // dark base
     { x: 0, y: 0.7, z: 0, w: 0.38, h: 1.0, d: 0.22, color: "#0284c7" }, // blue frame
-    { x: 0, y: 0.7, z: 0, w: 0.32, h: 0.9, d: 0.24, color: "#ffffff" }, // glowing white panel
-    { x: 0, y: 0.9, z: 0.13, w: 0.24, h: 0.24, d: 0.02, color: "#f97316" }, // orange accent logo
-    { x: 0, y: 0.6, z: 0.13, w: 0.22, h: 0.08, d: 0.02, color: "#10b981" }, // green OPEN text
+    { x: 0, y: 0.7, z: 0, w: 0.32, h: 0.9, d: 0.24, color: "#ffffff", glow: true }, // glowing white panel
+    { x: 0, y: 0.9, z: 0.13, w: 0.24, h: 0.24, d: 0.02, color: "#f97316", glow: true }, // orange accent logo
+    { x: 0, y: 0.6, z: 0.13, w: 0.22, h: 0.08, d: 0.02, color: "#10b981", glow: true }, // green OPEN text
   ];
 }
 
@@ -2494,31 +2494,31 @@ export function billboardParts(variant: number): Part[] {
   parts.push({ x: 0, y: y0 + H / 2, z: -0.18, w: W + 0.3, h: H + 0.3, d: 0.3, color: "#10131e" });
   if (v === 0) {
     // hot-pink idol ad: pink glow field, white headline bars, yellow star chip
-    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ff2d95" });
-    parts.push({ x: -0.6, y: y0 + H * 0.68, z: 0.09, w: W * 0.55, h: 0.3, d: 0.03, color: "#ffffff" });
-    parts.push({ x: -0.9, y: y0 + H * 0.42, z: 0.09, w: W * 0.4, h: 0.22, d: 0.03, color: "#ffe0ef" });
-    parts.push({ x: 1.35, y: y0 + H * 0.5, z: 0.09, w: 0.85, h: 0.85, d: 0.03, color: "#ffe93b" });
-    parts.push({ x: -1.2, y: y0 + H * 0.18, z: 0.09, w: 0.9, h: 0.2, d: 0.03, color: "#00e5ff" });
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ff2d95", glow: true });
+    parts.push({ x: -0.6, y: y0 + H * 0.68, z: 0.09, w: W * 0.55, h: 0.3, d: 0.03, color: "#ffffff", glow: true });
+    parts.push({ x: -0.9, y: y0 + H * 0.42, z: 0.09, w: W * 0.4, h: 0.22, d: 0.03, color: "#ffe0ef", glow: true });
+    parts.push({ x: 1.35, y: y0 + H * 0.5, z: 0.09, w: 0.85, h: 0.85, d: 0.03, color: "#ffe93b", glow: true });
+    parts.push({ x: -1.2, y: y0 + H * 0.18, z: 0.09, w: 0.9, h: 0.2, d: 0.03, color: "#00e5ff", glow: true });
   } else if (v === 1) {
     // cyan video wall: teal field, sky block, white ticker, magenta logo
-    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#00e5ff" });
-    parts.push({ x: 0.7, y: y0 + H * 0.62, z: 0.09, w: W * 0.5, h: H * 0.5, d: 0.03, color: "#2079ff" });
-    parts.push({ x: -1.1, y: y0 + H * 0.7, z: 0.09, w: W * 0.34, h: 0.5, d: 0.03, color: "#ffffff" });
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#00e5ff", glow: true });
+    parts.push({ x: 0.7, y: y0 + H * 0.62, z: 0.09, w: W * 0.5, h: H * 0.5, d: 0.03, color: "#2079ff", glow: true });
+    parts.push({ x: -1.1, y: y0 + H * 0.7, z: 0.09, w: W * 0.34, h: 0.5, d: 0.03, color: "#ffffff", glow: true });
     parts.push({ x: 0, y: y0 + 0.24, z: 0.09, w: W * 0.86, h: 0.24, d: 0.03, color: "#0b1026" });
-    parts.push({ x: -1.5, y: y0 + 0.24, z: 0.12, w: 0.5, h: 0.14, d: 0.03, color: "#ffe93b" });
-    parts.push({ x: 1.45, y: y0 + H * 0.32, z: 0.09, w: 0.6, h: 0.6, d: 0.03, color: "#ff2d95" });
+    parts.push({ x: -1.5, y: y0 + 0.24, z: 0.12, w: 0.5, h: 0.14, d: 0.03, color: "#ffe93b", glow: true });
+    parts.push({ x: 1.45, y: y0 + H * 0.32, z: 0.09, w: 0.6, h: 0.6, d: 0.03, color: "#ff2d95", glow: true });
   } else {
     // mega SALE stack: warm yellow field, red banner, white price bars
-    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ffe93b" });
-    parts.push({ x: 0, y: y0 + H * 0.74, z: 0.09, w: W * 0.9, h: 0.52, d: 0.03, color: "#ff1f3d" });
-    parts.push({ x: -0.8, y: y0 + H * 0.74, z: 0.12, w: W * 0.42, h: 0.26, d: 0.03, color: "#ffffff" });
+    parts.push({ x: 0, y: y0 + H / 2, z: 0.02, w: W, h: H, d: 0.08, color: "#ffe93b", glow: true });
+    parts.push({ x: 0, y: y0 + H * 0.74, z: 0.09, w: W * 0.9, h: 0.52, d: 0.03, color: "#ff1f3d", glow: true });
+    parts.push({ x: -0.8, y: y0 + H * 0.74, z: 0.12, w: W * 0.42, h: 0.26, d: 0.03, color: "#ffffff", glow: true });
     parts.push({ x: -0.5, y: y0 + H * 0.34, z: 0.09, w: W * 0.5, h: 0.3, d: 0.03, color: "#1f2430" });
-    parts.push({ x: 1.3, y: y0 + H * 0.3, z: 0.09, w: 0.9, h: 0.7, d: 0.03, color: "#7cff4f" });
+    parts.push({ x: 1.3, y: y0 + H * 0.3, z: 0.09, w: 0.9, h: 0.7, d: 0.03, color: "#7cff4f", glow: true });
   }
   // little maintenance catwalk + spotlights pointing at the board
   parts.push({ x: 0, y: y0 - 0.12, z: 0.28, w: W * 0.9, h: 0.08, d: 0.35, color: steel });
-  parts.push({ x: -W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4" });
-  parts.push({ x: W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4" });
+  parts.push({ x: -W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4", glow: true });
+  parts.push({ x: W * 0.3, y: y0 - 0.02, z: 0.42, w: 0.18, h: 0.12, d: 0.18, color: "#fff3c4", glow: true });
   return parts;
 }
 
@@ -2536,15 +2536,15 @@ export function jamCarParts(variant: number): Part[] {
       { x: 0, y: 0.35, z: 0, w: 5.4, h: 0.3, d: 1.7, color: "#2c5940" },
       { x: -2.72, y: 1.2, z: 0, w: 0.06, h: 0.9, d: 1.5, color: glass }, // front glass (-x!)
       { x: 2.72, y: 1.2, z: 0, w: 0.06, h: 0.8, d: 1.5, color: "#28323c" },
-      { x: -2.74, y: 0.62, z: 0.55, w: 0.06, h: 0.2, d: 0.34, color: "#fffbe6" }, // headlights
-      { x: -2.74, y: 0.62, z: -0.55, w: 0.06, h: 0.2, d: 0.34, color: "#fffbe6" },
-      { x: 2.74, y: 0.62, z: 0.55, w: 0.06, h: 0.18, d: 0.3, color: "#ff2a2a" }, // taillights
-      { x: 2.74, y: 0.62, z: -0.55, w: 0.06, h: 0.18, d: 0.3, color: "#ff2a2a" },
-      { x: -2.7, y: 1.95, z: 0, w: 0.5, h: 0.24, d: 1.2, color: "#ffd23f" }, // route sign box
+      { x: -2.74, y: 0.62, z: 0.55, w: 0.06, h: 0.2, d: 0.34, color: "#fffbe6", glow: true }, // headlights
+      { x: -2.74, y: 0.62, z: -0.55, w: 0.06, h: 0.2, d: 0.34, color: "#fffbe6", glow: true },
+      { x: 2.74, y: 0.62, z: 0.55, w: 0.06, h: 0.18, d: 0.3, color: "#ff2a2a", glow: true }, // taillights
+      { x: 2.74, y: 0.62, z: -0.55, w: 0.06, h: 0.18, d: 0.3, color: "#ff2a2a", glow: true },
+      { x: -2.7, y: 1.95, z: 0, w: 0.5, h: 0.24, d: 1.2, color: "#ffd23f", glow: true }, // route sign box
     ];
     for (let i = 0; i < 5; i++) {
-      parts.push({ x: -1.7 + i * 0.95, y: 1.35, z: 0.86, w: 0.7, h: 0.5, d: 0.04, color: "#ffe9a3" });
-      parts.push({ x: -1.7 + i * 0.95, y: 1.35, z: -0.86, w: 0.7, h: 0.5, d: 0.04, color: "#ffe9a3" });
+      parts.push({ x: -1.7 + i * 0.95, y: 1.35, z: 0.86, w: 0.7, h: 0.5, d: 0.04, color: "#ffe9a3", glow: true });
+      parts.push({ x: -1.7 + i * 0.95, y: 1.35, z: -0.86, w: 0.7, h: 0.5, d: 0.04, color: "#ffe9a3", glow: true });
     }
     for (const wx of [-1.9, 1.9]) {
       parts.push({ x: wx, y: 0.32, z: 0.8, w: 0.62, h: 0.62, d: 0.24, color: tire });
@@ -2559,18 +2559,18 @@ export function jamCarParts(variant: number): Part[] {
     { x: 0, y: 0.42, z: 0, w: 3.25, h: 0.36, d: 1.6, color: body },
     { x: -1.05, y: 0.68, z: 0, w: 1.15, h: 0.22, d: 1.5, color: body }, // hood toward -x
     { x: -1.64, y: 0.52, z: 0, w: 0.04, h: 0.18, d: 0.85, color: "#1f2229" }, // grille
-    { x: -1.64, y: 0.64, z: 0.52, w: 0.06, h: 0.18, d: 0.32, color: "#fffbe6" }, // headlights ON
-    { x: -1.64, y: 0.64, z: -0.52, w: 0.06, h: 0.18, d: 0.32, color: "#fffbe6" },
+    { x: -1.64, y: 0.64, z: 0.52, w: 0.06, h: 0.18, d: 0.32, color: "#fffbe6", glow: true }, // headlights ON
+    { x: -1.64, y: 0.64, z: -0.52, w: 0.06, h: 0.18, d: 0.32, color: "#fffbe6", glow: true },
     { x: 0.22, y: 1.15, z: 0, w: 1.55, h: 0.56, d: 1.36, color: body }, // cabin
     { x: -0.58, y: 1.12, z: 0, w: 0.12, h: 0.44, d: 1.2, color: glass },
     { x: 1.02, y: 1.12, z: 0, w: 0.1, h: 0.42, d: 1.2, color: glass },
     { x: 0.22, y: 1.15, z: 0.69, w: 1.25, h: 0.38, d: 0.04, color: glass },
     { x: 0.22, y: 1.15, z: -0.69, w: 1.25, h: 0.38, d: 0.04, color: glass },
     { x: 1.28, y: 0.68, z: 0, w: 0.65, h: 0.22, d: 1.5, color: body }, // trunk toward +x
-    { x: 1.64, y: 0.64, z: 0.52, w: 0.06, h: 0.16, d: 0.3, color: "#ff2a2a" }, // brake lights ON
-    { x: 1.64, y: 0.64, z: -0.52, w: 0.06, h: 0.16, d: 0.3, color: "#ff2a2a" },
+    { x: 1.64, y: 0.64, z: 0.52, w: 0.06, h: 0.16, d: 0.3, color: "#ff2a2a", glow: true }, // brake lights ON
+    { x: 1.64, y: 0.64, z: -0.52, w: 0.06, h: 0.16, d: 0.3, color: "#ff2a2a", glow: true },
   ];
-  if (v === 3) parts.push({ x: 0.22, y: 1.55, z: 0, w: 0.5, h: 0.2, d: 0.4, color: "#ffe9a3" }); // taxi roof lamp
+  if (v === 3) parts.push({ x: 0.22, y: 1.55, z: 0, w: 0.5, h: 0.2, d: 0.4, color: "#ffe9a3", glow: true }); // taxi roof lamp
   for (const wx of [-1.0, 1.0]) {
     parts.push({ x: wx, y: 0.29, z: 0.74, w: 0.58, h: 0.58, d: 0.26, color: tire });
     parts.push({ x: wx, y: 0.29, z: -0.74, w: 0.58, h: 0.58, d: 0.26, color: tire });
@@ -2594,20 +2594,20 @@ export function tower109Parts(): Part[] {
   for (let f = 0; f < 7; f++) {
     const y = 1.5 + f * 1.35;
     const lit = f % 3 !== 1;
-    parts.push({ x: 0, y, z: -0.72, w: 3.4, h: 0.6, d: 0.08, color: lit ? "#ffe9a3" : "#1a1f2e" });
-    parts.push({ x: 0, y, z: -4.48, w: 3.4, h: 0.6, d: 0.08, color: lit ? "#9be8ff" : "#1a1f2e" });
+    parts.push({ x: 0, y, z: -0.72, w: 3.4, h: 0.6, d: 0.08, color: lit ? "#ffe9a3" : "#1a1f2e", glow: lit });
+    parts.push({ x: 0, y, z: -4.48, w: 3.4, h: 0.6, d: 0.08, color: lit ? "#9be8ff" : "#1a1f2e", glow: lit });
   }
   // glowing entrance
-  parts.push({ x: 0, y: 1.0, z: -0.66, w: 2.2, h: 1.6, d: 0.12, color: "#fff3c4" });
+  parts.push({ x: 0, y: 1.0, z: -0.66, w: 2.2, h: 1.6, d: 0.12, color: "#fff3c4", glow: true });
   // crown: dark band + silver cap + the iconic glowing sign panel
   parts.push({ x: 0, y: 11.1, z: -2.6, w: 4.9, h: 0.6, d: 4.9, color: "#2b3040" });
   parts.push({ x: 0, y: 11.65, z: -2.6, w: 4.3, h: 0.5, d: 4.3, color: tile });
-  parts.push({ x: 0, y: 11.15, z: -0.12, w: 2.6, h: 0.5, d: 0.1, color: "#f4f6fa" });
-  parts.push({ x: -0.55, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434" }); // 1
-  parts.push({ x: 0.0, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434" }); // 0
-  parts.push({ x: 0.55, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434" }); // 9
+  parts.push({ x: 0, y: 11.15, z: -0.12, w: 2.6, h: 0.5, d: 0.1, color: "#f4f6fa", glow: true });
+  parts.push({ x: -0.55, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434", glow: true }); // 1
+  parts.push({ x: 0.0, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434", glow: true }); // 0
+  parts.push({ x: 0.55, y: 11.15, z: -0.04, w: 0.4, h: 0.34, d: 0.03, color: "#c02434", glow: true }); // 9
   // red beacon
-  parts.push({ x: 0, y: 12.2, z: -2.6, w: 0.2, h: 0.5, d: 0.2, color: "#ff1f3d" });
+  parts.push({ x: 0, y: 12.2, z: -2.6, w: 0.2, h: 0.5, d: 0.2, color: "#ff1f3d", glow: true });
   return parts;
 }
 
@@ -2643,7 +2643,7 @@ export function tougeStreetlampParts(): Part[] {
     // Rounded lamp shade
     { x: 0, y: 3.58, z: -0.72, w: 0.32, h: 0.14, d: 0.38, color: lampHousing },
     // Glowing warm sodium lamp bulb
-    { x: 0, y: 3.5, z: -0.72, w: 0.24, h: 0.06, d: 0.28, color: amberGlow },
+    { x: 0, y: 3.5, z: -0.72, w: 0.24, h: 0.06, d: 0.28, color: amberGlow, glow: true },
   ];
 }
 

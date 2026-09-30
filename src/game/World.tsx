@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useReducer, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { buildVoxelGeometry, getGeometry, voxelMaterial } from "./voxel";
+import { buildVoxelPair, getGeometry, getGeometryPair, glowMaterial, voxelMaterial, type GeoPair } from "./voxel";
 import { applyCurve } from "./curve";
 import {
   CHUNK_LEN,
@@ -111,68 +111,72 @@ import { buildGroundGeometry } from "./ground";
 
 /* ---------- Decorations ---------- */
 const DecorView = memo(function DecorView({ d }: { d: Decor }) {
-  const geo = useMemo(() => {
+  const geo: GeoPair = useMemo(() => {
     switch (d.kind) {
       case "building":
-        return buildVoxelGeometry(buildingParts(d.spec!));
+        return buildVoxelPair(buildingParts(d.spec!));
       case "tree":
-        return getGeometry(`tree-${d.variant}`, () => treeParts(d.variant));
+        return getGeometryPair(`tree-${d.variant}`, () => treeParts(d.variant));
       case "lamp":
-        return getGeometry("lamp", lampParts);
+        return getGeometryPair("lamp", lampParts);
       case "hydrant":
-        return getGeometry("hydrant", hydrantParts);
+        return getGeometryPair("hydrant", hydrantParts);
       case "bush":
-        return getGeometry(`bush-${d.variant}`, () => bushParts(d.variant));
+        return getGeometryPair(`bush-${d.variant}`, () => bushParts(d.variant));
       case "flowers":
-        return getGeometry(`flowers-${d.variant}`, () => flowersParts(d.variant));
+        return getGeometryPair(`flowers-${d.variant}`, () => flowersParts(d.variant));
       case "roadsign":
-        return getGeometry("roadsign", roadworkSignParts);
+        return getGeometryPair("roadsign", roadworkSignParts);
       case "overpass":
-        return getGeometry("overpass", overpassParts);
+        return getGeometryPair("overpass", overpassParts);
       case "puddle":
-        return getGeometry(`puddle-${d.variant}`, () => puddleParts(d.variant));
+        return getGeometryPair(`puddle-${d.variant}`, () => puddleParts(d.variant));
       case "sakura":
-        return getGeometry(`sakura-${d.variant}`, () => sakuraParts(d.variant, 1 + (d.variant % 2) * 0.18));
+        return getGeometryPair(`sakura-${d.variant}`, () => sakuraParts(d.variant, 1 + (d.variant % 2) * 0.18));
       case "lantern":
-        return getGeometry("lantern", stoneLanternParts);
+        return getGeometryPair("lantern", stoneLanternParts);
       case "ramen":
-        return getGeometry("ramen", ramenShopParts);
+        return getGeometryPair("ramen", ramenShopParts);
       case "machiya":
-        return getGeometry(`machiya-${d.variant % 2}`, () => machiyaShopParts(d.variant));
+        return getGeometryPair(`machiya-${d.variant % 2}`, () => machiyaShopParts(d.variant));
       case "house":
-        return getGeometry(`house-${d.variant % 2}`, () => japaneseHouseParts(d.variant));
+        return getGeometryPair(`house-${d.variant % 2}`, () => japaneseHouseParts(d.variant));
       case "village_house":
-        return getGeometry(`village_house-${Math.abs(d.variant) % 3}`, () => japaneseVillageHouseParts(d.variant));
+        return getGeometryPair(`village_house-${Math.abs(d.variant) % 3}`, () => japaneseVillageHouseParts(d.variant));
       case "guardrail":
-        return getGeometry("guardrail", () => guardrailParts(CHUNK_LEN));
+        return getGeometryPair("guardrail", () => guardrailParts(CHUNK_LEN));
       case "chevron":
-        return getGeometry(`chevron-${d.variant > 0 ? 1 : -1}`, () => chevronSignParts(d.variant > 0 ? 1 : -1));
+        return getGeometryPair(`chevron-${d.variant > 0 ? 1 : -1}`, () => chevronSignParts(d.variant > 0 ? 1 : -1));
       case "autumn_tree":
-        return getGeometry(`autumn-${d.variant % 3}`, () => autumnTreeParts(d.variant));
+        return getGeometryPair(`autumn-${d.variant % 3}`, () => autumnTreeParts(d.variant));
       case "rock":
-        return getGeometry(`rock-${d.variant % 2}`, () => mountainRockParts(d.variant));
+        return getGeometryPair(`rock-${d.variant % 2}`, () => mountainRockParts(d.variant));
       case "vending":
-        return getGeometry(`vending-${d.variant % 3}`, () => vendingParts(d.variant));
+        return getGeometryPair(`vending-${d.variant % 3}`, () => vendingParts(d.variant));
       case "mamachari":
-        return getGeometry(`mamachari-${d.variant % 4}`, () => mamachariParts(d.variant));
+        return getGeometryPair(`mamachari-${d.variant % 4}`, () => mamachariParts(d.variant));
       case "konbini":
-        return getGeometry("konbini", konbiniShopParts);
+        return getGeometryPair("konbini", konbiniShopParts);
       case "neon_sign":
-        return getGeometry(`neon-${d.variant % 2}`, () => neonSignboardParts(d.variant));
+        return getGeometryPair(`neon-${d.variant % 2}`, () => neonSignboardParts(d.variant));
       case "touge_sign":
-        return getGeometry("touge-sign", tougeRouteSignParts);
+        return getGeometryPair("touge-sign", tougeRouteSignParts);
       case "touge_lamp":
-        return getGeometry("touge-lamp", tougeStreetlampParts);
+        return getGeometryPair("touge-lamp", tougeStreetlampParts);
       case "billboard":
-        return getGeometry(`billboard-${d.variant % 3}`, () => billboardParts(d.variant));
+        return getGeometryPair(`billboard-${d.variant % 3}`, () => billboardParts(d.variant));
       case "jam_car":
-        return getGeometry(`jam-car-${d.variant % 5}`, () => jamCarParts(d.variant));
+        return getGeometryPair(`jam-car-${d.variant % 5}`, () => jamCarParts(d.variant));
       case "tower109":
-        return getGeometry("tower109", tower109Parts);
+        return getGeometryPair("tower109", tower109Parts);
     }
   }, [d]);
   useEffect(() => {
-    if (d.kind === "building") return () => geo.dispose();
+    if (d.kind === "building")
+      return () => {
+        geo.lit.dispose();
+        geo.glow?.dispose();
+      };
   }, [d, geo]);
   const facing =
     d.kind === "house" ||
@@ -188,7 +192,12 @@ const DecorView = memo(function DecorView({ d }: { d: Decor }) {
     d.kind === "billboard";
   // buildings face +z (toward the road); those placed on the camera side (front) are turned around
   const flip = facing && d.frontSide ? Math.PI : 0;
-  return <mesh geometry={geo} material={voxelMaterial} position={d.pos} rotation-y={d.rotY + flip} castShadow={d.kind !== "flowers"} receiveShadow />;
+  return (
+    <group position={d.pos} rotation-y={d.rotY + flip}>
+      <mesh geometry={geo.lit} material={voxelMaterial} castShadow={d.kind !== "flowers"} receiveShadow />
+      {geo.glow && <mesh geometry={geo.glow} material={glowMaterial} />}
+    </group>
+  );
 });
 
 const ChunkView = memo(function ChunkView({ chunk }: { chunk: Chunk }) {
