@@ -672,3 +672,182 @@ export function paintCityNight(W = 4096, H = 512): HTMLCanvasElement {
   g.fillRect(0, m1, W, H - m1);
   return c;
 }
+
+/**
+ * Panorama kota Tokyo di SIANG HARI (juga pagi & sore) — seperti pemandangan asli dari
+ * atas Shibuya: pencakar langit putih/abu + menara kaca biru di kejauhan, lalu hamparan
+ * kota rendah putih-krem yang padat dengan pepohonan hijau di depannya.
+ * `tod` memberi tint hangat keemasan (pagi) atau jingga senja (sore).
+ */
+export function paintCityDay(W = 4096, H = 512, tod: "pagi" | "siang" | "sore" = "siang", mistHex = "#dbeeff"): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d")!;
+  const R = rng(20270415);
+  const pxPerUnit = H / (PANO.topY + PANO.botY);
+  const yU = (u: number) => (PANO.topY - u) * pxPerUnit;
+  const s = W / 4096;
+
+  /* ---- lapisan 1: siluet gedung SANGAT jauh, pucat kabur ---- */
+  {
+    let x = 0;
+    let lastH = 0;
+    while (x < W) {
+      const bw = Math.min((70 + R() * 120) * s, W - x);
+      let hU = 4 + R() * 6.5;
+      if (Math.abs(hU - lastH) < 1) hU += 1.6;
+      lastH = hU;
+      const topY = yU(hU);
+      g.fillStyle = "#bcc9d8";
+      g.fillRect(x, topY, bw, H - topY);
+      g.fillStyle = "#c9d4e1";
+      g.fillRect(x, topY, bw, 3 * s);
+      x += bw;
+    }
+  }
+
+  /* ---- lapisan 2: menara utama — putih/krem/abu + beberapa menara kaca biru ---- */
+  const FAC = ["#e9ebee", "#dde0e4", "#e6dfd2", "#cfd4d9", "#cdc2ae", "#e2ddd3", "#b9b3a4"];
+  {
+    let x = (37 % 80) * s;
+    let lastH = 0;
+    while (x < W) {
+      const bw = Math.min((55 + R() * 110) * s, W - x);
+      let hU = 3 + R() * 9.5;
+      if (Math.abs(hU - lastH) < 1.2) hU += 1.8;
+      lastH = hU;
+      const topY = yU(hU);
+      const glass = R() < 0.26 && hU > 6;
+      if (glass) {
+        // menara kaca biru dengan garis lantai horizontal (kayak foto)
+        const grad = g.createLinearGradient(0, topY, 0, H);
+        grad.addColorStop(0, "#9cc4e4");
+        grad.addColorStop(1, "#5d86ac");
+        g.fillStyle = grad;
+        g.fillRect(x, topY, bw, H - topY);
+        g.fillStyle = "rgba(255,255,255,0.35)";
+        for (let y = topY + 6 * s; y < H; y += 8 * s) g.fillRect(x + 2 * s, y, bw - 4 * s, 1.6 * s);
+        g.fillStyle = "#cfe2f2";
+        g.fillRect(x, topY, bw, 2.5 * s);
+      } else {
+        const fc = FAC[Math.floor(R() * FAC.length)];
+        g.fillStyle = fc;
+        g.fillRect(x, topY, bw, H - topY);
+        // parapet atap sedikit lebih terang + sisi kanan shading tipis biar bervolume
+        g.fillStyle = "rgba(255,255,255,0.5)";
+        g.fillRect(x, topY, bw, 2.5 * s);
+        g.fillStyle = "rgba(90,105,125,0.16)";
+        g.fillRect(x + bw * 0.72, topY, bw * 0.28, H - topY);
+        // grid jendela RAPI: kaca gelap kebiruan, baris & kolom seragam
+        const cw = 8 * s;
+        const ch = 10 * s;
+        const cols = Math.max(1, Math.floor((bw - 10 * s) / cw));
+        const rows = Math.max(1, Math.floor((H - topY - 12 * s) / ch));
+        g.fillStyle = "#77869c";
+        for (let r = 0; r < Math.min(rows, 40); r++) {
+          for (let cc = 0; cc < cols; cc++) {
+            if (R() < 0.88) g.fillRect(x + 6 * s + cc * cw, topY + 7 * s + r * ch, 4 * s, 5 * s);
+          }
+        }
+      }
+      // detail atap: kotak mesin lift + tiang antena + suar merah di menara tinggi
+      if (hU > 7 && R() < 0.6) {
+        g.fillStyle = "#c7ccd3";
+        g.fillRect(x + bw * 0.3, topY - 6 * s, bw * 0.3, 6 * s);
+      }
+      if (hU > 9.5 && R() < 0.7) {
+        g.fillStyle = "#8b95a3";
+        g.fillRect(x + bw / 2 - 1.2 * s, topY - 15 * s, 2.4 * s, 15 * s);
+        g.fillStyle = "#e04545";
+        g.fillRect(x + bw / 2 - 2.5 * s, topY - 19 * s, 5 * s, 4.5 * s);
+      }
+      x += bw;
+    }
+  }
+
+  /* ---- lapisan 3: kota RENDAH putih-krem yang padat (khas Tokyo dari atas) ---- */
+  const LOW = ["#f2f0ea", "#e8e4da", "#dcd8ce", "#e5ded0", "#d5cfc2", "#efe9dd"];
+  {
+    let x = (211 % 60) * s;
+    let lastH = 0;
+    while (x < W) {
+      const bw = Math.min((22 + R() * 42) * s, W - x);
+      let hU = 0.8 + R() * 3.4;
+      if (Math.abs(hU - lastH) < 0.5) hU += 0.9;
+      lastH = hU;
+      const topY = yU(hU);
+      const fc = LOW[Math.floor(R() * LOW.length)];
+      g.fillStyle = fc;
+      g.fillRect(x, topY, bw, H - topY);
+      g.fillStyle = "rgba(120,130,145,0.35)";
+      g.fillRect(x, topY, bw, 1.8 * s); // garis atap tipis
+      // jendela kecil jarang
+      g.fillStyle = "#8d99ab";
+      const cols = Math.max(1, Math.floor(bw / (7 * s)));
+      for (let cc = 0; cc < cols; cc++) {
+        if (R() < 0.5) g.fillRect(x + 3 * s + cc * 7 * s, topY + 5 * s, 2.6 * s, 3.4 * s);
+      }
+      // sesekali billboard putih kecil di atap (rasa Tokyo)
+      if (R() < 0.1 && bw > 30 * s) {
+        g.fillStyle = "#f7f7f5";
+        g.fillRect(x + bw * 0.2, topY - 7 * s, bw * 0.6, 6 * s);
+        g.fillStyle = R() < 0.5 ? "#d23c3c" : "#2f6db5";
+        g.fillRect(x + bw * 0.28, topY - 5.4 * s, bw * 0.44, 2.6 * s);
+      }
+      x += bw;
+    }
+  }
+
+  /* ---- pepohonan hijau menyelip di antara kota rendah ---- */
+  {
+    const n = Math.floor(W / (95 * s));
+    const GREEN = ["#4c8a4f", "#5e9b57", "#3f7a45", "#578f4e"];
+    for (let i = 0; i < n; i++) {
+      const x = 30 * s + R() * (W - 60 * s);
+      const baseY = yU(0.2 + R() * 1.4);
+      const r = (7 + R() * 11) * s;
+      const col = GREEN[Math.floor(R() * GREEN.length)];
+      g.fillStyle = col;
+      for (let k = 0; k < 3; k++) {
+        const a = R() * Math.PI * 2;
+        g.beginPath();
+        g.arc(x + Math.cos(a) * r * 0.45, baseY - r * 0.3 - R() * r * 0.4, r * (0.55 + R() * 0.35), 0, Math.PI * 2);
+        g.fill();
+      }
+      g.fillStyle = "rgba(255,255,255,0.18)";
+      g.beginPath();
+      g.arc(x - r * 0.25, baseY - r * 0.75, r * 0.4, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+
+  /* ---- tint waktu: pagi keemasan lembut / sore jingga senja (hanya di piksel kota) ---- */
+  if (tod !== "siang") {
+    g.globalCompositeOperation = "source-atop";
+    const grad = g.createLinearGradient(0, H, 0, 0);
+    if (tod === "pagi") {
+      grad.addColorStop(0, "rgba(255,205,150,0.30)");
+      grad.addColorStop(1, "rgba(255,235,205,0.06)");
+    } else {
+      grad.addColorStop(0, "rgba(255,140,80,0.38)");
+      grad.addColorStop(0.6, "rgba(255,170,110,0.16)");
+      grad.addColorStop(1, "rgba(110,105,150,0.14)");
+    }
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = "source-over";
+  }
+
+  /* ---- kaki panorama lebur ke warna kabut horizon ---- */
+  const m0 = yU(-14);
+  const m1 = yU(-30);
+  const mist = g.createLinearGradient(0, m0, 0, m1);
+  mist.addColorStop(0, mistHex + "00");
+  mist.addColorStop(1, mistHex);
+  g.fillStyle = mist;
+  g.fillRect(0, m0, W, m1 - m0);
+  g.fillStyle = mistHex;
+  g.fillRect(0, m1, W, H - m1);
+  return c;
+}

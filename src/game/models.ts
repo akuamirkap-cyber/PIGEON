@@ -328,15 +328,15 @@ export const SIGN_COLORS = ["#ffffff", "#ffd23f", "#ff5a5f", "#37c86b", "#2f9bff
  *  tan brick — plus only a few dark glass towers so the street never reads "cyberpunk". */
 const NIGHT_FACADES = [
   "#e7e2d6", // white ceramic tile (paling umum di Jepang)
+  "#eceff2", // putih porselen
   "#ded6c4", // krem hangat
   "#cfd2d6", // beton abu terang
   "#c9bda4", // tan / beige
   "#b8bec8", // abu kebiruan terang
   "#c4b49a", // beige tua
-  "#8f9aa6", // abu medium
-  "#7d7466", // bata cokelat tua
-  "#2a2f45", // dark glass (sedikit saja)
-  "#3a4051", // dark glass
+  "#9aa4b0", // abu medium terang
+  "#9c8674", // bata cokelat muda
+  "#3a4051", // dark glass (hanya satu — jangan kebanyakan hitam)
 ];
 
 export function makeShibuyaTowerSpec(w: number): BuildingSpec {
@@ -346,7 +346,7 @@ export function makeShibuyaTowerSpec(w: number): BuildingSpec {
     w,
     floors,
     color: NIGHT_FACADES[Math.floor(Math.random() * NIGHT_FACADES.length)],
-    roof: "#171b28",
+    roof: "#454d5c",
     awning: false,
     awningColor: neon,
     lit: 0.75 + Math.random() * 0.25,
@@ -388,21 +388,32 @@ export function buildingParts(s: BuildingSpec): Part[] {
   const winW = 0.6;
   const spacing = s.w / s.cols;
   if (s.night) {
-    // Shibuya Night zakkyo-biru: dark glass / tile facade, windows glowing warm,
-    // company signboards stacked all the way up (the classic Japanese high-street look)
-    const winColors = ["#ffe9a3", "#ffd166", s.neon ?? "#ffd23f", "#f6efdc", "#ffe9a3", "#fff3c4"];
+    // Shibuya zakkyo-biru — JENDELA RAPI: bidang jendela di-inset dari tepi supaya
+    // tidak menabrak rak sign kiri maupun strip sign vertikal kanan; grid seragam;
+    // lampu menyala per-LANTAI (kantor/ruangan menyala serentak, bukan bintik acak);
+    // jendela mati = kaca kebiruan gelap, BUKAN hitam pekat.
+    const winColors = ["#ffe9a3", "#ffd166", "#fff3c4", "#f6efdc"];
+    const glassDark = "#3c4763";
+    const seedW = Math.abs(Math.round(s.w * 7));
+    const xL = -s.w / 2 + ((s.signStack ?? 0) > 0 ? 1.35 : 0.6);
+    const xR = s.w / 2 - 1.0;
+    const span = Math.max(1.2, xR - xL);
+    const wCols = Math.max(2, Math.floor(span / 0.95));
+    const wSp = span / wCols;
+    const wW = Math.min(0.68, wSp * 0.62);
     for (let f = 0; f < s.floors; f++) {
-      for (let c = 0; c < s.cols; c++) {
-        const x = -s.w / 2 + spacing * (c + 0.5);
-        if (f === 0 && c === Math.floor(s.cols / 2)) {
-          // glowing lobby entrance
-          parts.push({ x, y: 0.95, z: 0.04, w: 1.0, h: 1.35, d: 0.1, color: "#ffe9a3", glow: true });
-          continue;
-        }
-        const seed = (f * 7 + c * 3) % 10;
-        const lit = seed / 10 < s.lit;
-        const wc = winColors[(f * 5 + c * 2) % winColors.length];
-        parts.push({ x, y: 0.5 + f * floorH + 0.75, z: 0.04, w: winW, h: 0.72, d: 0.1, color: lit ? wc : "#141824", glow: lit });
+      if (f === 0) {
+        // lantai dasar: etalase toko kaca menyala selebar bidang jendela
+        parts.push({ x: (xL + xR) / 2, y: 0.92, z: 0.04, w: span * 0.94, h: 1.28, d: 0.1, color: "#ffe9a3", glow: true });
+        continue;
+      }
+      const fy = 0.5 + f * floorH + 0.75;
+      const floorLit = ((f * 13 + s.floors * 7 + seedW) % 10) / 10 < s.lit * 0.8;
+      const wc = winColors[(f * 2 + seedW) % winColors.length];
+      for (let c = 0; c < wCols; c++) {
+        const x = xL + wSp * (c + 0.5);
+        const lit = floorLit ? (c * 3 + f) % 7 !== 0 : (c * 5 + f * 3) % 11 === 0;
+        parts.push({ x, y: fy, z: 0.04, w: wW, h: 0.72, d: 0.1, color: lit ? wc : glassDark, glow: lit });
       }
     }
     // glowing storefront fascia band above the ground floor (shop name lightbox)
@@ -430,7 +441,7 @@ export function buildingParts(s: BuildingSpec): Part[] {
       const scW = s.w * 0.62;
       const scH = floorH * 2.1;
       const scY = 0.5 + 2.4 * floorH + scH / 2;
-      parts.push({ x: s.w * 0.08, y: scY, z: 0.12, w: scW + 0.24, h: scH + 0.24, d: 0.12, color: "#10131e" });
+      parts.push({ x: s.w * 0.08, y: scY, z: 0.12, w: scW + 0.24, h: scH + 0.24, d: 0.12, color: "#262c3a" });
       parts.push({ x: s.w * 0.08, y: scY, z: 0.2, w: scW, h: scH, d: 0.06, color: s.neon ?? "#ffd23f", glow: true });
       parts.push({ x: s.w * 0.08 - scW * 0.18, y: scY + scH * 0.22, z: 0.25, w: scW * 0.5, h: 0.26, d: 0.03, color: "#ffffff", glow: true });
       parts.push({ x: s.w * 0.08 + scW * 0.2, y: scY - scH * 0.24, z: 0.25, w: scW * 0.34, h: 0.2, d: 0.03, color: "#1f2430" });
@@ -438,7 +449,7 @@ export function buildingParts(s: BuildingSpec): Part[] {
 
     // vertical kanji neon sign strip down the right edge
     const sx = s.w / 2 - 0.35;
-    parts.push({ x: sx, y: h * 0.55, z: 0.22, w: 0.5, h: h * 0.62, d: 0.14, color: "#10131e" });
+    parts.push({ x: sx, y: h * 0.55, z: 0.22, w: 0.5, h: h * 0.62, d: 0.14, color: "#2a3040" });
     const glyphN = Math.max(3, Math.floor((h * 0.62) / 0.8));
     for (let i = 0; i < glyphN; i++) {
       parts.push({ x: sx, y: h * 0.55 + h * 0.27 - i * 0.8, z: 0.31, w: 0.34, h: 0.4, d: 0.03, color: i % 2 ? "#ffffff" : (s.neon ?? "#ffd23f"), glow: true });
