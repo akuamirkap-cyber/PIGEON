@@ -57,9 +57,9 @@ function stripsFor(kind: "street" | "park" | "haruna" | "shibuya"): Strip[] {
     { lat0: -4.0, lat1: -3.7, top: 0.14, colors: [CURB], skirt: true },
     { lat0: 3.7, lat1: 4.0, top: 0.14, colors: [CURB], skirt: true },
     { lat0: -7.0, lat1: -4.0, top: 0.12, colors: [WALK], skirt: true },
-    { lat0: 4.0, lat1: 5.7, top: 0.12, colors: [WALK], skirt: true },
+    { lat0: 4.0, lat1: 6.3, top: 0.12, colors: [WALK], skirt: true },
     { lat0: -24, lat1: -7.0, top: 0.1, colors: kind === "park" ? [G1, G2] : [PLAZA], skirt: true },
-    { lat0: 5.7, lat1: 22, top: 0.1, colors: [G1, G2], skirt: true },
+    { lat0: 6.3, lat1: 22, top: 0.1, colors: [G1, G2], skirt: true },
   ];
 }
 

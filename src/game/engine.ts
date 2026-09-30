@@ -365,6 +365,8 @@ export interface Intersection {
   lightState: "green" | "yellow" | "red";
   /** Shibuya Scramble Crossing: perempatan raksasa selebar avenue dengan zebra diagonal & kerumunan */
   scramble?: boolean;
+  /** cross-street LEBAR 6 jalur (kadang muncul di semua mode biar perempatan tidak sempit) */
+  wide?: boolean;
 }
 
 export interface CrossTrafficCar {
@@ -1084,7 +1086,7 @@ class Engine {
     const before = this.nos;
     this.nos = Math.min(NOS_MAX, this.nos + v);
     if (before < NOS_MAX && this.nos >= NOS_MAX) {
-      useUI.getState().addPopup("NOS READY", "#4cc9f0", "press SHIFT / N or tap NOS");
+      useUI.getState().addPopup("NOS READY", "#4cc9f0", "SHIFT / N / tap NOS");
       sfx.nosReady();
     }
   }
@@ -1219,7 +1221,7 @@ class Engine {
       p.trick.t = p.trick.dur;
       this.completeTrick();
     }
-    useUI.getState().addPopup(isOncoming ? "CAR SURF! 🚗🛹" : "ROOF GRIND! 🚗🛹", "#00f5d4", isOncoming ? "CAR ROOF!" : "CAR ROOF!");
+    useUI.getState().addPopup(isOncoming ? "CAR SURF! 🛹" : "ROOF GRIND! 🛹", "#00f5d4", "car roof!");
     sfx.grind();
     this.emit("spark", -0.5, CAR_ROOF_H - 0.05, p.lat, 4);
   }
@@ -2106,7 +2108,7 @@ class Engine {
     sfx.squawk();
     this.player.squash = 0.35;
     this.trickScore += 75;
-    useUI.getState().addPopup("CHICKEN YEET! 🐔", "#ef4444", "BAWK! 💥");
+    useUI.getState().addPopup("CHICKEN YEET! 🐔", "#ef4444", "bawk!");
   }
 
   private hitCat(m: Mover) {
@@ -2121,7 +2123,7 @@ class Engine {
     sfx.meow();
     this.player.squash = 0.35;
     this.trickScore += 75;
-    useUI.getState().addPopup("CAT YEET! 🐱", "#f59e0b", "MEOWWW! 💥");
+    useUI.getState().addPopup("CAT YEET! 🐱", "#f59e0b", "meoww!");
   }
 
   private launchCatFromCar(o: Obstacle) {
@@ -2269,7 +2271,7 @@ class Engine {
             b.restT = 0;
             b.bounces = 0;
             p.limbT = 0;
-            useUI.getState().addPopup("KETABRAK MOBIL! 🚗💥💨", "#ff0055", "TERPENTAL KE LANGIT!");
+            useUI.getState().addPopup("KETABRAK MOBIL! 💥", "#ff0055", "terpental ke langit");
           }
         }
       }
@@ -2307,7 +2309,7 @@ class Engine {
             b.restT = 0;
             b.bounces = 0;
             p.limbT = 0;
-            useUI.getState().addPopup("TERPENTAL KETABRAK! 🚗💥", "#ff0055", "HOMERUN!");
+            useUI.getState().addPopup("KETABRAK! 💥", "#ff0055", "homerun!");
           }
         }
       }
@@ -2690,6 +2692,8 @@ class Engine {
     const signPos: Vec3 = [tmpV.x, tmpV.y, tmpV.z];
     // Di Shibuya, setiap perempatan ke-2 adalah SCRAMBLE CROSSING raksasa ala pusat Shibuya
     const scramble = track.mode === "shibuya" && this.interCount++ % 2 === 1;
+    // Kadang cross-street-nya LEBAR 6 jalur (semua mode) biar perempatan tidak sempit
+    const wide = !scramble && Math.random() < 0.4;
     const inter: Intersection = {
       id: this.nextId++,
       s,
@@ -2703,6 +2707,7 @@ class Engine {
       trafficTimer: rand(0, 6),
       lightState: "green",
       scramble,
+      wide,
     };
     this.intersections.push(inter);
     if (scramble) {
@@ -2724,7 +2729,7 @@ class Engine {
       this.moverVersion++;
     }
     // clear static obstacles & bread directly in the crossroads area (s - 8.5 to s + 8.5)
-    const half = scramble ? 11 : 8.5;
+    const half = scramble ? 11 : wide ? 10.5 : 8.5;
     this.obstacles = this.obstacles.filter((o) => o.s < s - half || o.s > s + half);
     this.breads = this.breads.filter((b) => b.s < s - (half - 1) || b.s > s + (half - 1));
     this.puddles = this.puddles.filter((pu) => pu.s < s - half || pu.s > s + half);
@@ -2837,7 +2842,7 @@ class Engine {
     const add = (k: DecorKind, lx: number, lat: number, dy: number, variant = 0, spec?: BuildingSpec) => {
       // Keep cross-road clear of sidewalk decor, buildings, and trees (minimum 8.2m clearance)
       const absS = s0 + lx;
-      if (this.intersections.some((it) => Math.abs(absS - it.s) < 8.2) || Math.abs(absS - this.nextIntersectionS) < 8.2) return;
+      if (this.intersections.some((it) => Math.abs(absS - it.s) < 9.6) || Math.abs(absS - this.nextIntersectionS) < 9.6) return;
       const pl = this.place(absS, lat, dy);
       decor.push({ kind: k, pos: pl.pos, rotY: pl.rotY, variant, spec, frontSide: lat > 0 });
     };
@@ -3094,6 +3099,9 @@ class Engine {
   }
 
   private addObstacle(kind: ObstacleKind, s: number, lane: number, force = false, half?: number, variant?: number) {
+    // Jaring pengaman per-item: pattern panjang tidak boleh menjulurkan obstacle
+    // ke dalam zona perempatan (apalagi scramble crossing yang penuh penyeberang)
+    if (this.intersections.some((it) => Math.abs(it.s - s) < (it.scramble ? 11 : it.wide ? 10.5 : 8.5))) return;
     if (!force && this.laneReserved(lane, s)) return;
     const hLen = half ?? OBSTACLE_DEFS[kind].halfLen;
     // Guaranteed safety: Never spawn an obstacle near bread in the same lane (fair play, zero manipulation)
@@ -3320,9 +3328,9 @@ class Engine {
       this.spawnCrossingPattern(cr, x);
       return;
     }
-    const nearbyInter = this.intersections.find((it) => Math.abs(it.s - x) < (it.scramble ? 12.5 : 10));
+    const nearbyInter = this.intersections.find((it) => Math.abs(it.s - x) < (it.scramble ? 12.5 : it.wide ? 12 : 10));
     if (nearbyInter) {
-      this.nextObstacleS = Math.max(x + 6, nearbyInter.s + (nearbyInter.scramble ? 14.5 : 12) + rand(1, 4));
+      this.nextObstacleS = Math.max(x + 6, nearbyInter.s + (nearbyInter.scramble ? 14.5 : nearbyInter.wide ? 14 : 12) + rand(1, 4));
       return;
     }
     const total = weights.reduce((s, w) => s + w[1], 0);

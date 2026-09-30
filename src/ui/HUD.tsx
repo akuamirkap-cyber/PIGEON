@@ -161,14 +161,18 @@ export function HUD() {
         </div>
       )}
 
-      {/* trick popups */}
-      <div className="absolute left-0 right-0 top-[19%] flex flex-col items-center gap-1">
+      {/* trick / info popups — rapi & tidak menutupi jalan: ukuran dibatasi, satu baris, maks 3 tumpuk */}
+      <div className="absolute left-0 right-0 top-[20%] flex flex-col items-center gap-1">
         {popups.map((p) => (
-          <div key={p.id} className="popup flex flex-col items-center">
-            <div className="font-display txt-outline text-[8cqw] leading-none" style={{ color: p.color }}>
+          <div key={p.id} className="popup flex max-w-[86%] flex-col items-center">
+            <div className="font-display txt-outline max-w-full truncate whitespace-nowrap text-[5.8cqw] leading-none" style={{ color: p.color }}>
               {p.text}
             </div>
-            {p.sub && <div className="font-display txt-outline-sm mt-1 text-[4.5cqw] leading-none text-white">{p.sub}</div>}
+            {p.sub && (
+              <div className="mt-1 max-w-full truncate whitespace-nowrap rounded-full bg-black/30 px-2.5 py-0.5 font-display text-[2.9cqw] leading-none text-white/95 backdrop-blur-[2px]">
+                {p.sub}
+              </div>
+            )}
           </div>
         ))}
       </div>

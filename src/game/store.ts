@@ -215,7 +215,7 @@ export const useUI = create<UIState>((set, get) => ({
   },
   addPopup: (text, color, sub) => {
     const id = ++popupId;
-    set((s) => ({ popups: [...s.popups.slice(-3), { id, text, sub, color }] }));
+    set((s) => ({ popups: [...s.popups.slice(-2), { id, text, sub, color }] }));
     setTimeout(() => set((s) => ({ popups: s.popups.filter((p) => p.id !== id) })), 1100);
   },
   finishRun: (score, bread, cause) => {

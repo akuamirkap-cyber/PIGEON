@@ -326,8 +326,20 @@ export const NEON_COLORS = ["#ff2d95", "#00e5ff", "#ffe93b", "#7cff4f", "#ff7a1a
 /** Lightbox colours of real Japanese company signboards (izakaya, karaoke, clinics, pachinko…). */
 export const SIGN_COLORS = ["#ffffff", "#ffd23f", "#ff5a5f", "#37c86b", "#2f9bff", "#ff8a3d", "#ff5fa2", "#19d3c5", "#fff3c4"];
 
-/** Night facades: dark glass towers mixed with the tan/white-tile buildings every Japanese street has. */
-const NIGHT_FACADES = ["#232839", "#1d2230", "#2a2f45", "#20263a", "#3a4051", "#454a5c", "#4b4a44", "#52586a"];
+/** Night facades: real Shibuya mix — white/cream tile, warm beige, light concrete grey,
+ *  tan brick — plus only a few dark glass towers so the street never reads "cyberpunk". */
+const NIGHT_FACADES = [
+  "#e7e2d6", // white ceramic tile (paling umum di Jepang)
+  "#ded6c4", // krem hangat
+  "#cfd2d6", // beton abu terang
+  "#c9bda4", // tan / beige
+  "#b8bec8", // abu kebiruan terang
+  "#c4b49a", // beige tua
+  "#8f9aa6", // abu medium
+  "#7d7466", // bata cokelat tua
+  "#2a2f45", // dark glass (sedikit saja)
+  "#3a4051", // dark glass
+];
 
 export function makeShibuyaTowerSpec(w: number): BuildingSpec {
   const neon = NEON_COLORS[Math.floor(Math.random() * NEON_COLORS.length)];
@@ -1180,6 +1192,8 @@ export function puddleParts(variant: number): Part[] {
 /* ---------- Perempatan (4-Way Crossroads / Intersection) ---------- */
 
 export const INTERSECTION_W = 8.4;
+/** Varian cross-street LEBAR 6 jalur — biar perempatan tidak sempit. */
+export const INTERSECTION_W_WIDE = 12.6;
 /** Panjang jalan lintas di tiap sisi perempatan (dari dek |lat| 4 sampai ujungnya). */
 export const CROSS_STREET_LEN = 38;
 /** Titik tengah jalan lintas tiap sisi (|lat| 4 → 42). */
@@ -1187,7 +1201,7 @@ const CROSS_STREET_MID = 4 + CROSS_STREET_LEN / 2;
 export const HOOD_JUMP_CLEAR_H = 0.88;
 
 /** Complete 4-way asphalt cross-street with raised lateral roadbeds, sidewalks, corner curb cuts, tactile blocks, and 4-way zebra crossings. */
-export function intersectionRoadParts(): Part[] {
+export function intersectionRoadParts(W: number = INTERSECTION_W): Part[] {
   const asphalt = "#424752";
   const asphaltDark = "#383c44";
   const white = "#f8fafc";
@@ -1200,14 +1214,13 @@ export function intersectionRoadParts(): Part[] {
   const metal = "#4b5563";
   const parts: Part[] = [];
 
-  const W = INTERSECTION_W; // 8.4
-  const halfW = W / 2; // 4.2
+  const halfW = W / 2;
 
   // 1. Center Junction Asphalt (inside the main street, y = 0.016 to prevent z-fighting with main road y = 0)
   parts.push({ x: 0, y: 0.016, z: 0, w: W, h: 0.024, d: 8.0, color: asphalt });
   // Subtle tire wear grooves across the junction
-  parts.push({ x: -1.8, y: 0.018, z: 0, w: 1.4, h: 0.025, d: 7.8, color: asphaltDark });
-  parts.push({ x: 1.8, y: 0.018, z: 0, w: 1.4, h: 0.025, d: 7.8, color: asphaltDark });
+  parts.push({ x: -halfW * 0.43, y: 0.018, z: 0, w: 1.4, h: 0.025, d: 7.8, color: asphaltDark });
+  parts.push({ x: halfW * 0.43, y: 0.018, z: 0, w: 1.4, h: 0.025, d: 7.8, color: asphaltDark });
 
   // 2. Lateral Cross-Streets (Left: z = -4.0 to -30, Right: z = +4.0 to +30)
   // Raised to y = 0.145 (surface top at y = 0.175) so it cleanly overlays ground sidewalk (0.12) & curbs (0.14)
@@ -1226,13 +1239,13 @@ export function intersectionRoadParts(): Part[] {
   // 3. Sidewalks along both sides of the Cross-Street (x = -halfW - 0.7 and x = +halfW + 0.7)
   for (const side of [-1, 1]) {
     const curbX = side * (halfW + 0.18);
-    const walkX = side * (halfW + 0.95);
+    const walkX = side * (halfW + 1.46);
     for (const dir of [-1, 1]) {
       const walkZ = dir * CROSS_STREET_MID;
       // Curb stone along the side street
       parts.push({ x: curbX, y: 0.18, z: walkZ, w: 0.36, h: 0.14, d: CROSS_STREET_LEN - 0.5, color: curb });
-      // Sidewalk paving tiles along the side street
-      parts.push({ x: walkX, y: 0.165, z: walkZ, w: 1.25, h: 0.11, d: CROSS_STREET_LEN - 0.5, color: sidewalk });
+      // Sidewalk paving tiles along the side street — lebar 2.2 m, muat 2 orang berdampingan
+      parts.push({ x: walkX, y: 0.165, z: walkZ, w: 2.2, h: 0.11, d: CROSS_STREET_LEN - 0.5, color: sidewalk });
     }
   }
 
@@ -1247,8 +1260,8 @@ export function intersectionRoadParts(): Part[] {
     }
   }
 
-  // 5. White Stop Lines before the intersection
-  for (const sz of [-4.5, 4.5]) {
+  // 5. White Stop Lines before the intersection (di belakang zebra, seperti aturan Jepang)
+  for (const sz of [-7.0, 7.0]) {
     parts.push({ x: 0, y: 0.18, z: sz, w: W - 1.2, h: 0.022, d: 0.45, color: white });
   }
 
@@ -1265,26 +1278,29 @@ export function intersectionRoadParts(): Part[] {
     }
     // Painted directional arrows on the cross-street lanes
     const arrowZ = dir * 11;
-    for (const ax of [-2.0, 2.0]) {
+    const arrowXs = halfW > 5 ? [-4.3, -2.0, 2.0, 4.3] : [-2.0, 2.0];
+    for (const ax of arrowXs) {
       parts.push({ x: ax, y: 0.18, z: arrowZ, w: 0.22, h: 0.022, d: 1.6, color: white });
       parts.push({ x: ax - 0.25, y: 0.18, z: arrowZ + dir * 0.4, w: 0.2, h: 0.022, d: 0.5, color: white });
       parts.push({ x: ax + 0.25, y: 0.18, z: arrowZ + dir * 0.4, w: 0.2, h: 0.022, d: 0.5, color: white });
     }
   }
 
-  // 7. Complete 4-Way Zebra Crossings (Pedestrian Crosswalks)
-  // A. Entrance & Exit Crossings across the Main Street (x = -4.5 and x = +4.5)
-  for (const sx of [-4.5, 4.5]) {
-    // 9 white stripes across the main street lanes
+  // 7. ZEBRA CROSS 4 ARAH — desain benar ala Jepang:
+  // pita selebar ~2.3 m; tiap garis MEMANJANG searah laju mobil dan berulang
+  // searah langkah pejalan kaki, jadi terbaca sebagai zebra sungguhan.
+  // A. Menyeberangi main street (pejalan jalan sepanjang z; garis memanjang di x)
+  for (const sx of [-(halfW + 1.5), halfW + 1.5]) {
     for (let zi = -4; zi <= 4; zi++) {
-      parts.push({ x: sx, y: 0.025, z: zi * 0.84, w: 0.7, h: 0.022, d: 0.48, color: white });
+      parts.push({ x: sx, y: 0.025, z: zi * 0.82, w: 2.3, h: 0.022, d: 0.46, color: white });
     }
   }
-  // B. Crossings across the Left & Right Cross-Streets (z = -4.5 and z = +4.5)
-  for (const sz of [-4.5, 4.5]) {
-    // 9 white stripes across the cross street lanes
-    for (let xi = -4; xi <= 4; xi++) {
-      parts.push({ x: xi * 0.85, y: 0.182, z: sz, w: 0.48, h: 0.022, d: 0.7, color: white });
+  // B. Menyeberangi cross-street kiri/kanan (pejalan jalan sepanjang x; garis memanjang di z)
+  for (const sz of [-5.5, 5.5]) {
+    const nx = Math.floor((W - 1.6) / 0.82);
+    for (let xi = 0; xi < nx; xi++) {
+      const x = -((nx - 1) * 0.82) / 2 + xi * 0.82;
+      parts.push({ x, y: 0.182, z: sz, w: 0.46, h: 0.022, d: 2.2, color: white });
     }
   }
 
@@ -2961,32 +2977,38 @@ export function scrambleRoadParts(): Part[] {
     parts.push({ x: 0, y: 0.18, z: mid, w: 0.14, h: 0.012, d: (z1 - z0) * 0.86, color: "#e9e9e9" });
   }
 
-  // 3. ZEBRA menyeberangi avenue di kedua tepi junction (menyala)
-  for (const bx of [-XH + 0.9, XH - 0.9]) {
-    for (let z = -3.4; z <= 12.0; z += 1.0) {
+  // 3. ZEBRA menyeberangi avenue di kedua tepi junction (pita lebar 2.5 m, garis
+  //    memanjang searah laju mobil = sumbu x, berulang searah langkah pejalan = z)
+  for (const bx of [-XH + 1.6, XH - 1.6]) {
+    for (let z = -3.2; z <= 12.0; z += 0.9) {
       const onMedian = z > 3.4 && z < 5.3;
-      parts.push({ x: bx, y: onMedian ? 0.19 : 0.04, z, w: 1.25, h: 0.02, d: 0.55, color: zebra, glow: true });
+      parts.push({ x: bx, y: onMedian ? 0.19 : 0.04, z, w: 2.5, h: 0.02, d: 0.48, color: zebra, glow: true });
     }
   }
 
-  // 4. ZEBRA menyeberangi cross-street di kedua sisi (di atas bagian yang ditinggikan)
-  for (const bz of [-5.2, 13.9]) {
-    for (let x = -XH + 1.2; x <= XH - 1.2; x += 1.05) {
-      parts.push({ x, y: 0.19, z: bz, w: 0.55, h: 0.02, d: 1.3, color: zebra, glow: true });
+  // 4. ZEBRA menyeberangi cross-street di kedua sisi (garis memanjang searah laju = z)
+  for (const bz of [-5.4, 13.7]) {
+    for (let x = -XH + 1.2; x <= XH - 1.2; x += 0.85) {
+      parts.push({ x, y: 0.19, z: bz, w: 0.46, h: 0.02, d: 2.2, color: zebra, glow: true });
     }
   }
 
   // 5. ZEBRA DIAGONAL X — tanda tangan Shibuya Scramble!
-  const ND = 13;
-  for (let i = 0; i < ND; i++) {
-    const t = i / (ND - 1);
-    const x = -4.9 + t * 9.8;
-    const zA = -2.4 + t * 12.6; // diagonal /
-    const zB = 10.2 - t * 12.6; // diagonal \
-    const yA = zA > 3.4 && zA < 5.3 ? 0.19 : 0.045;
-    const yB = zB > 3.4 && zB < 5.3 ? 0.19 : 0.045;
-    parts.push({ x, y: yA, z: zA, w: 0.55, h: 0.02, d: 1.2, ry: Math.PI / 4, color: zebra, glow: true });
-    parts.push({ x, y: yB, z: zB, w: 0.55, h: 0.02, d: 1.2, ry: -Math.PI / 4, color: zebra, glow: true });
+  // Garis-garisnya TEGAK LURUS arah jalan pejalan (desain zebra yang benar).
+  const dA = { x0: -4.9, z0: -2.4, x1: 4.9, z1: 10.2 }; // diagonal /
+  const dB = { x0: -4.9, z0: 10.2, x1: 4.9, z1: -2.4 }; // diagonal \
+  const ND = 17;
+  for (const dg of [dA, dB]) {
+    const dx = dg.x1 - dg.x0;
+    const dz = dg.z1 - dg.z0;
+    const ry = Math.atan2(dx, dz); // sumbu-w garis jadi tegak lurus arah jalan
+    for (let i = 1; i < ND - 1; i++) {
+      const t = i / (ND - 1);
+      const x = dg.x0 + t * dx;
+      const z = dg.z0 + t * dz;
+      const y = z > 3.4 && z < 5.3 ? 0.19 : 0.045;
+      parts.push({ x, y, z, w: 2.4, h: 0.02, d: 0.5, ry, color: zebra, glow: true });
+    }
   }
 
   // 6. Garis henti tebal di jalur pemain & jalur lawan

@@ -64,6 +64,7 @@ import {
   hakoneTrainCarParts,
   catenaryParts,
   intersectionRoadParts,
+  INTERSECTION_W_WIDE,
   trafficLightParts,
   intersectionSignParts,
   crossingCarParts,
@@ -293,7 +294,10 @@ const ObstacleView = memo(function ObstacleView({ o }: { o: Obstacle }) {
 
 /* ---------- Movers: oncoming cars, crossing chickens & pedestrians ---------- */
 const PED_SCALE = 1.26; // semua orang dikecilkan 30% (dulu 1.8)
-const PED_LIFT = 0.98 * (PED_SCALE / 1.8); // tinggi angkat model agar kaki tetap menapak
+/* Telapak kaki model ada di y = -0.98 pada ruang lokal (grup kaki -0.34 + ujung sepatu -0.64).
+   Setelah diskalakan, model harus diangkat 0.98 * skala supaya kaki MENAPAK di permukaan,
+   bukan menembus jalan. */
+const PED_LIFT = 0.98 * PED_SCALE + 0.005;
 /* CAT_SCALE / CHICKEN_SCALE (ukuran hewan, sudah termasuk boost 1.7x & 1.2x)
    diimpor dari engine.ts supaya hitbox di sana selalu sinkron dengan model di sini. */
 
@@ -925,7 +929,11 @@ const ScrambleWalker = memo(function ScrambleWalker({ inter, idx }: { inter: Int
 
 const IntersectionView = memo(function IntersectionView({ inter }: { inter: Intersection }) {
   const isShibuya = useUI((s) => s.trackMode) === "shibuya";
-  const roadGeo = useMemo(() => getGeometry("intersection-road", intersectionRoadParts), []);
+  const wide = !!inter.wide;
+  const roadGeo = useMemo(
+    () => getGeometry(wide ? "intersection-road-wide" : "intersection-road", () => intersectionRoadParts(wide ? INTERSECTION_W_WIDE : undefined)),
+    [wide],
+  );
   const scrambleGeo = useMemo(() => getGeometryPair("scramble-road", scrambleRoadParts), []);
   const signGeo = useMemo(() => getGeometry("intersection-sign", intersectionSignParts), []);
   const stopGeo = useMemo(() => getGeometryPair("stop-sign", stopSignParts), []);
@@ -940,7 +948,7 @@ const IntersectionView = memo(function IntersectionView({ inter }: { inter: Inte
   }, [inter]);
 
   const tlGeo = inter.lightState === "green" ? tlGeoGreen : inter.lightState === "yellow" ? tlGeoYellow : tlGeoRed;
-  const cornerX = inter.scramble ? 7.2 : 4.6;
+  const cornerX = inter.scramble ? 7.2 : wide ? 7.0 : 4.6;
   const pair = (g: { lit: THREE.BufferGeometry; glow: THREE.BufferGeometry | null }, pos: [number, number, number], ry: number, key: string) => (
     <group key={key} position={pos} rotation-y={ry}>
       <mesh geometry={g.lit} material={voxelMaterial} castShadow />
