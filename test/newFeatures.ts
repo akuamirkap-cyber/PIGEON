@@ -7,7 +7,7 @@
  * Jalankan:
  *   npx esbuild test/newFeatures.ts --bundle --platform=node --outfile=/tmp/newFeatures.cjs && node /tmp/newFeatures.cjs
  */
-import { engine, MOTOR_CLEAR_H, type Mover } from "../src/game/engine";
+import { engine, MOTOR_CLEAR_H, ONCOMING_MOTORCYCLE_SPEED_MULT, type Mover } from "../src/game/engine";
 import { motorcycleParts, caneParts, pedestrianParts, pedestrianTorsoParts, MOTOR_PAINTS, CANE_GRIP_Y } from "../src/game/models";
 import { getSkin, SKINS, wheelParts } from "../src/game/skins";
 import { useUI, WHEEL_COLORS } from "../src/game/store";
@@ -106,7 +106,7 @@ quiet();
 const v = 4;
 e.spawnMotorcycle(engine.distance + 40, 1, v);
 const bike: Mover = engine.movers[engine.movers.length - 1];
-check("motor memakai kecepatan sedikit di atas mobil", bike.speed >= v * 1.05 - 1e-9 && bike.speed <= v * 1.2 + 1e-9, `speed=${bike.speed.toFixed(2)} (input ${v})`);
+check("motor dari depan 30% lebih cepat dari baseline", bike.speed >= v * 1.05 * ONCOMING_MOTORCYCLE_SPEED_MULT - 1e-9 && bike.speed <= v * 1.2 * ONCOMING_MOTORCYCLE_SPEED_MULT + 1e-9, `speed=${bike.speed.toFixed(2)} (input ${v})`);
 check("motor punya varian 0..5", bike.variant >= 0 && bike.variant <= 5, `variant=${bike.variant}`);
 check("motor punya timer asap knalpot", typeof bike.smokeT === "number" && bike.smokeT! >= 0 && bike.smokeT! <= 0.08, `smokeT=${bike.smokeT}`);
 const bikeS0 = bike.s;

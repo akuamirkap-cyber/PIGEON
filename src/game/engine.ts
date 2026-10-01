@@ -13,7 +13,8 @@ export const track = new Track();
 export const LANE_LAT = [-2.4, 0, 2.4]; // lane 0 = left, 1 = middle, 2 = right (chase camera)
 export const GRAVITY = 30;
 export const JUMP_V = 10.5;
-export const RAMP_V = 14.5;
+/** Fixed ramp launch speed: ramps stay equally high at NORMAL, 2×, and 3× game speed. */
+export const RAMP_V = 16;
 export const START_SPEED = 7;
 export const MAX_SPEED = 12.5;
 export const ACCEL = 0.08;
@@ -70,7 +71,12 @@ export const ANIMAL_GRAVITY_SCALE = 0.72;
 export const ANIMAL_PUNCH = 0.35;
 // railway crossing
 export const TRAIN_HIT = 2.3;
+/** A tiny clearance margin used only while a ramp-launched skater passes through a train. */
+export const RAMP_TRAIN_CLEARANCE_H = TRAIN_HIT + 0.22;
 export const TRAIN_SPEED = 8;
+/** Oncoming vehicles are faster, but their approach timing is recalculated to keep each encounter fair. */
+export const ONCOMING_CAR_SPEED_MULT = 1.4;
+export const ONCOMING_MOTORCYCLE_SPEED_MULT = 1.3;
 export const ARM_S = -2.0; // arm position relative to the rails
 export const ARM_HIT = 0.8;
 export const CROSSING_RAMP_S = -4.8;
@@ -283,6 +289,8 @@ export interface Mover {
   elderly?: boolean;
   /** timer asap knalpot untuk kendaraan yang sedang jalan */
   smokeT?: number;
+  /** Smooth signal-controlled throttle for through-traffic approaching a red light. */
+  signalSpeedK?: number;
   /** ban selip / lean visual motor */
   leanT?: number;
 }
@@ -380,7 +388,7 @@ export interface Intersection {
 /** Center-of-car position that keeps its nose just behind the painted scramble stop bars. */
 export const TRAFFIC_STOP_LINE_OFFSET = 8.2;
 
-/** Smooth approach policy for the Shibuya through-traffic: green passes, red/yellow stop at the bar. */
+/** Smooth approach policy for through-traffic: green passes, red/yellow stop at the bar. */
 export function trafficSignalApproach(
   carS: number,
   intersectionS: number,
@@ -1031,6 +1039,11 @@ class Engine {
   /** SHIFT / boost button: sprint kicks that advance speed (+40 -> +50 -> +70) on each press, with a 2s timer before decaying smoothly back to normal. */
   boost() {
     if (this.phase !== "playing" || this.nosT > 0) return;
+    // The shared sprint/NOS button fires a full can before stacking another sprint tier.
+    if (this.nos >= NOS_MAX * 0.99) {
+      this.fireNos();
+      return;
+    }
 
     // Advance sprint stage:
     // If within active 2s window or currently boosted, stack up to the next tier!
@@ -1149,8 +1162,8 @@ class Engine {
     p.grinding = false;
     p.onRamp = false;
     this.jumpBuffer = 0;
-    // faster skate => proportionally more pop, so a jump still covers the same obstacles
-    p.vh = v === JUMP_V && this.phase === "playing" ? v * Math.sqrt(this.speedMult) : v;
+    // Vertical jump height is independent of speed mode; 2×/3× only changes forward travel speed.
+    p.vh = v;
     p.airT = 0;
     sfx.jump();
   }
@@ -1720,7 +1733,8 @@ class Engine {
         } else if (p.onRamp) {
           p.onRamp = false;
           p.grounded = false;
-          p.vh = RAMP_V * Math.sqrt(Math.max(1, Math.min(this.speedMult, this.speed / START_SPEED)));
+          // Ramp airtime stays at the normal-speed ceiling, even when the board is boosted or set to 2×/3×.
+          p.vh = RAMP_V;
           p.bigAir = true;
           p.airT = 0;
           sfx.ramp();
@@ -1737,6 +1751,21 @@ class Engine {
         const flap = p.trick && p.trick.kind === "wingflap" ? 0.55 : 1;
         p.vh -= GRAVITY * flap * dt;
         p.h += p.vh * dt;
+        // Ramp jumps are normally ballistic, but an unusually fast boost can compress the
+        // flight so much that the board reaches a passing train before it has enough height.
+        // Keep just above the train's hitbox while traversing that tiny collision window;
+        // this is a clearance assist, not extra jump height or speed-mode scaling.
+        if (p.bigAir && p.h < RAMP_TRAIN_CLEARANCE_H) {
+          const crossingTrain = this.trains.find(
+            (tr) =>
+              Math.abs(tr.crossing.s - d) <= TRAIN_W / 2 + PLAYER_HALF &&
+              trainCovers(tr, p.lat),
+          );
+          if (crossingTrain) {
+            p.h = RAMP_TRAIN_CLEARANCE_H;
+            p.vh = Math.max(0, p.vh);
+          }
+        }
         if (p.railGrace <= 0) {
           for (const o of this.obstacles) {
             if (o.kind !== "rail") continue;
@@ -2430,7 +2459,30 @@ class Engine {
         if (m.s < d - 16) remove = true;
       } else if (m.kind === "car" || m.kind === "motorcycle") {
         const isBike = m.kind === "motorcycle";
-        m.s -= m.speed * dt;
+        let signalStopLine: number | null = null;
+        let approach: Intersection | undefined;
+        let closestGap = Infinity;
+        for (const inter of this.intersections) {
+          const gap = m.s - inter.s;
+          if (gap < 0 || gap > TRAFFIC_STOP_LINE_OFFSET + 24 || gap >= closestGap) continue;
+          closestGap = gap;
+          approach = inter;
+        }
+        let speedK = 1;
+        if (approach) {
+          const signal = trafficSignalApproach(m.s, approach.s, approach.lightState);
+          signalStopLine = signal.stopLineS;
+          const targetK = signal.targetK;
+          m.signalSpeedK = lerp(m.signalSpeedK ?? 1, targetK, 1 - Math.exp(-dt * 8));
+          speedK = m.signalSpeedK;
+        } else if (m.signalSpeedK !== undefined) {
+          m.signalSpeedK = lerp(m.signalSpeedK, 1, 1 - Math.exp(-dt * 8));
+          speedK = m.signalSpeedK;
+        }
+        const previousS = m.s;
+        m.s -= m.speed * speedK * dt;
+        // Keep the center of the car behind the line if a large frame skips across it.
+        if (signalStopLine !== null && previousS >= signalStopLine && m.s < signalStopLine) m.s = signalStopLine;
         m.squash = Math.max(0, m.squash - dt * 4.5);
         if (!m.warned && m.s - d < (isBike ? 34 : 32)) {
           m.warned = true;
@@ -2789,22 +2841,37 @@ class Engine {
       wide,
     };
     this.intersections.push(inter);
-    if (scramble) {
-      // Gelombang penyeberang SUNGGUHAN di jalur pemain — rame tapi tetap fair & seru
-      const n = 3 + randInt(0, 2);
+    if (track.mode !== "haruna") {
+      // Every urban crosswalk gets a real, signal-controlled pedestrian wave. Scrambles
+      // are busier, while random longitudinal offsets keep the group from marching in a row.
+      const n = scramble ? 4 + randInt(0, 2) : 2 + randInt(0, 2);
+      const edge = 6.8;
       const est = Math.max(this.speed, START_SPEED);
+      const elderIndex = Math.random() < 0.28 ? randInt(0, n - 1) : -1;
+      const offsets: number[] = [];
       for (let i = 0; i < n; i++) {
-        const dir = Math.random() < 0.5 ? 1 : -1;
-        const px = s - 3.5 + i * 1.8 + rand(-0.4, 0.4);
-        const m = this.newMover("pedestrian", px, -1, -dir * 6.8);
+        let offset = rand(-6.5, 6.5);
+        for (let attempt = 0; attempt < 8 && offsets.some((other) => Math.abs(other - offset) < 1.6); attempt++) {
+          offset = rand(-6.5, 6.5);
+        }
+        offsets.push(offset);
+      }
+      offsets.sort((a, b) => a - b);
+      const firstDir = Math.random() < 0.5 ? 1 : -1;
+      for (let i = 0; i < n; i++) {
+        const dir = i === 0 ? firstDir : i === 1 ? -firstDir : Math.random() < 0.5 ? 1 : -1;
+        const px = s + offsets[i];
+        const m = this.newMover("pedestrian", px, -1, -dir * edge);
         m.dir = dir;
+        m.crossingEdge = edge;
         m.signalIntersectionId = inter.id;
-        m.speed = rand(1.7, 2.4);
-        // gelombang scramble ala Shibuya asli: banyak salaryman berjas pulang kantor
-        m.variant = Math.random() < 0.4 ? randInt(5, 7) : randInt(0, 4);
+        const elderly = i === elderIndex;
+        m.elderly = elderly;
+        m.speed = elderly ? rand(0.85, 1.25) : rand(1.7, 2.4);
+        m.variant = elderly ? randInt(0, 2) : Math.random() < 0.4 ? randInt(5, 7) : randInt(0, 4);
         const eta = (px - this.distance) / est;
-        const walk = (6.8 - 1.2) / m.speed;
-        m.delay = Math.max(0.1, eta - walk + rand(-0.9, 0.9));
+        const walk = (edge - 1.2) / m.speed;
+        m.delay = Math.max(0.1, eta - walk + rand(-0.8, 0.8));
         this.movers.push(m);
       }
       this.moverVersion++;
@@ -2916,8 +2983,8 @@ class Engine {
       const ic = track.sample(is_s, tmpS);
       if (is_s <= s0 + CHUNK_LEN - 3 && Math.abs(ic.kappa) < 0.005 && Math.abs(ic.g) < 0.035) {
         this.addIntersection(is_s);
-        // Shibuya = city of scramble crossings: intersections arrive noticeably more often
-        this.nextIntersectionS = is_s + (isShibuya ? rand(95, 150) : rand(130, 200));
+        // City intersections recur more often; Shibuya keeps the denser scramble-crossing cadence.
+        this.nextIntersectionS = isShibuya ? is_s + rand(78, 125) : is_s + rand(100, 160);
       } else {
         this.nextIntersectionS = s0 + CHUNK_LEN + 3;
       }
@@ -3279,30 +3346,41 @@ class Engine {
   }
   private spawnOncoming(meetS: number, lane: number, t: number, allowCompanion = true) {
     const d = this.distance;
-    const v = rand(3.2, 4.4) + 1.4 * t;
+    const baseSpeed = rand(3.2, 4.4) + 1.4 * t;
+    const isMotorcycle = Math.random() < 0.34;
+    const motorcycleFactor = isMotorcycle
+      ? rand(1.05, 1.2) * ONCOMING_MOTORCYCLE_SPEED_MULT
+      : 1;
+    const vehicleSpeed = baseSpeed * (isMotorcycle ? motorcycleFactor : ONCOMING_CAR_SPEED_MULT);
     const est = Math.max(this.speed, 6);
-    const s0 = meetS + (v * (meetS - d)) / est;
-    // never drive an oncoming car through a railway crossing: use a parked car instead
+    // Schedule the new faster vehicle to meet the player at the intended point, not early.
+    const s0 = meetS + (vehicleSpeed * (meetS - d)) / est;
+    // never drive oncoming traffic through a railway crossing: use a parked car instead
     if (this.crossings.some((c) => c.s > meetS - 8 && c.s < s0 + 6)) {
       this.addObstacle("car", meetS, lane);
       return;
     }
-    // 1 dari 3 lalu lintas datang adalah motor (kadang berboncengan dua motor beruntun)
-    if (Math.random() < 0.34) {
-      this.spawnMotorcycle(s0, lane, v);
-      if (allowCompanion && t > 0.35 && Math.random() < 0.35) this.spawnMotorcycle(s0 + 2.4, this.otherLane([lane]), v * rand(0.92, 1.06));
+    // One in three oncoming vehicles is a slightly quicker motorcycle.
+    if (isMotorcycle) {
+      this.spawnMotorcycle(s0, lane, baseSpeed, motorcycleFactor);
       this.reserved.push({ lane, from: meetS - 7, until: s0 + 6 });
+      if (allowCompanion && t > 0.35 && Math.random() < 0.35) {
+        const companionLane = this.otherLane([lane]);
+        const companionS = s0 + 2.4;
+        this.spawnMotorcycle(companionS, companionLane, baseSpeed * rand(0.92, 1.06));
+        this.reserved.push({ lane: companionLane, from: meetS - 5, until: companionS + 6 });
+      }
       return;
     }
     const m = this.newMover("car", s0, lane, LANE_LAT[lane]);
-    m.speed = v;
+    m.speed = vehicleSpeed;
     this.movers.push(m);
     this.reserved.push({ lane, from: meetS - 7, until: s0 + 6 });
     this.moverVersion++;
   }
 
   /**
-   * Busy Shibuya wave on the three lanes the player uses. Cars arrive one at a time
+   * Busy city traffic wave on the three playable lanes. Vehicles arrive one at a time
    * in a shuffled lane order, leaving two clear choices at every encounter.
    */
   private spawnShibuyaTrafficWave(meetS: number, t: number): number {
@@ -3315,10 +3393,15 @@ class Engine {
     return headway * (lanes.length - 1) + 8;
   }
 
-  /** Motor dari arah depan: badan lebih kecil, sedikit lebih cepat dari mobil. */
-  private spawnMotorcycle(s0: number, lane: number, v: number) {
+  /** Motor dari arah depan: 30% lebih cepat daripada baseline motor sebelumnya. */
+  private spawnMotorcycle(
+    s0: number,
+    lane: number,
+    v: number,
+    speedFactor = rand(1.05, 1.2) * ONCOMING_MOTORCYCLE_SPEED_MULT,
+  ) {
     const m = this.newMover("motorcycle", s0, lane, LANE_LAT[lane]);
-    m.speed = v * rand(1.05, 1.2);
+    m.speed = v * speedFactor;
     m.variant = randInt(0, 5);
     m.smokeT = rand(0, 0.08);
     this.movers.push(m);
@@ -3354,39 +3437,46 @@ class Engine {
   }
 
   private spawnPedestrians(x: number, t: number) {
-    const n = 1 + (Math.random() < 0.5 ? 1 : 0) + (t > 0.4 && Math.random() < 0.4 ? 1 : 0);
+    const n = 2 + (Math.random() < 0.7 ? 1 : 0) + (t > 0.4 && Math.random() < 0.5 ? 1 : 0);
     const est = Math.max(this.speed, START_SPEED);
     const d = this.distance;
-    // Shibuya walkers start at the curb and cross only the live carriageway, not sidewalk fixtures.
+    // Urban crossers start at the curb and cross the live carriageway without reaching sidewalk fixtures.
     const edge = track.mode === "shibuya" ? 4.15 : 6.8;
-    // kadang yang menyeberang adalah kakek/nenek bertongkat (jalannya lambat)
-    const elderIndex = Math.random() < 0.42 ? randInt(0, n - 1) : -1;
+    // One occasional elderly pedestrian per group; everyone else gets independent timing and direction.
+    const elderIndex = Math.random() < 0.3 ? randInt(0, n - 1) : -1;
+    const offsets: number[] = [];
     for (let i = 0; i < n; i++) {
-      const dir = Math.random() < 0.5 ? 1 : -1;
-      const pedestrianS = x + i * 3.0;
+      let offset = rand(-1.5, 8.5);
+      for (let attempt = 0; attempt < 8 && offsets.some((other) => Math.abs(other - offset) < 1.4); attempt++) {
+        offset = rand(-1.5, 8.5);
+      }
+      offsets.push(offset);
+    }
+    offsets.sort((a, b) => a - b);
+    const firstDir = Math.random() < 0.5 ? 1 : -1;
+    for (let i = 0; i < n; i++) {
+      const dir = i === 0 ? firstDir : i === 1 ? -firstDir : Math.random() < 0.5 ? 1 : -1;
+      const pedestrianS = x + offsets[i];
       const m = this.newMover("pedestrian", pedestrianS, -1, -dir * edge);
       m.dir = dir;
       m.crossingEdge = edge;
-      if (track.mode === "shibuya") {
-        const signal = this.intersections
-          .filter((inter) => Math.abs(inter.s - pedestrianS) < 16)
-          .sort((a, b) => Math.abs(a.s - pedestrianS) - Math.abs(b.s - pedestrianS))[0];
-        if (signal) m.signalIntersectionId = signal.id;
-      }
+      // Any nearby city signal controls the crossing, not just Shibuya's scramble lights.
+      const signal = this.intersections
+        .filter((inter) => Math.abs(inter.s - pedestrianS) < 18)
+        .sort((a, b) => Math.abs(a.s - pedestrianS) - Math.abs(b.s - pedestrianS))[0];
+      if (signal) m.signalIntersectionId = signal.id;
       const elderly = i === elderIndex;
       m.elderly = elderly;
       m.speed = elderly ? rand(0.85, 1.25) : rand(1.6, 2.3);
-      // sebagian penyeberang dewasa adalah salaryman berjas dengan tas kerja dikempit
+      // Mix casual walkers and salarymen; jittered positions and delays avoid parade-like rows.
       m.variant = elderly ? randInt(0, 2) : Math.random() < 0.35 ? randInt(5, 7) : randInt(0, 4);
-      // time the walk so they are on the road when the player arrives
-      // (lansia jalannya lambat, jadi mereka lebih lama ADA di tengah jalan)
-      const eta = (x + i * 3.0 - d) / est;
+      const eta = (pedestrianS - d) / est;
       const walk = (edge - 1.2) / m.speed;
-      m.delay = Math.max(0.1, eta - walk + rand(-0.6, 0.6));
+      m.delay = Math.max(0.1, eta - walk + rand(-1.0, 1.0) + rand(0, 0.45));
       this.movers.push(m);
     }
     this.moverVersion++;
-    return n * 3.0 + 2;
+    return n * 2.8 + 3.5;
   }
 
   /**
@@ -3460,10 +3550,10 @@ class Engine {
       ["ramp", 2.2],
       ["rail", 2.2],
       ["bread", 1.6],
-      ["oncoming", track.mode === "shibuya" ? 8 + 4.6 * t : 2.2 + 2.4 * t],
+      ["oncoming", track.mode === "haruna" ? 3.2 + 2.4 * t : 11 + 5 * t],
       ["chickens", 2.6 + 1.0 * t],
       ["cats", 2.4 + 1.0 * t],
-      ["pedestrians", (track.mode === "shibuya" ? 3.6 : 2.2) + 1.2 * t], // Shibuya crowds!
+      ["pedestrians", (track.mode === "haruna" ? 2.2 : 5.0) + 1.2 * t], // frequent city crossings, without crowding mountain roads
       ["puddles", 1.8],
     ];
     const cr = this.crossings.find((c) => !c.placed);
@@ -3608,8 +3698,8 @@ class Engine {
         break;
       }
       case "oncoming": {
-        if (track.mode === "shibuya") {
-          // Spread the encounters across all playable lanes with a clear lane at each car's position.
+        if (track.mode !== "haruna") {
+          // City waves fill all three lanes in staggered order, never side-by-side.
           len = this.spawnShibuyaTrafficWave(x, t);
           break;
         }
@@ -3678,7 +3768,8 @@ class Engine {
         break;
       }
     }
-    const gap = lerp(10, 6, t) + rand(0, 3);
+    // Denser than the old 10–13 m opening gap, but keep a readable landing/reset window.
+    const gap = lerp(8.5, 5.5, t) + rand(0, 2.5);
     this.nextObstacleS = x + len + gap;
   }
 

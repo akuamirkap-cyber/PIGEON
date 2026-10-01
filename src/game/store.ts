@@ -5,6 +5,7 @@ import { TRICKS, type TrickKind } from "./tricks";
 export type Phase = "menu" | "playing" | "crashed" | "gameover";
 export type TurnMode = "old" | "new";
 export type TrackMode = "tokyo" | "haruna" | "shibuya";
+export type CameraMode = "chase" | "crossy";
 export type MenuView = "main" | "skins" | "tricks" | "exit" | "bye";
 /** Warna ban skateboard: default HITAM, bisa diganti merah/hijau/kuning/biru (atau ikut warna skin). */
 export type WheelColor = "auto" | "black" | "red" | "green" | "yellow" | "blue";
@@ -56,9 +57,12 @@ interface UIState {
   /** "old" = smooth slide between lanes with cosmetic lean; "new" = real wheel steering (heading drives the lateral motion) */
   turnMode: TurnMode;
   setTurnMode: (m: TurnMode) => void;
-  /** "tokyo" = city streets & parks; "haruna" = Mount Haruna (Gunma Touge) downhill & hairpins; "shibuya" = neon night city (Shibuya scramble) */
+  /** "tokyo" = city streets & parks; "haruna" = Mount Haruna (Gunma Touge) downhill & hairpins; "shibuya" = Shibuya scramble city */
   trackMode: TrackMode;
   setTrackMode: (m: TrackMode) => void;
+  /** Crossy Road = elevated, readable follow camera; chase = original low action camera. */
+  cameraMode: CameraMode;
+  setCameraMode: (m: CameraMode) => void;
   /** cuaca mode siang: cerah / berawan indah */
   weather: "sunny" | "cloudy";
   toggleWeather: () => void;
@@ -173,9 +177,17 @@ export const useUI = create<UIState>((set, get) => ({
     set({ turnMode });
   },
   trackMode: (() => {
-    const m = load<string>("pigeon-sk8-trackmode", "haruna");
-    return (m === "tokyo" || m === "shibuya" ? m : "haruna") as TrackMode;
+    const m = load<string>("pigeon-sk8-trackmode", "shibuya");
+    return (m === "haruna" || m === "tokyo" ? m : "shibuya") as TrackMode;
   })(),
+  cameraMode: (() => {
+    const m = load<string>("pigeon-sk8-camera", "crossy");
+    return m === "chase" ? "chase" : "crossy";
+  })(),
+  setCameraMode: (cameraMode) => {
+    save("pigeon-sk8-camera", cameraMode);
+    set({ cameraMode });
+  },
   weather: load<"sunny" | "cloudy">("pigeon-sk8-weather", "sunny") === "cloudy" ? "cloudy" : "sunny",
   toggleWeather: () => {
     const weather = get().weather === "sunny" ? "cloudy" : "sunny";
@@ -192,8 +204,8 @@ export const useUI = create<UIState>((set, get) => ({
     set({ nightBright });
   },
   shibuyaTime: ((): "pagi" | "siang" | "sore" | "malam" => {
-    const v = load<string>("pigeon-sk8-shibuyatime", "malam");
-    return v === "pagi" || v === "siang" || v === "sore" ? v : "malam";
+    const v = load<string>("pigeon-sk8-shibuyatime", "siang");
+    return v === "pagi" || v === "sore" || v === "malam" ? v : "siang";
   })(),
   cycleShibuyaTime: () => {
     const order = ["pagi", "siang", "sore", "malam"] as const;

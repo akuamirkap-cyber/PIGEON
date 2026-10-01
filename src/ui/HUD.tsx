@@ -1,8 +1,8 @@
 import { useUI } from "../game/store";
 import { BreadIcon } from "./BreadIcon";
-import { engine } from "../game/engine";
+import { engine, NOS_MAX } from "../game/engine";
 import { TRICKS } from "../game/tricks";
-import { unlockAudio } from "../game/audio";
+import { sfx, unlockAudio } from "../game/audio";
 
 function SpeakerIcon({ muted }: { muted: boolean }) {
   return (
@@ -23,6 +23,36 @@ function SpeakerIcon({ muted }: { muted: boolean }) {
   );
 }
 
+function SunIcon({ night, cloudy }: { night: boolean; cloudy: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {night ? (
+        <path d="M20.2 15.6A8 8 0 0 1 8.4 3.8a8.4 8.4 0 1 0 11.8 11.8Z" fill="currentColor" stroke="none" />
+      ) : cloudy ? (
+        <>
+          <circle cx="16.8" cy="7.2" r="3.1" />
+          <path d="M6.1 18h11.7a3 3 0 0 0 .2-6 5.2 5.2 0 0 0-9.8-1.3A3.7 3.7 0 0 0 6.1 18Z" fill="currentColor" stroke="none" />
+        </>
+      ) : (
+        <>
+          <circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none" />
+          <path d="M12 1.8v2.4M12 19.8v2.4M4.8 4.8l1.7 1.7m11 11 1.7 1.7M1.8 12h2.4m15.6 0h2.4M4.8 19.2l1.7-1.7m11-11 1.7-1.7" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6.5h18v12H3zM7 6.5l1.3-2h7.4l1.3 2" />
+      <path d="m8 15 2.5-3 2 2 1.5-1.5 2 2.5" />
+      <circle cx="16.5" cy="9.7" r=".7" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function HUD() {
   const phase = useUI((s) => s.phase);
   const score = useUI((s) => s.score);
@@ -38,13 +68,25 @@ export function HUD() {
   const speedMode = useUI((s) => s.speedMode);
   const trackMode = useUI((s) => s.trackMode);
   const shibuyaTime = useUI((s) => s.shibuyaTime);
+  const weather = useUI((s) => s.weather);
+  const toggleWeather = useUI((s) => s.toggleWeather);
+  const cycleShibuyaTime = useUI((s) => s.cycleShibuyaTime);
+  const cameraMode = useUI((s) => s.cameraMode);
+  const setCameraMode = useUI((s) => s.setCameraMode);
   const inRun = phase === "playing" || phase === "crashed";
   const enabled = TRICKS.filter((t) => tricksOn[t.kind]);
   const nextTrick = enabled.length ? enabled[cycleIndex % enabled.length] : null;
-  const nosReady = nos >= 100 && !nosActive;
+  const nosReady = nos >= NOS_MAX * 0.99 && !nosActive;
   const sprint = useUI((s) => s.sprint);
   const sprintLevel = useUI((s) => s.sprintLevel);
   const sprinting = sprint > 0.02 || sprintLevel > 0;
+  const lightingNight = trackMode === "shibuya" && shibuyaTime === "malam";
+  const lightingCloudy = trackMode !== "shibuya" && weather === "cloudy";
+  const lightingLabel = trackMode === "shibuya"
+    ? ({ pagi: "PAGI", siang: "SIANG", sore: "SORE", malam: "MALAM" } as const)[shibuyaTime]
+    : weather === "sunny"
+      ? "CERAH"
+      : "TEDUH";
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 select-none">
@@ -71,9 +113,53 @@ export function HUD() {
       >
         <SpeakerIcon muted={muted} />
       </button>
+      {/* Quick Crossy Road-style daylight and camera toggles remain available during a run. */}
+      {inRun && (
+        <div className="pointer-events-auto absolute right-[4%] top-[10.5%] flex flex-col items-end gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              unlockAudio();
+              if (trackMode === "shibuya") cycleShibuyaTime();
+              else toggleWeather();
+              sfx.click();
+            }}
+            aria-label={`Change lighting, currently ${lightingLabel}`}
+            title={`Pencahayaan: ${lightingLabel}`}
+            className={`flex h-[9cqw] min-h-[34px] items-center gap-1.5 rounded-full border border-white/25 px-2.5 font-display text-[2.5cqw] font-black tracking-wide shadow-lg backdrop-blur-sm transition active:scale-95 ${
+              lightingNight
+                ? "bg-[#39376d]/90 text-white"
+                : lightingCloudy
+                  ? "bg-[#64798d]/90 text-white"
+                  : "bg-[#ffd166]/95 text-[#48330c]"
+            }`}
+          >
+            <SunIcon night={lightingNight} cloudy={lightingCloudy} />
+            <span>{lightingLabel}</span>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              unlockAudio();
+              setCameraMode(cameraMode === "crossy" ? "chase" : "crossy");
+              sfx.click();
+            }}
+            aria-label={`Switch camera, currently ${cameraMode === "crossy" ? "Crossy Road" : "chase"}`}
+            title="Ganti mode kamera"
+            className={`flex h-[9cqw] min-h-[34px] items-center gap-1.5 rounded-full border border-white/25 px-2.5 font-display text-[2.5cqw] font-black tracking-wide text-white shadow-lg backdrop-blur-sm transition active:scale-95 ${
+              cameraMode === "crossy" ? "bg-[#2a9d8f]/90" : "bg-black/50"
+            }`}
+          >
+            <CameraIcon />
+            <span>{cameraMode === "crossy" ? "CROSSY" : "CHASE"}</span>
+          </button>
+        </div>
+      )}
       {/* speed mode badge */}
       {inRun && speedMode > 1 && (
-        <div className="absolute right-[4%] top-[10.5%] rounded-full bg-[#ff9f1c] px-2.5 py-1 font-display text-[3.2cqw] leading-none text-[#1f2430] shadow-[0_3px_0_#c9700a]">{speedMode}× SKATE</div>
+        <div className="absolute right-[4%] top-[23.5%] rounded-full bg-[#ff9f1c] px-2.5 py-1 font-display text-[3.2cqw] leading-none text-[#1f2430] shadow-[0_3px_0_#c9700a]">{speedMode}× SKATE</div>
       )}
       {/* track mode badge */}
       {inRun && (
@@ -106,7 +192,7 @@ export function HUD() {
             onPointerDown={(e) => {
               e.stopPropagation();
               unlockAudio();
-              engine.input("boost"); // Sprint kicks (+40, +50, +70)
+              engine.input("boost"); // Sprint kicks, or fire NOS when the meter is full
             }}
             className={`pointer-events-auto flex h-[15cqw] w-[15cqw] flex-col items-center justify-center rounded-full font-display leading-none shadow-[0_4px_0_rgba(0,0,0,0.25)] active:translate-y-[2px] active:shadow-none transition-all duration-150 ${
               nosReady
