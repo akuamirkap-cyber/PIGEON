@@ -19,9 +19,7 @@ export default defineConfig({
   server: {
     port: 3000,
     host: "0.0.0.0",
-    // Preview/dev host di sandbox (mis. *.e2b.app) harus diizinkan,
-    // kalau tidak Vite menolak request-nya dengan HTTP 403.
-    allowedHosts: [".e2b.app"],
+    allowedHosts: true,
     hmr: process.env.DISABLE_HMR !== "true",
     watch: process.env.DISABLE_HMR === "true" ? null : {},
   },
