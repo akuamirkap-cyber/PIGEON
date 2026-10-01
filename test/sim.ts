@@ -760,19 +760,22 @@ function scenarioSprint() {
   const late = window(2.5);
   log.push(
     `  peak speed x${(peakSpeed / base.avg).toFixed(2)} of baseline, peak kick rate ${(peakKicks / 0.75).toFixed(1)}/s vs ${(base.cycles / 3).toFixed(1)}/s baseline (${(peakKicks / 0.75 / Math.max(0.05, base.cycles / 3)).toFixed(1)}x), ` +
-      `fastest kick cycle ${(0.55 / 2.5).toFixed(2)}–${(0.95 / 2.5).toFixed(2)}s | faded: sprint=${engine.sprint.toFixed(2)} sprintT=${engine.sprintT.toFixed(2)} speed=${late.avg.toFixed(2)} (its own no-sprint target ${late.target.toFixed(2)}, deviation ${(Math.abs(late.avg / late.target - 1) * 100).toFixed(0)}%) kicks(2.5s)=${late.cycles} | slope check minG=${minG.toFixed(2)} | cooldown active=${engine.sprintCd > 0}`,
+      `fastest kick cycle ${(0.55 / 2.5).toFixed(2)}–${(0.95 / 2.5).toFixed(2)}s | faded: sprint=${engine.sprint.toFixed(2)} sprintTimer=${engine.sprintTimer.toFixed(2)} speed=${late.avg.toFixed(2)} (its own no-sprint target ${late.target.toFixed(2)}, deviation ${(Math.abs(late.avg / late.target - 1) * 100).toFixed(0)}%) kicks(2.5s)=${late.cycles} | slope check minG=${minG.toFixed(2)} | cooldown active=${engine.sprintTimer > 0}`,
   );
   // NOS ready: SHIFT must fire NOS, not the sprint
   engine.addNos(100);
-  const sprintBefore = engine.sprintT;
+  const sprintBefore = engine.sprintTimer;
   engine.input("boost");
-  log.push(`  NOS charged + SHIFT -> nosT=${engine.nosT.toFixed(2)} (NOS fired=${engine.nosT > 0}) sprintStarted=${engine.sprintT > sprintBefore}`);
+  log.push(`  NOS charged + SHIFT -> nosT=${engine.nosT.toFixed(2)} (NOS fired=${engine.nosT > 0}) sprintStarted=${engine.sprintTimer > sprintBefore}`);
   (engine as unknown as { crash: (c: string) => void }).crash("obstacle");
   step(150);
 }
 
 trackReport();
 descentReport();
+// Crossing scenarios require a city route; Haruna deliberately has no railway crossings.
+useUI.getState().setTrackMode("tokyo");
+engine.setTrackMode("tokyo");
 withMode("old", () => {
   scenarioSprint();
   scenarioLeanDirection();

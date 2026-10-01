@@ -79,7 +79,7 @@ function CyclePill({
   );
 }
 
-/** Track mode selector: Mountain Haruna (Gunma Touge) vs Tokyo City. */
+/** Track mode selector: Mount Haruna, Tokyo City, and Shibuya Scramble. */
 function TrackModeRow() {
   const trackMode = useUI((s) => s.trackMode);
   const setTrackMode = useUI((s) => s.setTrackMode);
@@ -95,7 +95,7 @@ function TrackModeRow() {
       addPopup("TRACK: MT. HARUNA", "#ff9f1c", "Gunma Touge Downhill & Hairpins");
     } else if (mode === "shibuya") {
       sfx.click();
-      addPopup("TRACK: SHIBUYA NIGHT", "#c77dff", "Neon Scramble City Lights");
+      addPopup("TRACK: SHIBUYA SCRAMBLE", "#c77dff", "Daylight, neon, and busy crosswalks");
     } else {
       sfx.click();
       addPopup("TRACK: TOKYO CITY", "#2ec4b6", "City Streets & Crossings");
@@ -122,21 +122,22 @@ function TrackModeRow() {
     <div className="flex w-full items-center gap-1 rounded-2xl bg-[#1f2430]/25 p-1 backdrop-blur-[3px]">
       {cell("haruna", "HARUNA", "GUNMA", "bg-[#ffc46b]", "#c9700a")}
       {cell("tokyo", "TOKYO", "CITY", "bg-[#7ce0d4]", "#1f9a8f")}
-      {cell("shibuya", "SHIBUYA", "NIGHT", "bg-[#d5a8ff]", "#8b3fd6")}
+      {cell("shibuya", "SHIBUYA", "CITY", "bg-[#d5a8ff]", "#8b3fd6")}
     </div>
   );
 }
 
 /**
  * Setelan cepat dalam grid rapi (mobile friendly):
- * SPEED (normal/2×/3×), CURVE (subway/flat), BOARD (pro/roti),
- * TURN (steer/slide), BAN (warna roda), plus tombol "?" untuk tips kontrol.
+ * SPEED, CURVE, BOARD, weather/light/time, Crossy Road camera, TURN, and wheel-color controls.
  */
 function SettingsRow() {
   const speed = useUI((s) => s.speedMode);
   const setSpeed = useUI((s) => s.setSpeedMode);
   const turn = useUI((s) => s.turnMode);
   const setTurn = useUI((s) => s.setTurnMode);
+  const cameraMode = useUI((s) => s.cameraMode);
+  const setCameraMode = useUI((s) => s.setCameraMode);
   const deck = useUI((s) => s.deckOverride);
   const setDeck = useUI((s) => s.setDeckOverride);
   const curve = useUI((s) => s.worldCurve);
@@ -227,6 +228,7 @@ function SettingsRow() {
         />
       </div>
       <div className="flex w-full gap-1.5">
+        <CyclePill label="KAMERA" value={cameraMode === "crossy" ? "CROSSY" : "CHASE"} accent={cameraMode === "crossy" ? "#168879" : undefined} onTap={() => setCameraMode(cameraMode === "crossy" ? "chase" : "crossy")} />
         <CyclePill label="TURN" value={turn === "new" ? "STEER" : "SLIDE"} onTap={() => setTurn(turn === "new" ? "old" : "new")} />
         <CyclePill label="BAN" value={wheelLabel} dot={wheelDot} onTap={cycleWheel} />
         <button

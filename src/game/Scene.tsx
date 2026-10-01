@@ -34,6 +34,9 @@ interface Framing {
 }
 const PLAY: Framing = { back: 8.4, up: 5.0, lookAhead: 13, lookUp: 0.38, fov: 60, latFollow: 0.55, orbit: 0, roll: 0, curveDown: 0.0018, curveSide: 0, hazeNear: 78, hazeFar: 160 };
 const NOS_F: Framing = { back: 7.6, up: 4.6, lookAhead: 15, lookUp: 0.32, fov: 70, latFollow: 0.55, orbit: 0, roll: 0, curveDown: 0.0022, curveSide: 0, hazeNear: 78, hazeFar: 160 };
+// Crossy Road-inspired elevated chase: more of the lanes and upcoming crossings stay visible.
+const CROSSY: Framing = { back: 8.2, up: 9.2, lookAhead: 6.0, lookUp: 0.45, fov: 48, latFollow: 0.38, orbit: 0, roll: 0, curveDown: 0.0008, curveSide: 0, hazeNear: 86, hazeFar: 172 };
+const CROSSY_NOS: Framing = { ...CROSSY, back: 9.0, up: 9.6, fov: 51 };
 // Subway Surfers signature pre-game action angle: Low-Angle Dutch Hero Shot (sudut rendah miring dinamis)
 const MENU: Framing = { back: 3.3, up: 0.86, lookAhead: 0.12, lookUp: 0.95, fov: 54, latFollow: 1, orbit: -0.78, roll: -0.095, curveDown: 0.0008, curveSide: 0.0003, hazeNear: 90, hazeFar: 175 };
 const SKINS: Framing = { back: 7.6, up: 1.8, lookAhead: 0.15, lookUp: -0.5, fov: 42, latFollow: 1, orbit: -0.55, roll: 0, curveDown: 0.0, curveSide: 0, hazeNear: 90, hazeFar: 180 };
@@ -61,9 +64,25 @@ function CameraRig() {
     const cam = camera as THREE.PerspectiveCamera;
     const step = Math.min(dt, 0.05);
     const phase = engine.phase;
-    const view = useUI.getState().menuView;
+    const ui = useUI.getState();
+    const view = ui.menuView;
+    const crossy = ui.cameraMode === "crossy";
     const des =
-      phase === "menu" ? (view === "skins" ? SKINS : view === "tricks" ? TRICKS_F : MENU) : phase === "playing" ? (engine.nosT > 0 ? NOS_F : PLAY) : CRASH;
+      phase === "menu"
+        ? view === "skins"
+          ? SKINS
+          : view === "tricks"
+            ? TRICKS_F
+            : MENU
+        : phase === "playing"
+          ? crossy
+            ? engine.nosT > 0
+              ? CROSSY_NOS
+              : CROSSY
+            : engine.nosT > 0
+              ? NOS_F
+              : PLAY
+          : CRASH;
     // Faster action sweep during crash or intro
     const k = 1 - Math.exp(-step * (phase === "menu" ? 4.5 : engine.runTime < 1.0 ? 5.2 : phase === "crashed" || phase === "gameover" ? 6.5 : 3.2));
     const c = cur.current;
@@ -223,7 +242,7 @@ function Lights() {
         ? { hemi: ["#fff0dd", "#8a90b8", 1.55] as const, amb: [0.3, "#ffe9d0"] as const, dir: [1.9, "#fff0d8"] as const }
         : mode === "shibuya" && tod === "sore"
           ? { hemi: ["#ffd9b0", "#6a7095", 1.35] as const, amb: [0.34, "#ffd3ae"] as const, dir: [1.75, "#ffc088"] as const }
-          : { hemi: ["#ffffff", "#b0c4d8", 1.7] as const, amb: [0.2, "#ffffff"] as const, dir: [2.1, "#ffffff"] as const };
+          : { hemi: ["#f4fbff", "#a8c0d6", 1.88] as const, amb: [0.27, "#fff8e9"] as const, dir: [2.3, "#fff3d8"] as const };
   const target = useMemo(() => new THREE.Object3D(), []);
   useEffect(() => {
     const l = light.current;
@@ -314,7 +333,7 @@ function NightBloomGate() {
 }
 
 /** Sky dome + distant haze so the curved horizon fades nicely. */
-const SKY_DAY = { top: "#2f86dc", mid: "#cbe6f8", bot: "#e2f1fb" };
+const SKY_DAY = { top: "#2189e3", mid: "#c9ebff", bot: "#f0f9ff" };
 // Shibuya Night: deep indigo zenith melting into a violet-magenta city glow at the horizon
 const SKY_NIGHT = { top: "#0a0e2c", mid: "#5b3a92", bot: "#2c2456" };
 // Siang berawan yang lembut: zenith abu kebiruan turun ke horizon putih keperakan

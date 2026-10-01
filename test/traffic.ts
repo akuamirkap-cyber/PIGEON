@@ -22,6 +22,10 @@ import {
   LANE_LAT,
 } from "../src/game/engine";
 import { crossingCarParts, CROSS_STREET_LEN } from "../src/game/models";
+import { useUI } from "../src/game/store";
+
+useUI.getState().setTrackMode("tokyo");
+engine.setTrackMode("tokyo");
 
 const DT = 1 / 60;
 let pass = 0;
@@ -51,6 +55,13 @@ function quiet() {
   engine.intersections = [];
   engine.crossCars = [];
   engine.particles = [];
+}
+
+// Keep cross-street car tests isolated from the pedestrian wave addIntersection now creates.
+function addTestIntersection(s: number) {
+  const inter = e.addIntersection(s);
+  engine.movers = [];
+  return inter;
 }
 
 /* =========== 1. Arah hadap kendaraan dari arah depan (cek source World.tsx) =========== */
@@ -101,7 +112,7 @@ check("samping kendaraan sejajar jalan (tidak miring/melintang)", Math.abs(lat.d
 log.push("=== Jalur penyeberang di perempatan (jalur kiri + roda menapak) ===");
 engine.startRun();
 quiet();
-const inter = e.addIntersection(engine.distance + 60);
+const inter = addTestIntersection(engine.distance + 60);
 e.spawnCrossCar(inter.id, inter.s + CROSS_LANE_OFFSET, -25, 1, 9);
 e.spawnCrossCar(inter.id, inter.s - CROSS_LANE_OFFSET, 25, -1, 9);
 const [ccA, ccB] = engine.crossCars;
@@ -135,7 +146,7 @@ check("World.tsx memakai helper crossCarH (view & fisika sama)", /crossCarH\(cc\
 log.push("=== Kendaraan tidak saling tembus di perempatan ===");
 engine.startRun();
 quiet();
-const inter2 = e.addIntersection(engine.distance + 60);
+const inter2 = addTestIntersection(engine.distance + 60);
 e.spawnCrossCar(inter2.id, inter2.s + CROSS_LANE_OFFSET, -9, 1, 9);
 const ccObj = engine.crossCars[engine.crossCars.length - 1];
 // mobil jalan utama sedang melintas di perempatan
@@ -154,7 +165,7 @@ check("penyeberang jalan lagi setelah jalan utama bebas", ccObj.lat > latBefore 
 // pemain TIDAK menghalangi penyeberang (biar bahaya T-bone tetap ada)
 engine.startRun();
 quiet();
-const inter3 = e.addIntersection(engine.distance + 30);
+const inter3 = addTestIntersection(engine.distance + 30);
 e.spawnCrossCar(inter3.id, inter3.s + CROSS_LANE_OFFSET, -12, 1, 9);
 const cc3 = engine.crossCars[0];
 engine.player.lat = LANE_LAT[2];
@@ -164,7 +175,7 @@ check("pemain di jalur lintas TIDAK membuat penyeberang berhenti", cc3.lat > lat
 // pemain di sisi KAP MESIN (hood) tanpa lompat = nabrak; dari sisi kabin = cross_traffic
 engine.startRun();
 quiet();
-const inter6 = e.addIntersection(engine.distance + 60);
+const inter6 = addTestIntersection(engine.distance + 60);
 e.spawnCrossCar(inter6.id, inter6.s + CROSS_LANE_OFFSET, -9, 1, 9);
 const ccHood = engine.crossCars[0];
 ccHood.s = engine.distance;
@@ -175,7 +186,7 @@ step(1);
 check("nabrak kap mesin penyeberang = tumbang (sebab 'car')", engine.phase !== "playing" && engine.crashCause === "car", `cause=${engine.crashCause}`);
 engine.startRun();
 quiet();
-const inter7 = e.addIntersection(engine.distance + 60);
+const inter7 = addTestIntersection(engine.distance + 60);
 e.spawnCrossCar(inter7.id, inter7.s + CROSS_LANE_OFFSET, -9, 1, 9);
 const ccCabin = engine.crossCars[0];
 ccCabin.s = engine.distance;
@@ -189,7 +200,7 @@ check("kena kabin/atap penyeberang = tumbang (sebab 'cross_traffic')", engine.ph
 // dua mobil sejalur tidak boleh muncul bertumpuk
 engine.startRun();
 quiet();
-const interSp = e.addIntersection(engine.distance + 60);
+const interSp = addTestIntersection(engine.distance + 60);
 e.spawnCrossCar(interSp.id, interSp.s + CROSS_LANE_OFFSET, -CROSS_SPAWN_LAT, 1, 9);
 const n1 = engine.crossCars.length;
 e.spawnCrossCar(interSp.id, interSp.s + CROSS_LANE_OFFSET, -(CROSS_SPAWN_LAT - 6), 1, 9);
@@ -200,7 +211,7 @@ check("mobil sejalur boleh muncul kalau jaraknya sudah cukup", engine.crossCars.
 // motor dari arah depan juga bikin penyeberang menunggu (jalur lintas hormat)
 engine.startRun();
 quiet();
-const inter4 = e.addIntersection(engine.distance + 60);
+const inter4 = addTestIntersection(engine.distance + 60);
 e.spawnCrossCar(inter4.id, inter4.s + CROSS_LANE_OFFSET, -9, 1, 9);
 const cc5 = engine.crossCars[0];
 e.spawnMotorcycle(inter4.s, 1, 4);
@@ -213,7 +224,7 @@ check("penyeberang mengerem halus (tidak berhenti mendadak)", (cc5.speedK ?? 1) 
 // kendaraan yang SUDAH di tengah perempatan tidak berhenti mendadak (tidak macet di tengah)
 engine.startRun();
 quiet();
-const inter5 = e.addIntersection(engine.distance + 60);
+const inter5 = addTestIntersection(engine.distance + 60);
 e.spawnCrossCar(inter5.id, inter5.s + CROSS_LANE_OFFSET, -4.0, 1, 9);
 const cc6 = engine.crossCars[0];
 e.spawnMotorcycle(inter5.s, 1, 4);

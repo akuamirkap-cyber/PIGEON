@@ -97,7 +97,7 @@ import {
   catWalkParts,
   catRagdollFlyingParts,
 } from "./models";
-import { useUI } from "./store";
+import { useUI, type TrackMode } from "./store";
 import { getRayTexture } from "./rays";
 import {
   engine,
@@ -1718,7 +1718,7 @@ function Particles() {
 
 /* ---------- World root ---------- */
 
-/* ---------- Shibuya ambient sidewalk crowd: orang berseliweran, murni visual (tanpa tabrakan) ---------- */
+/* ---------- Urban ambient sidewalk crowd: visual-only walkers for Tokyo and Shibuya ---------- */
 interface Walker {
   s: number;
   lat: number;
@@ -1729,21 +1729,24 @@ interface Walker {
   seeded: boolean;
 }
 
-const CROWD_N = 72;
+const URBAN_CROWD_N = 84;
 const CROWD_KINDS: ("adult" | "suit" | "kid" | "elder")[] = ["adult", "suit", "kid", "adult", "elder", "suit", "adult", "kid", "suit", "adult", "suit", "kid"];
 
-/** Pilih posisi trotoar. Arus dipisah per arah (kebiasaan Jepang: jalur kiri),
- *  jadi orang berpapasan di band berbeda dan tidak saling menembus. */
-function crowdLat(side: 1 | -1, dir: 1 | -1): number {
-  // Each sidewalk has two opposing flow lanes, both clear of vending machines, bikes, and tree trunks.
-  const jitter = (Math.random() - 0.5) * (side < 0 ? 0.2 : 0.12);
-  if (side < 0) return (dir > 0 ? -5.72 : -6.45) + jitter;
-  return (dir > 0 ? 14.38 : 15.08) + jitter;
+/** Pilih posisi trotoar. Tiap sisi punya dua arus berlawanan agar pejalan saling berpapasan, bukan berbaris searah. */
+function crowdLat(mode: TrackMode, side: 1 | -1, dir: 1 | -1): number {
+  const jitter = (Math.random() - 0.5) * 0.16;
+  if (mode === "shibuya") {
+    if (side < 0) return (dir > 0 ? -5.72 : -6.45) + jitter;
+    return (dir > 0 ? 14.38 : 15.08) + jitter;
+  }
+  // Tokyo City sidewalk ribbons: near curb on the left, wider pedestrian strip on the right.
+  if (side < 0) return (dir > 0 ? -5.65 : -6.35) + jitter;
+  return (dir > 0 ? 4.45 : 5.78) + jitter;
 }
 
 type WalkerKind = "adult" | "elder" | "suit" | "kid";
 
-const AmbientWalker = memo(function AmbientWalker({ w, all, variant, kind }: { w: Walker; all: Walker[]; variant: number; kind: WalkerKind }) {
+const AmbientWalker = memo(function AmbientWalker({ w, all, variant, kind, trackMode }: { w: Walker; all: Walker[]; variant: number; kind: WalkerKind; trackMode: TrackMode }) {
   const elderly = kind === "elder";
   const kid = kind === "kid";
   const suit = kind === "suit";
@@ -1778,7 +1781,7 @@ const AmbientWalker = memo(function AmbientWalker({ w, all, variant, kind }: { w
     if (!w.seeded) {
       w.seeded = true;
       w.s = dist - 16 + Math.random() * 112;
-      w.lat = crowdLat(w.side, w.dir);
+      w.lat = crowdLat(trackMode, w.side, w.dir);
     }
     // JAGA JARAK: jangan menembus orang di depan pada jalur dan arah yang sama.
     let v = w.speed;
@@ -1846,13 +1849,12 @@ const AmbientWalker = memo(function AmbientWalker({ w, all, variant, kind }: { w
   );
 });
 
-/** Kerumunan Shibuya: banyak orang lalu-lalang di trotoar samping gedung — hidup tapi tidak
- *  mengganggu gameplay (tidak ada collision; penyeberang jalan tetap sistem mover biasa). */
-function ShibuyaCrowd() {
+/** Kerumunan urban: trotoar Tokyo dan Shibuya selalu ramai, tanpa collision gameplay. */
+function UrbanCrowd() {
   const trackMode = useUI((s) => s.trackMode);
   const walkers = useMemo<Walker[]>(
     () =>
-      Array.from({ length: CROWD_N }, (_, i) => {
+      Array.from({ length: URBAN_CROWD_N }, (_, i) => {
         const kind = CROWD_KINDS[i % CROWD_KINDS.length];
         const elderly = kind === "elder";
         const kid = kind === "kid";
@@ -1872,13 +1874,13 @@ function ShibuyaCrowd() {
     // ganti track/reset -> sebar ulang di depan kamera
     for (const w of walkers) w.seeded = false;
   }, [trackMode, walkers]);
-  if (trackMode !== "shibuya") return null;
+  if (trackMode === "haruna") return null;
   return (
     <>
       {walkers.map((w, i) => {
-        // campuran kerumunan: 4 salaryman berjas, 3 anak sekolah, 1 lansia, 4 kasual per 12 orang
+        // Mix salarymen, children, elders, and casual walkers on both city sidewalks.
         const kind = CROWD_KINDS[i % CROWD_KINDS.length];
-        return <AmbientWalker key={i} w={w} all={walkers} variant={kind === "suit" ? 5 + (i % 3) : i % 5} kind={kind} />;
+        return <AmbientWalker key={i} w={w} all={walkers} variant={kind === "suit" ? 5 + (i % 3) : i % 5} kind={kind} trackMode={trackMode} />;
       })}
     </>
   );
@@ -1916,7 +1918,7 @@ export function World() {
       <OverpassCars />
       <ShibuyaTraffic />
       <Movers />
-      <ShibuyaCrowd />
+      <UrbanCrowd />
       <Breads />
       <BreadFx />
       <Particles />
